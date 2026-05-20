@@ -15,4 +15,4 @@ Connect assets by updating data/discover-look-previews.json:
   "tags": ["night out", "date", "jewelry"]
 }
 
-When previewImageStatus is not "ready", Discover falls back to a clean editorial product layout using only products with usable images.
+When previewImageStatus is not "ready", Discover falls back to a clean editorial product layout using only products with usable images. Testing BertOS workspace save system.
