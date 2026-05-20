@@ -36,6 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (mod && e.key === '1') { e.preventDefault(); setActiveView('chat'); router.push('/chat') }
       if (mod && e.key === '2') { e.preventDefault(); setActiveView('compare'); router.push('/compare') }
       if (mod && e.key === '3') { e.preventDefault(); setActiveView('workspace'); router.push('/workspace') }
+      if (mod && e.key === '4') { e.preventDefault(); setActiveView('evolution'); router.push('/evolution') }
       if (mod && e.key === '?') { e.preventDefault(); setShortcutsOpen(true) }
     }
     window.addEventListener('keydown', handler)

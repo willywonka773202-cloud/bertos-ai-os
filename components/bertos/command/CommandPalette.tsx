@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
-  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard
+  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -26,7 +26,7 @@ export function CommandPalette() {
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'agents' | 'memory' | 'settings', href: string) => {
+  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings', href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
@@ -67,6 +67,15 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['code', 'workspace', 'repo', 'git'],
       action: () => navigate('workspace', '/workspace'),
+    },
+    {
+      id: 'open-evolution',
+      label: 'Evolution Lab',
+      description: 'Scan BertOS and generate approval-gated improvements',
+      icon: <FlaskConical className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['evolution', 'improve', 'scan', 'backlog', 'self improve'],
+      action: () => navigate('evolution', '/evolution'),
     },
     {
       id: 'open-agents',

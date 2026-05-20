@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  MessageSquare, GitCompare, Code2, Bot, Brain, Settings,
+  MessageSquare, GitCompare, Code2, Bot, Brain, Settings, FlaskConical,
   Plus, ChevronLeft, ChevronRight, Hash, Zap, Command, Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { id: 'chat',      icon: MessageSquare, label: 'Chat',      href: '/chat'      },
   { id: 'compare',   icon: GitCompare,    label: 'Compare',   href: '/compare'   },
   { id: 'workspace', icon: Code2,         label: 'Workspace', href: '/workspace' },
+  { id: 'evolution', icon: FlaskConical,  label: 'Evolution', href: '/evolution' },
   { id: 'agents',    icon: Bot,           label: 'Agents',    href: '/agents'    },
   { id: 'memory',    icon: Brain,         label: 'Memory',    href: '/memory'    },
 ] as const
