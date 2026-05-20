@@ -1,5 +1,3 @@
-import { getBertOSDeploymentMode } from './runtime'
-
 export type LocalCliProvider = 'claude-code' | 'codex-cli' | 'gemini-cli'
 
 export interface LocalCliToolStatus {
@@ -7,6 +5,8 @@ export interface LocalCliToolStatus {
   label: string
   executable: 'claude' | 'codex' | 'gemini'
   installed: boolean
+  resolvedPath?: string
+  candidates?: string[]
   version?: string
   loginStatus: 'available' | 'missing' | 'error' | 'unknown'
   error?: string
@@ -20,14 +20,26 @@ export interface LocalDaemonStatus {
   uptimeMs?: number
   tools: LocalCliToolStatus[]
   logsCount?: number
+  repo?: LocalRepoStatus
   error?: string
   startCommand: string
+}
+
+export interface LocalRepoStatus {
+  root: string
+  daemonCwd: string
+  branch: string
+  remote: string
+  status: string
+  safeRepo: boolean
+  blockedReason?: string
 }
 
 export interface LocalDaemonAskResult {
   ok: boolean
   providerId: LocalCliProvider
   executable: string
+  resolvedPath?: string
   args: string[]
   stdout: string
   stderr: string
@@ -61,7 +73,7 @@ export function getLocalDaemonBaseUrl(): string {
 }
 
 export function isLocalDaemonAvailableFromServer(): boolean {
-  return getBertOSDeploymentMode() === 'local'
+  return !process.env.VERCEL
 }
 
 export function unavailableLocalDaemonStatus(reason?: string): LocalDaemonStatus {
@@ -84,7 +96,7 @@ export function unavailableLocalDaemonStatus(reason?: string): LocalDaemonStatus
 
 export async function fetchLocalDaemonStatus(timeoutMs = 2500): Promise<LocalDaemonStatus> {
   if (!isLocalDaemonAvailableFromServer()) {
-    return unavailableLocalDaemonStatus('Local CLI bridge is only available in local development. Vercel cannot reach your Windows localhost daemon.')
+    return unavailableLocalDaemonStatus('Local CLI bridge is unavailable on Vercel. Start the app locally to reach your Windows daemon.')
   }
 
   const controller = new AbortController()
@@ -146,4 +158,41 @@ export async function askLocalDaemon(
   } finally {
     clearTimeout(timeout)
   }
+}
+
+export async function fetchLocalRepoStatus(timeoutMs = 2500): Promise<LocalRepoStatus | null> {
+  if (!isLocalDaemonAvailableFromServer()) return null
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${getLocalDaemonBaseUrl()}/repo/status`, {
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!res.ok) return null
+    return await res.json() as LocalRepoStatus
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export async function runLocalDaemonCommand(
+  executable: string,
+  args: string[] = [],
+  options: { cwd?: string; timeoutMs?: number } = {},
+) {
+  if (!isLocalDaemonAvailableFromServer()) {
+    throw new Error('Local CLI bridge is only available in local development.')
+  }
+  const res = await fetch(`${getLocalDaemonBaseUrl()}/run-cli`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ executable, args, cwd: options.cwd, timeoutMs: options.timeoutMs }),
+    cache: 'no-store',
+  })
+  const data = await res.json()
+  if (!res.ok || !data.ok) throw new Error(data.error || `Command failed with HTTP ${res.status}.`)
+  return data
 }

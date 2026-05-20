@@ -109,6 +109,12 @@ Start it from the repo root:
 npm run bertos:daemon
 ```
 
+The command should stay running until you press `Ctrl+C`. If it immediately returns to PowerShell, check whether another process is already using port `8787`:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8787 -State Listen
+```
+
 Defaults:
 
 ```text
@@ -155,7 +161,16 @@ In another terminal:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8787/status
+Invoke-RestMethod http://127.0.0.1:8787/tools
+Invoke-RestMethod http://127.0.0.1:8787/repo/status
 ```
+
+Expected status includes:
+
+- `online: true`
+- resolved `.cmd` paths for Claude, Codex, and Gemini on Windows
+- `repo.safeRepo: true`
+- `remote: https://github.com/willywonka773202-cloud/bertos-ai-os.git`
 
 ## Safe Command Wrapper
 

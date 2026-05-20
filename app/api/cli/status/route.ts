@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
-import { CLI_COMMANDS } from '@/lib/bertos/providers'
+import { fetchLocalDaemonStatus } from '@/lib/bertos/local-daemon'
+import { getOllamaConfig } from '@/lib/bertos/runtime'
 
 export const runtime = 'nodejs'
-
-const execFileAsync = promisify(execFile)
-
-async function checkCLI(command: string): Promise<{ available: boolean; version?: string }> {
-  try {
-    const { stdout } = await execFileAsync(command, ['--version'], { timeout: 3000 })
-    return { available: true, version: stdout.trim().split('\n')[0] }
-  } catch {
-    return { available: false }
-  }
-}
 
 function requireCliSecret(req: NextRequest): string | null {
   const configured = process.env.BERTOS_AGENT_SECRET?.trim()
@@ -29,20 +17,27 @@ export async function GET(req: NextRequest) {
   const authError = requireCliSecret(req)
   if (authError) return NextResponse.json({ ok: false, error: authError }, { status: 401 })
 
-  const results = await Promise.allSettled([
-    checkCLI(CLI_COMMANDS['claude-code'] ?? 'claude'),
-    checkCLI(CLI_COMMANDS['gemini-cli']  ?? 'gemini'),
-    checkCLI(CLI_COMMANDS['codex-cli']   ?? 'codex'),
-  ])
-
-  const [claude, gemini, codex] = results.map(r =>
-    r.status === 'fulfilled' ? r.value : { available: false }
-  )
+  const daemon = await fetchLocalDaemonStatus()
+  const ollama = getOllamaConfig()
 
   return NextResponse.json({
     ok: true,
-    'claude-code': claude,
-    'gemini-cli':  gemini,
-    'codex-cli':   codex,
-  })
+    api: {
+      reachable: true,
+      deploymentMode: ollama.mode,
+      ollamaProvider: ollama.providerName,
+    },
+    daemon,
+    repo: daemon.repo,
+    providers: {
+      'ollama-pro': {
+        available: ollama.requiresApiKey ? Boolean(ollama.apiKey) : true,
+        model: ollama.defaultModel,
+        mode: ollama.mode,
+      },
+      'claude-code': daemon.tools.find(tool => tool.id === 'claude-code') ?? { installed: false },
+      'codex-cli': daemon.tools.find(tool => tool.id === 'codex-cli') ?? { installed: false },
+      'gemini-cli': daemon.tools.find(tool => tool.id === 'gemini-cli') ?? { installed: false },
+    },
+  }, { headers: { 'Cache-Control': 'no-store' } })
 }

@@ -80,7 +80,11 @@ async function apiFetch(pathname, options = {}) {
 }
 
 async function status() {
+  const config = await readConfig()
+  console.log(`API URL: ${config.apiUrl || 'missing'}`)
+  console.log(`Auth configured: ${config.agentSecret ? 'yes' : 'no'}`)
   const data = await apiFetch('/api/cli/status')
+  console.log('Web API reachable: yes')
   console.log(JSON.stringify(data, null, 2))
 }
 
@@ -99,6 +103,9 @@ async function ask(message) {
       providerId: config.defaultProvider || 'ollama-pro',
     }),
   })
+  if (data.provider || data.model) {
+    console.log(`[${data.provider || 'BertOS'} ${data.model ? `- ${data.model}` : ''}]`)
+  }
   console.log(data.text || JSON.stringify(data, null, 2))
 }
 
@@ -124,6 +131,20 @@ async function doctor() {
   console.log(`API URL: ${config.apiUrl || 'missing'}`)
   console.log(`Agent secret: ${config.agentSecret ? 'set' : 'missing'}`)
   console.log(`Default provider: ${config.defaultProvider || 'ollama-pro'}`)
+  console.log('')
+  try {
+    const res = await fetch('http://127.0.0.1:8787/status')
+    const daemon = await res.json()
+    console.log(`Daemon reachable: ${daemon.online ? 'yes' : 'no'}`)
+    console.log(`Repo safe: ${daemon.repo?.safeRepo ? 'yes' : 'no'}`)
+    for (const tool of daemon.tools ?? []) {
+      console.log(`${tool.label}: ${tool.installed ? 'detected' : 'missing'} ${tool.version || tool.error || ''}`)
+    }
+  } catch (error) {
+    console.log(`Daemon reachable: no (${error instanceof Error ? error.message : 'fetch failed'})`)
+    console.log('Start it with: npm run bertos:daemon')
+  }
+  console.log('')
   try {
     await status()
   } catch (error) {

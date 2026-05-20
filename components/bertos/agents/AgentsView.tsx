@@ -47,23 +47,32 @@ function TaskCard({ task }: { task: AgentTask }) {
 
   const simulate = async () => {
     setStatus(task.id, 'running')
-    const steps = [
-      { msg: 'Initializing agent context...', progress: 10 },
-      { msg: 'Scanning codebase...', progress: 25 },
-      { msg: 'Analyzing patterns...', progress: 40 },
-      { msg: 'Generating improvements...', progress: 60 },
-      { msg: 'Validating changes...', progress: 80 },
-      { msg: 'Finalizing output...', progress: 95 },
-    ]
-    for (const step of steps) {
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 400))
-      addLog(task.id, { level: 'info', message: step.msg })
-      setProgress(task.id, step.progress)
+    setProgress(task.id, 15)
+    addLog(task.id, { level: 'info', message: 'Routing task to local CLI bridge...' })
+    try {
+      const providerId = task.model === 'auto' || task.model === 'ollama-pro' ? 'codex-cli' : task.model
+      const res = await fetch('/api/local-daemon/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId,
+          prompt: `${task.title}\n\n${task.description}\n\nReturn an implementation plan and the exact files you would inspect first. Do not claim edits were made.`,
+          timeoutMs: 180000,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Local CLI task failed.')
+      setProgress(task.id, 100)
+      setStatus(task.id, 'done')
+      addLog(task.id, { level: 'success', message: `${providerId} completed.` })
+      if (data.stdout) addLog(task.id, { level: 'info', message: data.stdout.slice(0, 1200) })
+    } catch (error) {
+      setStatus(task.id, 'failed')
+      addLog(task.id, {
+        level: 'error',
+        message: error instanceof Error ? error.message : 'Agent task failed. Start npm run bertos:daemon and retry.',
+      })
     }
-    await new Promise(r => setTimeout(r, 600))
-    setStatus(task.id, 'done')
-    setProgress(task.id, 100)
-    addLog(task.id, { level: 'success', message: 'Task completed successfully.' })
   }
 
   return (
@@ -246,9 +255,9 @@ export function AgentsView() {
                 className="px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs text-zinc-400 outline-none"
               >
                 <option value="auto">Auto</option>
-                <option value="claude">Claude</option>
-                <option value="codex">Codex</option>
-                <option value="gemini">Gemini</option>
+                <option value="claude-code">Claude Code</option>
+                <option value="codex-cli">Codex CLI</option>
+                <option value="gemini-cli">Gemini CLI</option>
               </select>
               <Button onClick={addCustom} disabled={!customTitle.trim()} size="sm">
                 <Plus className="w-3.5 h-3.5" /> Add Task

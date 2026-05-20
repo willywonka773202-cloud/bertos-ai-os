@@ -68,6 +68,10 @@ export function InputBar({ onSubmit, onStop, isStreaming, disabled }: InputBarPr
     adjustHeight()
   }, [value, adjustHeight])
 
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const v = e.target.value
     setValue(v)

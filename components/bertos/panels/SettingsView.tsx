@@ -44,6 +44,13 @@ interface LocalDaemonStatus {
   startCommand: string
 }
 
+interface ComposioStatus {
+  configured: boolean
+  reachable: boolean
+  baseUrl: string
+  error?: string
+}
+
 const SECTIONS = [
   { id: 'providers', icon: Bot,      label: 'Providers'   },
   { id: 'api-keys',  icon: Key,      label: 'API Keys'    },
@@ -99,6 +106,7 @@ export function SettingsView() {
   const [ollamaEndpoint, setOllamaEndpoint] = useState(settings.ollamaEndpoint ?? '')
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null)
   const [localDaemonStatus, setLocalDaemonStatus] = useState<LocalDaemonStatus | null>(null)
+  const [composioStatus, setComposioStatus] = useState<ComposioStatus | null>(null)
   const [ollamaLoading, setOllamaLoading] = useState(false)
   const [daemonLoading, setDaemonLoading] = useState(false)
   const [testingCloud, setTestingCloud] = useState(false)
@@ -135,10 +143,25 @@ export function SettingsView() {
     }
   }
 
+  const fetchComposioStatus = async () => {
+    try {
+      const res = await fetch('/api/tools/composio/status', { cache: 'no-store' })
+      setComposioStatus(await res.json() as ComposioStatus)
+    } catch {
+      setComposioStatus({
+        configured: false,
+        reachable: false,
+        baseUrl: 'https://backend.composio.dev/api/v1',
+        error: 'Could not check Composio status.',
+      })
+    }
+  }
+
   useEffect(() => {
     if (activeSection === 'providers') {
       fetchOllamaStatus()
       fetchLocalDaemonStatus()
+      fetchComposioStatus()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection])
@@ -468,6 +491,41 @@ export function SettingsView() {
                     />
                   </div>
                 ))}
+              </div>
+
+              {/* Tool integrations */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Tool Integrations</h4>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-zinc-200">Composio</p>
+                        <Badge
+                          variant={composioStatus?.reachable ? 'success' : composioStatus?.configured ? 'warning' : 'default'}
+                          className="text-[9px] h-4"
+                        >
+                          {composioStatus?.reachable ? 'Connected' : composioStatus?.configured ? 'Error' : 'Missing Key'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Server-side tool connector for app actions. Requires <code className="text-zinc-500">COMPOSIO_API_KEY</code>.
+                      </p>
+                      {composioStatus?.error && (
+                        <p className="text-[11px] text-amber-300/80 mt-1">{composioStatus.error}</p>
+                      )}
+                      <p className="text-[10px] text-zinc-700 mt-1 font-mono">{composioStatus?.baseUrl ?? 'https://backend.composio.dev/api/v1'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={fetchComposioStatus}
+                    className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Refresh Composio
+                  </button>
+                </div>
               </div>
 
               <Button onClick={saveSettings} className="w-full">

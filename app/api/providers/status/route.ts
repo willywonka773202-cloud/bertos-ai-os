@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { getOllamaConfig } from '@/lib/bertos/runtime'
 import { fetchLocalDaemonStatus } from '@/lib/bertos/local-daemon'
+import { getComposioStatus } from '@/lib/tools/composio'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
   const ollama = getOllamaConfig()
   const localDaemon = await fetchLocalDaemonStatus()
+  const composio = await getComposioStatus()
 
   return NextResponse.json({
     ollama: {
@@ -27,6 +29,7 @@ export async function GET() {
       openai: Boolean(process.env.OPENAI_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY),
     },
+    composio,
   }, {
     headers: { 'Cache-Control': 'no-store' },
   })

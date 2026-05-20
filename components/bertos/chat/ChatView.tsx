@@ -40,7 +40,7 @@ export function ChatView() {
   const {
     sessions, activeSessionId, isStreaming,
     createSession, addMessage, appendToMessage, updateMessage,
-    setStreaming, updateSessionTitle, getActiveSession,
+    setStreaming, updateSessionTitle, getActiveSession, setActiveSession,
   } = useChatStore()
   const { selectedModel, settings } = useUIStore()
   const { getActiveProject } = useProjectStore()
@@ -86,9 +86,11 @@ export function ChatView() {
       const s = createSession(selectedModel)
       sessionId = s.id
     }
+    setActiveSession(sessionId)
 
     addMessage(sessionId, { role: 'user', content })
-    if (messages.length === 0) {
+    const currentSession = useChatStore.getState().sessions.find(s => s.id === sessionId)
+    if (!currentSession || currentSession.messages.length === 0) {
       updateSessionTitle(sessionId, content.length > 50 ? content.slice(0, 50) + '…' : content)
     }
 
@@ -169,6 +171,8 @@ export function ChatView() {
               text?: string
               routerDecision?: RouterDecision
               error?: string
+              localCli?: { providerId: AIModel; executable: string; durationMs: number }
+              localCliFallback?: { requestedProvider: AIModel; fallbackProvider: AIModel; reason: string }
             }
 
             if (parsed.routerDecision) {
@@ -177,6 +181,20 @@ export function ChatView() {
             }
 
             if (parsed.error) throw new Error(parsed.error)
+            if (parsed.localCli) {
+              updateMessage(sessionId!, aiMsg.id, {
+                model: parsed.localCli.providerId,
+                metadata: { latency: parsed.localCli.durationMs },
+              })
+            }
+            if (parsed.localCliFallback) {
+              appendToMessage(
+                sessionId!,
+                aiMsg.id,
+                `> Local CLI bridge unavailable for ${parsed.localCliFallback.requestedProvider}. Falling back to ${parsed.localCliFallback.fallbackProvider}: ${parsed.localCliFallback.reason}\n\n`,
+              )
+              updateMessage(sessionId!, aiMsg.id, { model: parsed.localCliFallback.fallbackProvider })
+            }
 
             if (parsed.text) {
               if (!hasFirstChunk) {
@@ -261,9 +279,9 @@ export function ChatView() {
       setPendingDecision(null)
     }
   }, [
-    activeSessionId, selectedModel, messages.length, settings.apiKeys,
+    activeSessionId, selectedModel, settings.apiKeys,
     addMessage, appendToMessage, updateMessage, setStreaming,
-    createSession, updateSessionTitle, getActiveProject,
+    createSession, updateSessionTitle, getActiveProject, setActiveSession,
   ])
 
   const handleStop = useCallback(() => {
