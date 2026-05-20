@@ -184,7 +184,11 @@ export function ChatView() {
             if (parsed.localCli) {
               updateMessage(sessionId!, aiMsg.id, {
                 model: parsed.localCli.providerId,
-                metadata: { latency: parsed.localCli.durationMs },
+                metadata: {
+                  latency: parsed.localCli.durationMs,
+                  providerSource: 'daemon',
+                  modelOrTool: parsed.localCli.executable,
+                },
               })
             }
             if (parsed.localCliFallback) {
@@ -193,7 +197,13 @@ export function ChatView() {
                 aiMsg.id,
                 `> Local CLI bridge unavailable for ${parsed.localCliFallback.requestedProvider}. Falling back to ${parsed.localCliFallback.fallbackProvider}: ${parsed.localCliFallback.reason}\n\n`,
               )
-              updateMessage(sessionId!, aiMsg.id, { model: parsed.localCliFallback.fallbackProvider })
+              updateMessage(sessionId!, aiMsg.id, {
+                model: parsed.localCliFallback.fallbackProvider,
+                metadata: {
+                  providerSource: 'api',
+                  fallbackUsed: parsed.localCliFallback.fallbackProvider,
+                },
+              })
             }
 
             if (parsed.text) {

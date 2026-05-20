@@ -94,7 +94,7 @@ export function unavailableLocalDaemonStatus(reason?: string): LocalDaemonStatus
   }
 }
 
-export async function fetchLocalDaemonStatus(timeoutMs = 2500): Promise<LocalDaemonStatus> {
+export async function fetchLocalDaemonStatus(timeoutMs = 15000): Promise<LocalDaemonStatus> {
   if (!isLocalDaemonAvailableFromServer()) {
     return unavailableLocalDaemonStatus('Local CLI bridge is unavailable on Vercel. Start the app locally to reach your Windows daemon.')
   }
@@ -160,7 +160,7 @@ export async function askLocalDaemon(
   }
 }
 
-export async function fetchLocalRepoStatus(timeoutMs = 2500): Promise<LocalRepoStatus | null> {
+export async function fetchLocalRepoStatus(timeoutMs = 10000): Promise<LocalRepoStatus | null> {
   if (!isLocalDaemonAvailableFromServer()) return null
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)

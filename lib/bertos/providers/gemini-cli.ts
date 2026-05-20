@@ -26,6 +26,7 @@ export async function ask(prompt: string): Promise<ProviderAskResult> {
       modelOrTool: result.resolvedPath ?? result.executable,
       text: result.stdout,
       latencyMs: Date.now() - started,
+      source: 'daemon',
     }
   } catch (error) {
     return {
@@ -35,6 +36,7 @@ export async function ask(prompt: string): Promise<ProviderAskResult> {
       modelOrTool: 'gemini',
       text: '',
       latencyMs: Date.now() - started,
+      source: 'daemon',
       error: error instanceof Error ? error.message : 'Gemini CLI request failed.',
     }
   }

@@ -262,6 +262,15 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
             {message.metadata?.latency && (
               <span className="text-[10px] text-zinc-700">{message.metadata.latency}ms</span>
             )}
+            {message.metadata?.providerSource && (
+              <span className="text-[10px] text-zinc-700">source: {message.metadata.providerSource}</span>
+            )}
+            {message.metadata?.modelOrTool && (
+              <span className="text-[10px] text-zinc-700 truncate max-w-48">tool: {message.metadata.modelOrTool}</span>
+            )}
+            {message.metadata?.fallbackUsed && (
+              <span className="text-[10px] text-amber-500">fallback: {message.metadata.fallbackUsed}</span>
+            )}
           </div>
         )}
       </div>

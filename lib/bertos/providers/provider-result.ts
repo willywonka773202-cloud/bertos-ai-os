@@ -5,7 +5,15 @@ export interface ProviderAskResult {
   modelOrTool: string
   text: string
   latencyMs: number
+  source?: 'daemon' | 'api' | 'router'
   fallbackUsed?: string
+  fallbackChain?: string[]
+  attemptedProviders?: Array<{
+    providerId: string
+    available: boolean
+    source: 'daemon' | 'api'
+    error?: string
+  }>
   error?: string
 }
 

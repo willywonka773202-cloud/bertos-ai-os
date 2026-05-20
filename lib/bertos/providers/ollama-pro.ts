@@ -28,6 +28,7 @@ export async function ask(prompt: string, modelAlias = 'ollama-pro'): Promise<Pr
       modelOrTool: model,
       text: '',
       latencyMs: Date.now() - started,
+      source: 'api',
       error: 'OLLAMA_API_KEY is missing.',
     }
   }
@@ -55,6 +56,7 @@ export async function ask(prompt: string, modelAlias = 'ollama-pro'): Promise<Pr
       modelOrTool: model,
       text: data.message?.content ?? data.response ?? '',
       latencyMs: Date.now() - started,
+      source: 'api',
     }
   } catch (error) {
     return {
@@ -64,6 +66,7 @@ export async function ask(prompt: string, modelAlias = 'ollama-pro'): Promise<Pr
       modelOrTool: model,
       text: '',
       latencyMs: Date.now() - started,
+      source: 'api',
       error: error instanceof Error ? error.message : 'Ollama request failed.',
     }
   }

@@ -17,6 +17,9 @@ export interface Message {
     tokens?: number
     latency?: number
     confidence?: number
+    providerSource?: 'daemon' | 'api' | 'router'
+    modelOrTool?: string
+    fallbackUsed?: string
   }
 }
 

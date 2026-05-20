@@ -74,7 +74,10 @@ async function apiFetch(pathname, options = {}) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status}`)
+    const hint = res.status === 404
+      ? `Route not found: ${config.apiUrl}${pathname}. Make sure npm run dev is serving the current bertos-ai-os repo.`
+      : undefined
+    throw new Error(data.error || hint || `HTTP ${res.status}`)
   }
   return data
 }
@@ -103,9 +106,8 @@ async function ask(message) {
       providerId: config.defaultProvider || 'ollama-pro',
     }),
   })
-  if (data.provider || data.model) {
-    console.log(`[${data.provider || 'BertOS'} ${data.model ? `- ${data.model}` : ''}]`)
-  }
+  console.log(`[provider=${data.providerName || data.providerId || 'unknown'} tool=${data.modelOrTool || 'unknown'} source=${data.source || 'unknown'} latency=${data.latencyMs ?? 'n/a'}ms fallback=${data.fallbackUsed || 'none'}]`)
+  if (data.fallbackChain?.length) console.log(`[fallback chain=${data.fallbackChain.join(' -> ')}]`)
   console.log(data.text || JSON.stringify(data, null, 2))
 }
 

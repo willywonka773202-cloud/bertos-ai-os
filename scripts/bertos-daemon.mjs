@@ -46,6 +46,8 @@ const DANGEROUS_PATTERNS = [
 const IGNORE_DIRS = new Set(['.git', '.next', 'node_modules', 'dist', 'coverage', '.turbo'])
 
 const logs = []
+let toolsCache = null
+let toolsCacheAt = 0
 
 function nowIso() {
   return new Date().toISOString()
@@ -302,20 +304,24 @@ async function detectTool(tool) {
     args: ['--version'],
     timeoutMs: 10000,
   })
+  const installed = Boolean(resolved.resolvedPath)
   return {
     ...tool,
-    installed: Boolean(resolved.resolvedPath) && result.ok,
+    installed,
     resolvedPath: resolved.resolvedPath,
     candidates: resolved.candidates,
     version: result.ok ? result.stdout.trim() || result.stderr.trim() : undefined,
-    loginStatus: result.ok ? 'available' : 'missing',
+    loginStatus: result.ok ? 'available' : installed ? 'error' : 'missing',
     error: result.ok ? undefined : result.error || result.stderr || resolved.error || 'Not found on PATH.',
     troubleshooting: result.troubleshooting,
   }
 }
 
 async function detectTools() {
-  return Promise.all(Object.values(CLI_TOOLS).map(detectTool))
+  if (toolsCache && Date.now() - toolsCacheAt < 10_000) return toolsCache
+  toolsCache = await Promise.all(Object.values(CLI_TOOLS).map(detectTool))
+  toolsCacheAt = Date.now()
+  return toolsCache
 }
 
 async function gitOutput(args) {
