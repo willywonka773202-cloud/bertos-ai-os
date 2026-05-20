@@ -1,13 +1,18 @@
 {
-  "name": "sylistly",
+  "name": "bertos-ai-os",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "bertos": "./cli/bertos.mjs"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "bertos": "node cli/bertos.mjs",
+    "bertos:daemon": "node scripts/bertos-daemon.mjs",
     "catalog:build": "node --experimental-strip-types --env-file=.env.local scripts/build-photo-catalog.mts",
     "catalog:hydrate-links": "node --experimental-strip-types --env-file=.env.local scripts/hydrate-photo-catalog-urls.mts",
     "catalog:expand": "node --experimental-strip-types --env-file-if-exists=.env.local scripts/expand-catalog.ts",

@@ -24,6 +24,26 @@ interface OllamaStatus {
   testResult?: { success: boolean; error?: string }
 }
 
+interface LocalCliToolStatus {
+  id: 'claude-code' | 'codex-cli' | 'gemini-cli'
+  label: string
+  executable: string
+  installed: boolean
+  version?: string
+  loginStatus: 'available' | 'missing' | 'error' | 'unknown'
+  error?: string
+}
+
+interface LocalDaemonStatus {
+  online: boolean
+  available: boolean
+  host: string
+  port: number
+  tools: LocalCliToolStatus[]
+  error?: string
+  startCommand: string
+}
+
 const SECTIONS = [
   { id: 'providers', icon: Bot,      label: 'Providers'   },
   { id: 'api-keys',  icon: Key,      label: 'API Keys'    },
@@ -78,7 +98,9 @@ export function SettingsView() {
   const [ollamaCloudKey, setOllamaCloudKey] = useState((settings.apiKeys ?? {}).ollamaCloud ?? '')
   const [ollamaEndpoint, setOllamaEndpoint] = useState(settings.ollamaEndpoint ?? '')
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null)
+  const [localDaemonStatus, setLocalDaemonStatus] = useState<LocalDaemonStatus | null>(null)
   const [ollamaLoading, setOllamaLoading] = useState(false)
+  const [daemonLoading, setDaemonLoading] = useState(false)
   const [testingCloud, setTestingCloud] = useState(false)
 
   const fetchOllamaStatus = async (testCloud = false) => {
@@ -100,9 +122,23 @@ export function SettingsView() {
     }
   }
 
+  const fetchLocalDaemonStatus = async () => {
+    setDaemonLoading(true)
+    try {
+      const res = await fetch('/api/local-daemon/status', { cache: 'no-store' })
+      const data = await res.json() as LocalDaemonStatus
+      setLocalDaemonStatus(data)
+    } catch {
+      setLocalDaemonStatus(null)
+    } finally {
+      setDaemonLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (activeSection === 'providers') {
       fetchOllamaStatus()
+      fetchLocalDaemonStatus()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection])
@@ -290,6 +326,78 @@ export function SettingsView() {
                       Clear — revert to auto-detected endpoint
                     </button>
                   )}
+                </div>
+              </div>
+
+              {/* Local CLI bridge */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Local CLI Bridge</h4>
+                <div className={cn(
+                  'rounded-xl border p-4 space-y-3',
+                  localDaemonStatus?.online
+                    ? 'border-emerald-500/20 bg-emerald-500/5'
+                    : 'border-zinc-800 bg-zinc-900/30'
+                )}>
+                  <div className="flex items-start gap-3">
+                    {localDaemonStatus?.online ? (
+                      <Wifi className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <WifiOff className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-zinc-200">Local CLI Bridge</p>
+                        <code className="text-[10px] text-zinc-600">
+                          {localDaemonStatus ? `${localDaemonStatus.host}:${localDaemonStatus.port}` : 'checking'}
+                        </code>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Runs Claude Code, Codex CLI, Gemini CLI, and safe local commands from your Windows terminal.
+                      </p>
+                      {!localDaemonStatus?.online && (
+                        <p className="text-[11px] text-amber-300/80 mt-2">
+                          Start it from this repo with <code className="text-amber-200">npm run bertos:daemon</code>.
+                        </p>
+                      )}
+                      {localDaemonStatus?.error && (
+                        <p className="text-[11px] text-zinc-600 mt-1">{localDaemonStatus.error}</p>
+                      )}
+                    </div>
+                    <Badge variant={localDaemonStatus?.online ? 'success' : 'warning'} className="text-[9px] h-4 flex-shrink-0">
+                      {localDaemonStatus?.online ? 'Online' : 'Offline'}
+                    </Badge>
+                  </div>
+
+                  <div className="grid gap-2">
+                    {(localDaemonStatus?.tools ?? []).map(tool => (
+                      <div key={tool.id} className="flex items-center gap-2 rounded-lg bg-zinc-950/50 border border-zinc-800 px-2.5 py-2">
+                        {tool.id === 'claude-code' ? <Cpu className="w-3.5 h-3.5 text-violet-400" /> :
+                         tool.id === 'codex-cli' ? <Zap className="w-3.5 h-3.5 text-emerald-400" /> :
+                         <Globe className="w-3.5 h-3.5 text-blue-400" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-zinc-300">{tool.label}</p>
+                          <p className="text-[10px] text-zinc-600 truncate">
+                            {tool.installed ? (tool.version || `${tool.executable} detected`) : (tool.error || `${tool.executable} missing`)}
+                          </p>
+                        </div>
+                        <Badge variant={tool.installed ? 'success' : 'default'} className="text-[9px] h-4">
+                          {tool.installed ? 'Detected' : 'Missing'}
+                        </Badge>
+                      </div>
+                    ))}
+                    {localDaemonStatus && localDaemonStatus.tools.length === 0 && (
+                      <p className="text-[11px] text-zinc-600">No CLI tools reported yet. Start the daemon and refresh.</p>
+                    )}
+                  </div>
+
+                  <button
+                    onClick={fetchLocalDaemonStatus}
+                    disabled={daemonLoading}
+                    className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn('w-3 h-3', daemonLoading && 'animate-spin')} />
+                    Refresh CLI Bridge
+                  </button>
                 </div>
               </div>
 

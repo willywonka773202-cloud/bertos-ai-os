@@ -6,6 +6,7 @@ import { routePrompt } from '@/lib/bertos/router'
 import type { Message } from '@/lib/bertos/types'
 import { resolveOllamaModel, CLI_MODEL_ALIASES, API_MODEL_ALIASES } from '@/lib/bertos/providers'
 import { getOllamaConfig } from '@/lib/bertos/runtime'
+import { askLocalDaemon, type LocalCliProvider } from '@/lib/bertos/local-daemon'
 
 // Node.js runtime required:
 // - reads process.env.VERCEL to detect cloud mode
@@ -90,38 +91,52 @@ export async function POST(req: NextRequest) {
 
       try {
         send({ routerDecision })
+        let effectiveModelAlias = modelAlias
 
         // ── CLI subscription providers ──────────────────────────────────
-        if (CLI_MODEL_ALIASES.has(modelAlias)) {
-          const cliLabels: Record<string, string> = {
-            'claude-code': 'Claude Code CLI',
-            'gemini-cli':  'Gemini CLI',
-            'codex-cli':   'Codex CLI',
+        if (CLI_MODEL_ALIASES.has(effectiveModelAlias)) {
+          try {
+            const prompt = conversationMessages[conversationMessages.length - 1]?.content ?? ''
+            const result = await askLocalDaemon(effectiveModelAlias as LocalCliProvider, prompt, {
+              timeoutMs: 180000,
+            })
+            send({
+              localCli: {
+                providerId: result.providerId,
+                executable: result.executable,
+                durationMs: result.durationMs,
+              },
+            })
+            if (result.stderr.trim()) {
+              send({ text: `\n\n[${result.executable} stderr]\n${result.stderr.trim()}\n\n` })
+            }
+            send({ text: result.stdout || 'Local CLI completed without stdout.' })
+            done()
+            return
+          } catch (error) {
+            send({
+              localCliFallback: {
+                requestedProvider: effectiveModelAlias,
+                fallbackProvider: 'ollama-pro',
+                reason: error instanceof Error ? error.message : 'Local CLI bridge unavailable.',
+              },
+            })
+            effectiveModelAlias = 'ollama-pro'
           }
-          const installHints: Record<string, string> = {
-            'claude-code': 'npm install -g @anthropic-ai/claude-code && claude login',
-            'gemini-cli':  'npm install -g @google/gemini-cli && gemini auth login',
-            'codex-cli':   'npm install -g @openai/codex && codex login',
-          }
-          throw new Error(
-            `${cliLabels[modelAlias] ?? modelAlias} requires a local CLI process — ` +
-            `not yet available in the web interface. ` +
-            `Run BertOS locally and install: ${installHints[modelAlias] ?? ''}`
-          )
         }
 
         // ── Optional API providers (disabled by default) ────────────────
-        if (API_MODEL_ALIASES.has(modelAlias)) {
+        if (API_MODEL_ALIASES.has(effectiveModelAlias)) {
           const enableApi = body.enableApiProviders ?? (process.env.ENABLE_API_PROVIDERS === 'true')
           if (!enableApi) {
             throw new Error(
               `API providers are disabled by default. ` +
               `Enable them in Settings → Providers → Enable API Providers. ` +
-              `Note: ${modelAlias} creates a separate metered API bill.`
+              `Note: ${effectiveModelAlias} creates a separate metered API bill.`
             )
           }
 
-          if (modelAlias === 'claude-api') {
+          if (effectiveModelAlias === 'claude-api') {
             if (!anthropicKey) throw new Error('ANTHROPIC_API_KEY is not configured. Add it in Settings → API Keys.')
             const client = new Anthropic({ apiKey: anthropicKey })
             const apiMessages = conversationMessages.map(m => ({
@@ -140,7 +155,7 @@ export async function POST(req: NextRequest) {
                 send({ text: event.delta.text })
               }
             }
-          } else if (modelAlias === 'openai-api') {
+          } else if (effectiveModelAlias === 'openai-api') {
             if (!openaiKey) throw new Error('OPENAI_API_KEY is not configured. Add it in Settings → API Keys.')
             const client = new OpenAI({ apiKey: openaiKey })
             const openaiMessages: OpenAI.ChatCompletionMessageParam[] = [
@@ -160,7 +175,7 @@ export async function POST(req: NextRequest) {
               const text = chunk.choices[0]?.delta?.content
               if (text) send({ text })
             }
-          } else if (modelAlias === 'gemini-api') {
+          } else if (effectiveModelAlias === 'gemini-api') {
             if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured. Add it in Settings → API Keys.')
             const client = new GoogleGenAI({ apiKey: geminiKey })
             const contents = conversationMessages.map(m => ({
@@ -190,7 +205,7 @@ export async function POST(req: NextRequest) {
           ? body.ollamaEndpoint.trim().replace(/\/(api\/(chat|generate))?\/?$/, '') + '/api/chat'
           : cfg.chatUrl
 
-        const ollamaModel = resolveOllamaModel(modelAlias)
+        const ollamaModel = resolveOllamaModel(effectiveModelAlias)
 
         if (process.env.NODE_ENV !== 'production') {
           console.log(`[BertOS] mode=${cfg.mode} provider=${cfg.providerName} model=${ollamaModel} endpoint=${new URL(effectiveChatUrl).origin}`)

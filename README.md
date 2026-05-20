@@ -1,172 +1,201 @@
-# Sylistly — Next.js scaffold
+# BertOS AI OS
 
-Production starter for the Sylistly app (AI-powered outfit builder). Pairs with `SYLISTLY_MASTER_PROMPT.md`.
+BertOS is a standalone AI command center for Ollama Pro, local CLI agents, project work, and future Hermes/Composio tool integrations.
 
-## Stack
+Repository: `willywonka773202-cloud/bertos-ai-os`
 
-- Next.js 15 (App Router) + React 19
-- TypeScript
-- Tailwind CSS
-- Supabase (auth + Postgres)
-- Anthropic Claude (query parsing + re-ranking)
-- SearchAPI Google Shopping (real product search)
-- Skimlinks (auto-affiliate wrapping)
-- PostHog (analytics)
+## Quick Start
 
-## Quick start
-
-```bash
-# 1. install
-pnpm install        # or npm / yarn / bun
-
-# 2. env
-cp .env.example .env.local
-# fill in keys — see §Environment below
-
-# 3. database
-# In Supabase SQL editor, run the migration:
-#   supabase/migrations/0001_initial.sql
-
-# 4. dev
-pnpm dev
-# open http://localhost:3000
+```powershell
+npm install
+Copy-Item .env.example .env.local
+npm run dev
 ```
 
-## Environment
+Open [http://localhost:3000](http://localhost:3000).
 
-Needed for full live functionality. Without paid search keys, `/api/search` still works from the local Sylistly catalog, so the core builder can run without API cost.
+## Vercel Environment
 
-## Free Catalog Mode
+Set these in Vercel Project Settings -> Environment Variables:
 
-The app now defaults to a database-first search path so it can run without paid search calls:
-
-- `data/photo-catalog.json` is checked first when you have real product photos imported.
-- If that file is empty, `/api/search` falls back to the starter brand catalog in `lib/brand-catalog.ts`.
-- The selected style frame is sent with every search, so menswear, womenswear, and neutral searches return different query bias.
-- Product buttons open the clean retailer URL directly. Affiliate wrapping can still be layered back in later, but the UI no longer prefers confusing wrapper links.
-
-Set `SEARCH_MODE=hybrid` only when you intentionally want live SearchAPI fallback. Leave it unset or set `SEARCH_MODE=catalog-only` for the low-cost public version.
-
-## Build a Real Photo Catalog
-
-To replace placeholder catalog art with real retailer thumbnails, build the local photo-backed catalog:
-
-```bash
-npm run catalog:build
+```text
+BERTOS_DEPLOYMENT_MODE=cloud
+OLLAMA_API_KEY=<your Ollama Cloud key>
+OLLAMA_DEFAULT_MODEL=gpt-oss:120b-cloud
+BERTOS_AGENT_SECRET=<long random secret>
+ENABLE_API_PROVIDERS=false
 ```
 
-Useful filters:
+Optional provider/API integrations:
 
-```bash
-CATALOG_BRAND_FILTER=nike npm run catalog:build
-CATALOG_CATEGORY_FILTER=shoes npm run catalog:build
-CATALOG_MAX_TASKS=10 npm run catalog:build
-```
-
-This writes real product records into [`data/photo-catalog.json`](/Users/willlambert/Documents/Codex/2026-04-22-how-do-i-connect-my-github/sylistly/data/photo-catalog.json). Once populated, `/api/search` prefers that photo-backed catalog before the starter placeholder catalog.
-
-The importer now rotates through a saved queue cursor in [`data/catalog-build-state.json`](/Users/willlambert/Documents/Codex/2026-04-22-how-do-i-connect-my-github/sylistly/data/catalog-build-state.json), so repeated runs keep working through different brand/category queries instead of starting from the top every time.
-
-```
-# Required
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+```text
 ANTHROPIC_API_KEY=
-SEARCHAPI_KEY=
-
-# Recommended
-SKIMLINKS_PUBLISHER_ID=
-RAKUTEN_AFFILIATE_ID=
-NEXT_PUBLIC_POSTHOG_KEY=
-
-# Phase 2
-FASHN_API_KEY=
-STRIPE_SECRET_KEY=
-CLOUDFLARE_R2_ACCESS_KEY=
-CLOUDFLARE_R2_SECRET_KEY=
-CLOUDFLARE_R2_BUCKET=
+OPENAI_API_KEY=
+GEMINI_API_KEY=
+HERMES_API_URL=
+HERMES_API_KEY=
+COMPOSIO_API_KEY=
 ```
 
-Get keys:
+Verify cloud mode:
 
-- **Anthropic:** https://console.anthropic.com
-- **SearchAPI:** https://www.searchapi.io
-- **Supabase:** https://supabase.com (free tier)
-- **Skimlinks:** https://skimlinks.com (auto-affiliates any outbound link)
-- **Rakuten:** https://rakutenadvertising.com
-
-## Architecture
-
-```
- user query ─► /api/search
-                 │
-                 ▼
-             Claude (parse intent)
-                 │
-                 ▼
-             SearchAPI Google Shopping
-                 │
-                 ▼
-             dedupe + trust-filter
-                 │
-                 ▼
-             Claude (re-rank top 6)
-                 │
-                 ▼
-             affiliate-wrap URLs
-                 │
-                 ▼
-             6 products ─► UI
+```text
+https://your-vercel-app.vercel.app/api/ollama/status
 ```
 
-## Directory
+The response should show `mode: "cloud"` and `provider: "Ollama Cloud"`. Production does not call `localhost:11434`.
 
-```
-app/
-  layout.tsx             global chrome
-  page.tsx               builder (home)
-  discover/page.tsx      curated fits
-  saved/page.tsx         user's saved looks
-  profile/page.tsx       style profile
-  fit/[id]/page.tsx      public shareable fit
-  api/
-    search/route.ts      Claude + SearchAPI
-    fit/route.ts         create fit
-    fit/[id]/route.ts    read / share fit
-    shop-all/route.ts    wrap + return all buy links
-    tryon/route.ts       (phase 2) FASHN try-on
-components/
-  Mannequin.tsx
-  SearchSheet.tsx
-  SlotList.tsx
-  ProductCard.tsx
-  Toast.tsx
-  BottomNav.tsx
-lib/
-  supabase.ts            server + browser clients
-  claude.ts              Anthropic SDK wrapper
-  serpapi.ts             shopping search
-  affiliate.ts           Skimlinks/Rakuten URL wrapping
-  products.ts            DB queries
-  types.ts               shared types
-  mock-products.ts       fallback dataset for local dev
-store/
-  fit.ts                 Zustand store for current fit
-supabase/
-  migrations/
-    0001_initial.sql     schema from MASTER_PROMPT §8
+## Local Ollama Mode
+
+```powershell
+ollama signin
+ollama run gpt-oss:120b-cloud
+npm run dev
 ```
 
-## Deploy
+Local mode uses `http://127.0.0.1:11434/api/chat` unless `OLLAMA_BASE_URL` is overridden.
 
-- **Vercel** (recommended): `vercel` in the project root. Set env vars in project settings. The Claude + SearchAPI routes run on Node runtime (not Edge — AWS SDK compatibility).
-- **Netlify**: works with `@netlify/plugin-nextjs`.
+## BertOS Terminal CLI
 
-## Phase plan
+The repo includes a local Node CLI at `cli/bertos.mjs`.
 
-See `SYLISTLY_MASTER_PROMPT.md` §20. This scaffold ships Phase 1: search, build, save. Phase 2 (try-on, creator share) adds `app/api/tryon` and `app/fit/[id]/share`.
+From the repo root:
 
-## License
+```powershell
+npm run bertos -- init
+npm run bertos -- status
+npm run bertos -- providers
+npm run bertos -- ask "hi"
+npm run bertos -- chat
+npm run bertos -- doctor
+```
 
-Proprietary. All product imagery remains the property of its respective retailer; see master prompt §15 for legal posture.
+`bertos init` stores local config at:
+
+```text
+%USERPROFILE%\.bertos\config.json
+```
+
+The config contains:
+
+```json
+{
+  "apiUrl": "https://your-vercel-app.vercel.app",
+  "agentSecret": "same value as BERTOS_AGENT_SECRET",
+  "defaultProvider": "ollama-pro"
+}
+```
+
+To make the command available as `bertos`, run:
+
+```powershell
+npm link
+```
+
+Then use:
+
+```powershell
+bertos ask "hi"
+bertos status
+```
+
+## Local CLI Bridge Daemon
+
+The local daemon lets BertOS use authenticated desktop CLIs without exposing them publicly.
+
+Start it from the repo root:
+
+```powershell
+npm run bertos:daemon
+```
+
+Defaults:
+
+```text
+Host: 127.0.0.1
+Port: 8787
+```
+
+Daemon endpoints:
+
+```text
+GET  http://127.0.0.1:8787/status
+GET  http://127.0.0.1:8787/tools
+POST http://127.0.0.1:8787/run-cli
+POST http://127.0.0.1:8787/ask-cli
+```
+
+BertOS web routes:
+
+```text
+GET  /api/local-daemon/status
+POST /api/local-daemon/ask
+GET  /api/providers/status
+```
+
+On Vercel, `/api/local-daemon/*` returns unavailable because Vercel cannot reach your Windows localhost daemon. In local development, BertOS proxies to the daemon.
+
+## Test Local CLIs
+
+Run these in Windows PowerShell:
+
+```powershell
+claude --version
+codex --version
+gemini --version
+```
+
+Then start the daemon:
+
+```powershell
+npm run bertos:daemon
+```
+
+In another terminal:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8787/status
+```
+
+## Safe Command Wrapper
+
+The daemon uses `execFile`, not raw shell execution. It only allows:
+
+```text
+claude
+codex
+gemini
+git
+npm
+node
+pnpm
+```
+
+It blocks dangerous patterns such as destructive deletes, disk formatting, shutdown commands, credential harvesting, and `.env` access. Every command is logged to:
+
+```text
+logs/bertos-daemon.log
+```
+
+## Provider Routing
+
+Auto routing prefers:
+
+- Codebase refactor and coding work -> Claude Code CLI
+- Repo/task automation and terminal work -> Codex CLI
+- Long-context planning and analysis -> Gemini CLI
+- General chat and fallback -> Ollama Pro
+
+If the local daemon is offline, BertOS falls back to Ollama Pro instead of pretending the CLI ran.
+
+## Hermes and Composio
+
+The environment schema reserves:
+
+```text
+HERMES_API_URL=
+HERMES_API_KEY=
+COMPOSIO_API_KEY=
+```
+
+Those integrations should report missing setup until real credentials and endpoints are configured. Do not hard-code keys in the app.

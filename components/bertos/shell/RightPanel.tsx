@@ -10,7 +10,21 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+
+interface LocalPanelTool {
+  id: 'claude-code' | 'codex-cli' | 'gemini-cli'
+  label: string
+  installed: boolean
+  version?: string
+  error?: string
+}
+
+interface LocalPanelDaemonStatus {
+  online: boolean
+  tools: LocalPanelTool[]
+  error?: string
+}
 
 export function RightPanel() {
   const { rightPanelOpen, rightPanelTab, setRightPanelOpen, setRightPanelTab } = useUIStore()
@@ -18,8 +32,28 @@ export function RightPanel() {
   const { tasks } = useAgentStore()
   const { sessions } = useChatStore()
   const [newTodo, setNewTodo] = useState('')
+  const [daemonStatus, setDaemonStatus] = useState<LocalPanelDaemonStatus | null>(null)
 
   const project = getActiveProject()
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadDaemonStatus() {
+      try {
+        const res = await fetch('/api/local-daemon/status', { cache: 'no-store' })
+        const data = await res.json() as LocalPanelDaemonStatus
+        if (!cancelled) setDaemonStatus(data)
+      } catch {
+        if (!cancelled) setDaemonStatus({ online: false, tools: [], error: 'Local CLI bridge is offline.' })
+      }
+    }
+    loadDaemonStatus()
+    const id = window.setInterval(loadDaemonStatus, 30000)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
 
   if (!rightPanelOpen) return null
 
@@ -81,28 +115,32 @@ export function RightPanel() {
               </div>
             </div>
 
-            {/* AI Status */}
+            {/* Local CLI Bridge Status */}
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                <div className={cn('w-2 h-2 rounded-full', daemonStatus?.online ? 'bg-emerald-400' : 'bg-amber-400')} />
                 <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
-                  AI Systems
+                  Local CLI Bridge
                 </span>
               </div>
               <div className="space-y-1.5">
-                {[
-                  { name: 'Claude', icon: <Cpu className="w-3 h-3" />, status: 'active', color: '#8B5CF6' },
-                  { name: 'Codex', icon: <Zap className="w-3 h-3" />, status: 'standby', color: '#10B981' },
-                  { name: 'Gemini', icon: <Globe className="w-3 h-3" />, status: 'standby', color: '#3B82F6' },
-                ].map(ai => (
-                  <div key={ai.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50">
-                    <span style={{ color: ai.color }}>{ai.icon}</span>
-                    <span className="text-xs text-zinc-400 flex-1">{ai.name}</span>
+                {!daemonStatus?.online && (
+                  <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/50 px-2 py-2">
+                    <p className="text-xs text-zinc-400">Daemon offline</p>
+                    <p className="text-[10px] text-zinc-600 mt-0.5">Run <code>npm run bertos:daemon</code></p>
+                  </div>
+                )}
+                {(daemonStatus?.tools ?? []).map(ai => (
+                  <div key={ai.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50">
+                    {ai.id === 'claude-code' ? <Cpu className="w-3 h-3 text-violet-400" /> :
+                     ai.id === 'codex-cli' ? <Zap className="w-3 h-3 text-emerald-400" /> :
+                     <Globe className="w-3 h-3 text-blue-400" />}
+                    <span className="text-xs text-zinc-400 flex-1">{ai.label}</span>
                     <div className={cn(
                       'w-1.5 h-1.5 rounded-full',
-                      ai.status === 'active' ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'
+                      ai.installed ? 'bg-emerald-400' : 'bg-zinc-600'
                     )} />
-                    <span className="text-[10px] text-zinc-600">{ai.status}</span>
+                    <span className="text-[10px] text-zinc-600">{ai.installed ? 'detected' : 'missing'}</span>
                   </div>
                 ))}
               </div>

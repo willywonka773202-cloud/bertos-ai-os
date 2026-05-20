@@ -13,24 +13,26 @@ const ROUTING_RULES: RoutingRule[] = [
   {
     patterns: [
       /\b(code|function|bug|error|fix|implement|refactor|typescript|javascript|python|react|next|api|component|class|interface|algorithm)\b/i,
+      /\b(codebase|repo|repository|diff|edit files|change files)\b/i,
       /```/,
       /\b(debug|stack trace|undefined|null|exception|compile)\b/i,
     ],
     taskType: 'coding',
-    primary: 'ollama-pro',
-    secondary: ['codex-cli', 'claude-code'],
+    primary: 'claude-code',
+    secondary: ['codex-cli', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Coding tasks route to Ollama Pro (gpt-oss:120b-cloud). Enable Codex CLI for OpenAI-grade code generation.',
+    reasoning: 'Codebase and refactor tasks route to Claude Code through the local CLI bridge. If the daemon is offline, BertOS falls back to Ollama Pro.',
   },
   {
     patterns: [
       /\b(debug|why (is|does|did|won't|can't)|trace|fix this|what's wrong|broken)\b/i,
+      /\b(agent|automation|automate|task|run tests|terminal|command|git status|build this repo)\b/i,
     ],
     taskType: 'debugging',
-    primary: 'ollama-pro',
-    secondary: ['codex-cli', 'claude-code'],
+    primary: 'codex-cli',
+    secondary: ['claude-code', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Debugging routes to Ollama Pro. Enable Codex CLI or Claude Code for additional model perspectives.',
+    reasoning: 'Repo automation and terminal-style tasks route to Codex CLI through the local daemon. If the bridge is offline, BertOS falls back to Ollama Pro.',
   },
   {
     patterns: [
@@ -46,12 +48,13 @@ const ROUTING_RULES: RoutingRule[] = [
     patterns: [
       /\b(large|massive|entire|whole|full|complete|all of|entire document|pdf|book)\b/i,
       /\b(analyze this|process this|go through)\b/i,
+      /\b(long context|planning|plan|strategy|architecture|roadmap)\b/i,
     ],
     taskType: 'analysis',
-    primary: 'ollama-pro',
-    secondary: ['gemini-cli'],
+    primary: 'gemini-cli',
+    secondary: ['ollama-pro'],
     strategy: 'single',
-    reasoning: 'Analysis routes to Ollama Pro. Enable Gemini CLI for large-context document analysis.',
+    reasoning: 'Long-context planning and analysis route to Gemini CLI through the local daemon. If the bridge is offline, BertOS falls back to Ollama Pro.',
   },
   {
     patterns: [
