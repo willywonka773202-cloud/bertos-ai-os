@@ -99,8 +99,19 @@ interface PatchResponse {
   raw?: string
 }
 
+interface PatchHistoryEntry {
+  id: string
+  summary: string
+  provider?: string
+  riskLevel: PatchProposal['riskLevel']
+  files: PatchFile[]
+  appliedFiles: string[]
+  timestamp: number
+}
+
 const STORAGE_KEY = 'bertos-workspace-tabs-v2'
 const TERMINAL_HISTORY_KEY = 'bertos-workspace-terminal-v1'
+const PATCH_HISTORY_KEY = 'bertos-workspace-patch-history-v1'
 
 const SAFE_COMMANDS = [
   { label: 'git status', executable: 'git', args: ['status', '--short'] },
@@ -290,6 +301,7 @@ export function WorkspaceView() {
   const [proposal, setProposal] = useState<PatchProposal | null>(null)
   const [proposalProvider, setProposalProvider] = useState<PatchResponse['provider'] | null>(null)
   const [selectedPatchFiles, setSelectedPatchFiles] = useState<Set<string>>(new Set())
+  const [patchHistory, setPatchHistory] = useState<PatchHistoryEntry[]>([])
   const [generatingPatch, setGeneratingPatch] = useState(false)
   const [applyingPatch, setApplyingPatch] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
@@ -323,6 +335,21 @@ export function WorkspaceView() {
       localStorage.setItem(TERMINAL_HISTORY_KEY, JSON.stringify(next.slice(-20)))
       return next
     })
+  }, [])
+
+  const appendPatchHistory = useCallback((entry: PatchHistoryEntry) => {
+    setPatchHistory(current => {
+      const next = [entry, ...current].slice(0, 20)
+      localStorage.setItem(PATCH_HISTORY_KEY, JSON.stringify(next))
+      return next
+    })
+  }, [])
+
+  const readRepoFile = useCallback(async (path: string): Promise<string> => {
+    const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || `Could not read ${path}`)
+    return data.content ?? ''
   }, [])
 
   const loadStatus = useCallback(async () => {
@@ -377,6 +404,10 @@ export function WorkspaceView() {
     const restoredTerminal = localStorage.getItem(TERMINAL_HISTORY_KEY)
     if (restoredTerminal) {
       try { setTerminalEntries(JSON.parse(restoredTerminal)) } catch { /* ignore stale cache */ }
+    }
+    const restoredPatches = localStorage.getItem(PATCH_HISTORY_KEY)
+    if (restoredPatches) {
+      try { setPatchHistory(JSON.parse(restoredPatches)) } catch { localStorage.removeItem(PATCH_HISTORY_KEY) }
     }
     refresh()
   }, [refresh])
@@ -550,13 +581,30 @@ export function WorkspaceView() {
       })
       const data = await res.json() as PatchResponse
       if (!res.ok || !data.ok || !data.proposal) throw new Error(data.error || 'Patch generation failed.')
-      const hydratedFiles = data.proposal.files.map(file => {
+      const hydratedFiles = await Promise.all(data.proposal.files.map(async file => {
         const open = tabs.find(tab => tab.path === file.path)
+        let before = file.before ?? open?.savedContent
+        let operation = file.operation
+
+        if (before === undefined && file.operation !== 'create') {
+          before = await readRepoFile(file.path)
+        }
+
+        if (file.operation === 'create') {
+          try {
+            before = await readRepoFile(file.path)
+            operation = 'modify'
+          } catch {
+            before = ''
+          }
+        }
+
         return {
           ...file,
-          before: file.before ?? open?.savedContent ?? '',
+          operation,
+          before: before ?? '',
         }
-      })
+      }))
       setProposal({ ...data.proposal, files: hydratedFiles })
       setProposalProvider(data.provider ?? null)
       setSelectedPatchFiles(new Set(hydratedFiles.filter(file => file.operation !== 'delete').map(file => file.path)))
@@ -572,6 +620,7 @@ export function WorkspaceView() {
     if (!proposal || selectedPatchFiles.size === 0) return
     if (!safe) return toast.error('Workspace is not safe.')
     setApplyingPatch(true)
+    const appliedFiles: string[] = []
     try {
       for (const file of proposal.files) {
         if (!selectedPatchFiles.has(file.path)) continue
@@ -586,12 +635,24 @@ export function WorkspaceView() {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || `Could not write ${file.path}`)
+        appliedFiles.push(file.path)
         const existing = tabs.find(tab => tab.path === file.path)
         if (existing) {
           setTabs(current => current.map(tab => tab.path === file.path
             ? { ...tab, content: file.after ?? '', savedContent: file.after ?? '' }
             : tab))
         }
+      }
+      if (appliedFiles.length) {
+        appendPatchHistory({
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          summary: proposal.summary,
+          provider: proposalProvider?.providerName ?? proposal.provider,
+          riskLevel: proposal.riskLevel,
+          files: proposal.files.filter(file => appliedFiles.includes(file.path)),
+          appliedFiles,
+          timestamp: Date.now(),
+        })
       }
       toast.success('Approved patch files applied.')
       await refresh()
@@ -607,6 +668,39 @@ export function WorkspaceView() {
     for (const commandText of proposal.commandsToRun) {
       const command = CUSTOM_COMMANDS.get(commandText.trim().replace(/\s+/g, ' '))
       if (command) await runCommand({ label: commandText, ...command })
+    }
+  }
+
+  const revertPatchHistoryEntry = async (entry: PatchHistoryEntry) => {
+    if (!safe) return toast.error('Workspace is not safe.')
+    const reversible = entry.files.filter(file => file.operation === 'modify' && typeof file.before === 'string')
+    const skipped = entry.files.filter(file => file.operation !== 'modify').map(file => file.path)
+
+    if (!reversible.length) {
+      toast.error('This patch has no safely reversible modified files.')
+      return
+    }
+
+    const skippedText = skipped.length ? ` Created/deleted files are skipped: ${skipped.join(', ')}` : ''
+    if (!window.confirm(`Revert ${reversible.length} modified file(s) from this patch?${skippedText}`)) return
+
+    try {
+      for (const file of reversible) {
+        const res = await fetch('/api/local-daemon/file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: file.path, content: file.before ?? '' }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || `Could not revert ${file.path}`)
+        setTabs(current => current.map(tab => tab.path === file.path
+          ? { ...tab, content: file.before ?? '', savedContent: file.before ?? '' }
+          : tab))
+      }
+      toast.success('Patch reverted. Review git diff before committing.')
+      await refresh()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Patch revert failed.')
     }
   }
 
@@ -896,6 +990,41 @@ export function WorkspaceView() {
                     )}
                   </section>
                 )}
+
+                <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                  <div className="mb-3 flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-sky-400" />
+                    <h2 className="text-sm font-semibold text-zinc-200">Patch history</h2>
+                    <Badge variant="default" className="ml-auto text-[10px]">{patchHistory.length}</Badge>
+                  </div>
+                  {patchHistory.length === 0 ? (
+                    <p className="text-xs leading-relaxed text-zinc-600">
+                      Applied patch snapshots appear here. BertOS stores the previous content for modified files so you can revert an approved patch without leaving the workspace.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {patchHistory.slice(0, 5).map(entry => (
+                        <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={entry.riskLevel === 'high' ? 'error' : entry.riskLevel === 'medium' ? 'warning' : 'success'} className="text-[10px]">
+                              {entry.riskLevel}
+                            </Badge>
+                            <span className="truncate text-xs font-medium text-zinc-300">{entry.summary}</span>
+                          </div>
+                          <div className="mt-1 text-[11px] text-zinc-600">
+                            {new Date(entry.timestamp).toLocaleString()} · {entry.provider ?? 'provider'} · {entry.appliedFiles.length} file(s)
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            <Button size="sm" variant="ghost" onClick={() => void revertPatchHistoryEntry(entry)} disabled={!safe}>
+                              <RotateCcw className="w-3.5 h-3.5" />Revert modified files
+                            </Button>
+                            <span className="truncate text-[10px] text-zinc-700">{entry.appliedFiles.join(', ')}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
 
                 <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
                   <div className="mb-3 flex items-center gap-2">
