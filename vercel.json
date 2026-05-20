@@ -3,6 +3,6 @@
   "buildCommand": "npm run build",
   "installCommand": "npm install",
   "env": {
-    "NEXT_PUBLIC_APP_URL": "https://sylistly-git-claude-ber-263bb3-willywonka773202-clouds-projects.vercel.app"
+    "NEXT_PUBLIC_APP_URL": "https://bertos-ai-os.vercel.app"
   }
 }

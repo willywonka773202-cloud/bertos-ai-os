@@ -109,6 +109,26 @@ interface PatchHistoryEntry {
   timestamp: number
 }
 
+type ValidationProfileId = 'fast' | 'standard' | 'strict'
+type MissionScope = 'small' | 'medium' | 'large'
+type MissionRunMode = 'main' | 'worktree'
+
+interface MissionTemplate {
+  id: string
+  label: string
+  description: string
+  defaultGoal: string
+  likelyFiles: string[]
+  provider: AIModel
+  providerReason: string
+  validationProfile: ValidationProfileId
+  riskLevel: PatchProposal['riskLevel']
+  scope: MissionScope
+  avoid: string[]
+  worktreeRecommended?: boolean
+  planFirst?: boolean
+}
+
 const STORAGE_KEY = 'bertos-workspace-tabs-v2'
 const TERMINAL_HISTORY_KEY = 'bertos-workspace-terminal-v1'
 const PATCH_HISTORY_KEY = 'bertos-workspace-patch-history-v1'
@@ -143,6 +163,305 @@ const MEMORY_FACTS = [
   'Ollama Cloud works for API responses.',
   'Claude Code, Codex CLI, and Gemini CLI are available through the daemon when it is online.',
 ]
+
+const VALIDATION_PROFILES: Record<ValidationProfileId, { label: string; commands: string[]; description: string }> = {
+  fast: {
+    label: 'FAST',
+    commands: ['npm run typecheck'],
+    description: 'Use for small TypeScript-only changes.',
+  },
+  standard: {
+    label: 'STANDARD',
+    commands: ['npm run typecheck', 'npm run build'],
+    description: 'Default profile for normal app changes.',
+  },
+  strict: {
+    label: 'STRICT',
+    commands: ['npm run typecheck', 'npm run build', 'npm run bertos:safety', 'npm run bertos -- providers'],
+    description: 'Use for daemon, provider, repo safety, or workflow changes.',
+  },
+}
+
+const TASK_TEMPLATES: MissionTemplate[] = [
+  {
+    id: 'workspace-bug-fix',
+    label: 'Workspace bug fix',
+    description: 'Fix a broken Workspace flow without changing unrelated systems.',
+    defaultGoal: 'Fix a specific Workspace bug and keep file editing, terminal, patch review, and git workflow stable.',
+    likelyFiles: ['components/bertos/workspace/WorkspaceView.tsx', 'app/api/local-daemon/*', 'scripts/bertos-daemon.mjs'],
+    provider: 'codex-cli',
+    providerReason: 'Using Codex because this is an implementation task touching repo files.',
+    validationProfile: 'standard',
+    riskLevel: 'medium',
+    scope: 'medium',
+    avoid: ['Do not rewrite Workspace from scratch.', 'Do not weaken daemon safety.', 'Do not push.'],
+  },
+  {
+    id: 'ui-polish',
+    label: 'UI polish',
+    description: 'Improve layout, spacing, status states, or interaction polish.',
+    defaultGoal: 'Polish a focused BertOS UI surface while preserving working behavior.',
+    likelyFiles: ['components/bertos/*', 'app/page.tsx'],
+    provider: 'claude-code',
+    providerReason: 'Using Claude because this is architecture/UI review and interaction quality work.',
+    validationProfile: 'standard',
+    riskLevel: 'low',
+    scope: 'small',
+    avoid: ['Do not add fake controls.', 'Do not hide errors.', 'Do not change provider behavior unless required.'],
+  },
+  {
+    id: 'safe-terminal-fix',
+    label: 'Safe terminal fix',
+    description: 'Fix daemon command execution, allowlists, or terminal output.',
+    defaultGoal: 'Fix a safe terminal or daemon command issue without allowing arbitrary shell execution.',
+    likelyFiles: ['scripts/bertos-daemon.mjs', 'app/api/local-daemon/run/route.ts', 'components/bertos/workspace/WorkspaceView.tsx'],
+    provider: 'codex-cli',
+    providerReason: 'Using Codex because this is implementation and local automation work.',
+    validationProfile: 'strict',
+    riskLevel: 'high',
+    scope: 'medium',
+    avoid: ['Do not allow raw PowerShell.', 'Do not expose env files.', 'Do not run destructive commands.'],
+    worktreeRecommended: true,
+  },
+  {
+    id: 'evolution-lab',
+    label: 'Evolution Lab improvement',
+    description: 'Improve scan, backlog, scoring, or proposal workflows.',
+    defaultGoal: 'Improve Evolution Lab with honest self-improvement workflows and no fake autonomy.',
+    likelyFiles: ['components/bertos/evolution/*', 'app/api/evolution/*'],
+    provider: 'codex-cli',
+    providerReason: 'Using Codex because this requires focused implementation after a clear plan.',
+    validationProfile: 'standard',
+    riskLevel: 'medium',
+    scope: 'medium',
+    avoid: ['Do not auto-write files.', 'Do not auto-push.', 'Do not fake background agents.'],
+  },
+  {
+    id: 'provider-routing',
+    label: 'Provider routing fix',
+    description: 'Improve provider selection, fallback, metadata, or health behavior.',
+    defaultGoal: 'Fix provider routing so BertOS chooses verified providers honestly and shows useful routing reasons.',
+    likelyFiles: ['lib/bertos/router.ts', 'lib/bertos/providers/*', 'app/api/providers/status/route.ts', 'components/bertos/*'],
+    provider: 'codex-cli',
+    providerReason: 'Using Codex because this is implementation across router and API code.',
+    validationProfile: 'strict',
+    riskLevel: 'high',
+    scope: 'medium',
+    avoid: ['Do not hallucinate providers.', 'Do not default to paid APIs unless configured.', 'Do not fake status.'],
+    worktreeRecommended: true,
+  },
+  {
+    id: 'daemon-bug-fix',
+    label: 'Daemon bug fix',
+    description: 'Fix local daemon reliability, Windows execution, file safety, or CLI bridge.',
+    defaultGoal: 'Fix a daemon bug while preserving Windows-safe execution and repo safety checks.',
+    likelyFiles: ['scripts/bertos-daemon.mjs', 'cli/bertos.mjs', 'app/api/local-daemon/*'],
+    provider: 'codex-cli',
+    providerReason: 'Using Codex because this is repo automation and implementation work.',
+    validationProfile: 'strict',
+    riskLevel: 'high',
+    scope: 'medium',
+    avoid: ['Do not expose secrets.', 'Do not edit outside repo.', 'Do not weaken command allowlists.'],
+    worktreeRecommended: true,
+  },
+  {
+    id: 'telegram-integration',
+    label: 'Telegram integration',
+    description: 'Plan or implement secure Telegram notifications/control.',
+    defaultGoal: 'Add or improve Telegram bridge infrastructure with secure token handling and approval-only actions.',
+    likelyFiles: ['lib/bertos/*', 'app/api/*', 'components/bertos/settings/*'],
+    provider: 'gemini-cli',
+    providerReason: 'Using Gemini first because this needs integration planning before implementation.',
+    validationProfile: 'strict',
+    riskLevel: 'high',
+    scope: 'large',
+    avoid: ['Do not expose bot tokens.', 'Do not auto-approve patches.', 'Do not add fake bot success states.'],
+    worktreeRecommended: true,
+    planFirst: true,
+  },
+  {
+    id: 'hermes-integration',
+    label: 'Hermes integration',
+    description: 'Plan or improve Hermes Agent connector behavior.',
+    defaultGoal: 'Integrate Hermes as an optional verified provider/agent connector without duplicating the provider system.',
+    likelyFiles: ['lib/bertos/providers/*', 'app/api/hermes/*', 'components/bertos/settings/*'],
+    provider: 'gemini-cli',
+    providerReason: 'Using Gemini first because this is connector architecture and integration planning.',
+    validationProfile: 'strict',
+    riskLevel: 'high',
+    scope: 'large',
+    avoid: ['Do not fake Hermes online state.', 'Do not expose HERMES_API_KEY.', 'Do not make Hermes required.'],
+    worktreeRecommended: true,
+    planFirst: true,
+  },
+  {
+    id: 'github-worktree',
+    label: 'GitHub/worktree task',
+    description: 'Plan repo attachment, worktrees, branches, or GitHub workflows.',
+    defaultGoal: 'Design a safe worktree/GitHub workflow that keeps main stable and never pushes without approval.',
+    likelyFiles: ['app/api/worktrees/*', 'components/bertos/projects/*', 'scripts/*'],
+    provider: 'gemini-cli',
+    providerReason: 'Using Gemini first because this needs workflow planning across repo and UI surfaces.',
+    validationProfile: 'strict',
+    riskLevel: 'high',
+    scope: 'large',
+    avoid: ['Do not auto-push.', 'Do not run destructive git commands.', 'Do not create fake worktrees.'],
+    worktreeRecommended: true,
+    planFirst: true,
+  },
+  {
+    id: 'smoke-tests',
+    label: 'Test/smoke script creation',
+    description: 'Add focused validation, safety, or smoke scripts.',
+    defaultGoal: 'Create focused tests or smoke scripts for a real BertOS workflow.',
+    likelyFiles: ['scripts/*', 'package.json', 'app/api/*'],
+    provider: 'codex-cli',
+    providerReason: 'Using Codex because this is implementation of validation code.',
+    validationProfile: 'strict',
+    riskLevel: 'medium',
+    scope: 'medium',
+    avoid: ['Do not add brittle fake tests.', 'Do not require unavailable secrets.', 'Do not weaken existing checks.'],
+  },
+  {
+    id: 'refactor',
+    label: 'Refactor',
+    description: 'Plan and perform a scoped refactor.',
+    defaultGoal: 'Refactor one focused subsystem while preserving behavior and validation.',
+    likelyFiles: ['components/bertos/*', 'lib/bertos/*'],
+    provider: 'claude-code',
+    providerReason: 'Using Claude because this needs architecture/refactor review before implementation.',
+    validationProfile: 'standard',
+    riskLevel: 'medium',
+    scope: 'medium',
+    avoid: ['Do not refactor unrelated systems.', 'Do not change public behavior without a reason.', 'Do not skip validation.'],
+  },
+  {
+    id: 'documentation',
+    label: 'Documentation',
+    description: 'Improve setup, usage, or architecture docs.',
+    defaultGoal: 'Update concise BertOS documentation for real local, daemon, provider, or workspace workflows.',
+    likelyFiles: ['README.md', 'docs/*', 'AGENTS.md'],
+    provider: 'ollama-pro',
+    providerReason: 'Using Ollama first to reduce paid usage for documentation drafting.',
+    validationProfile: 'fast',
+    riskLevel: 'low',
+    scope: 'small',
+    avoid: ['Do not document fake features as complete.', 'Do not include secrets.', 'Do not reference Sylistly except safety guardrails.'],
+  },
+]
+
+function operationLabel(operation: PatchFile['operation']) {
+  if (operation === 'create') return 'Created file'
+  if (operation === 'delete') return 'Deleted file'
+  return 'Modified file'
+}
+
+function effectiveRiskLevel(proposal: PatchProposal): PatchProposal['riskLevel'] {
+  if (proposal.files.some(file => file.operation === 'delete')) return 'high'
+  return proposal.riskLevel
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 42) || 'bertos-task'
+}
+
+function estimateScope(goal: string, template: MissionTemplate): MissionScope {
+  const normalized = goal.toLowerCase()
+  if (template.scope === 'large') return 'large'
+  if (/\b(everything|full|entire|all tabs|all providers|rewrite|autonomous|telegram|github|worktree)\b/.test(normalized)) return 'large'
+  if (/\b(api|daemon|provider|router|workspace|terminal|patch|multiple files)\b/.test(normalized)) return 'medium'
+  return template.scope
+}
+
+function recommendProvider(goal: string, template: MissionTemplate): { provider: AIModel; reason: string } {
+  const normalized = goal.toLowerCase()
+  if (/\b(implement|edit|patch|fix|bug|daemon|terminal|api|route|repo)\b/.test(normalized)) {
+    return { provider: 'codex-cli', reason: 'Using Codex because this is an implementation or repo-edit task.' }
+  }
+  if (/\b(architecture|ui review|ux|refactor|layout|component quality)\b/.test(normalized)) {
+    return { provider: 'claude-code', reason: 'Using Claude because this needs architecture, UI, or refactor-quality review.' }
+  }
+  if (/\b(plan|research|compare|integration|telegram|hermes|github|worktree|long context)\b/.test(normalized)) {
+    return { provider: 'gemini-cli', reason: 'Using Gemini first because this needs broad planning or long-context analysis.' }
+  }
+  if (template.provider === 'ollama-pro') {
+    return { provider: 'ollama-pro', reason: 'Using Ollama first to reduce paid usage for this low-risk task.' }
+  }
+  return { provider: template.provider, reason: template.providerReason }
+}
+
+function getMissionWarnings(scope: MissionScope, riskLevel: PatchProposal['riskLevel'], runMode: MissionRunMode, template: MissionTemplate) {
+  const warnings: string[] = []
+  if (scope === 'large') warnings.push('This task is too broad. Split it into smaller missions or run a plan-only pass first.')
+  if (scope === 'large' || riskLevel === 'high' || template.worktreeRecommended) warnings.push('This should use a worktree before implementation.')
+  if (runMode === 'main' && (riskLevel === 'high' || scope === 'large')) warnings.push('This should not run on main unless you intentionally accept the risk.')
+  if (template.planFirst) warnings.push('Use plan mode first, then run implementation and review as separate missions.')
+  return warnings
+}
+
+function buildMissionPrompt({
+  goal,
+  template,
+  provider,
+  providerReason,
+  validationProfile,
+  scope,
+  riskLevel,
+  runMode,
+  activeFile,
+  openFiles,
+}: {
+  goal: string
+  template: MissionTemplate
+  provider: AIModel
+  providerReason: string
+  validationProfile: ValidationProfileId
+  scope: MissionScope
+  riskLevel: PatchProposal['riskLevel']
+  runMode: MissionRunMode
+  activeFile: string
+  openFiles: string[]
+}) {
+  const validation = VALIDATION_PROFILES[validationProfile]
+  const branchSlug = slugify(goal || template.defaultGoal)
+  const contextFiles = Array.from(new Set([
+    ...template.likelyFiles,
+    activeFile,
+    ...openFiles.slice(0, 5),
+  ].filter(Boolean)))
+  const warnings = getMissionWarnings(scope, riskLevel, runMode, template)
+  const worktreeRecommendation = runMode === 'worktree' || warnings.some(warning => warning.includes('worktree'))
+    ? `Create worktree: ../bertos-ai-os-worktrees/${branchSlug} on branch codex/${branchSlug}`
+    : 'Run on main only after reviewing git status and keeping the patch scoped.'
+
+  return [
+    `Goal:\n${goal.trim() || template.defaultGoal}`,
+    `Context files:\n${contextFiles.map(file => `- ${file}`).join('\n')}`,
+    `Constraints:\n${[
+      'Do not touch Sylistly.',
+      'Do not fake output or provider status.',
+      'Do not auto-push.',
+      'Preserve daemon, Workspace, chat, provider routing, and Ollama Cloud.',
+      ...template.avoid,
+    ].map(item => `- ${item}`).join('\n')}`,
+    `Provider recommendation:\n- ${provider}: ${providerReason}`,
+    `Worktree recommendation:\n- ${worktreeRecommendation}`,
+    `Validation profile: ${validation.label}\n${validation.commands.map(command => `- ${command}`).join('\n')}`,
+    `Done when:\n${[
+      'Implementation is scoped to the requested subsystem.',
+      'Reviewable diff is produced before applying changes.',
+      ...validation.commands.map(command => `${command} passes`),
+      'Git status is reported.',
+    ].map(item => `- ${item}`).join('\n')}`,
+    `Risk level: ${riskLevel}`,
+    `Estimated scope: ${scope}`,
+    warnings.length ? `Warnings:\n${warnings.map(warning => `- ${warning}`).join('\n')}` : 'Warnings:\n- None',
+  ].join('\n\n')
+}
 
 function flattenFiles(nodes: FileNode[]): FileNode[] {
   return nodes.flatMap(node => node.type === 'dir' ? flattenFiles(node.children ?? []) : [node])
@@ -266,7 +585,7 @@ function DiffBlock({ file }: { file: PatchFile }) {
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
       <div className="border-b border-zinc-800 px-3 py-2 font-mono text-[11px] text-zinc-400">
-        {file.operation} {file.path} from line {diff.startLine}
+        {operationLabel(file.operation)} · {file.path} from line {diff.startLine}
       </div>
       <div className="max-h-64 overflow-auto font-mono text-[11px] leading-5">
         {diff.before.length === 0 && diff.after.length === 0 ? (
@@ -298,6 +617,10 @@ export function WorkspaceView() {
   const [loading, setLoading] = useState(false)
   const [task, setTask] = useState('')
   const [provider, setProvider] = useState<AIModel>('auto')
+  const [missionGoal, setMissionGoal] = useState('')
+  const [missionTemplateId, setMissionTemplateId] = useState('workspace-bug-fix')
+  const [missionProfile, setMissionProfile] = useState<ValidationProfileId>('standard')
+  const [missionRunMode, setMissionRunMode] = useState<MissionRunMode>('main')
   const [proposal, setProposal] = useState<PatchProposal | null>(null)
   const [proposalProvider, setProposalProvider] = useState<PatchResponse['provider'] | null>(null)
   const [selectedPatchFiles, setSelectedPatchFiles] = useState<Set<string>>(new Set())
@@ -313,6 +636,24 @@ export function WorkspaceView() {
   const flatFiles = useMemo(() => flattenFiles(files), [files])
   const safe = Boolean(status?.online && status.repo?.safeRepo)
   const changedFiles = getChangedFiles(status?.repo?.status)
+  const missionTemplate = TASK_TEMPLATES.find(template => template.id === missionTemplateId) ?? TASK_TEMPLATES[0]
+  const missionScope = estimateScope(missionGoal, missionTemplate)
+  const missionProvider = recommendProvider(missionGoal || missionTemplate.defaultGoal, missionTemplate)
+  const missionRiskLevel: PatchProposal['riskLevel'] = missionScope === 'large' ? 'high' : missionTemplate.riskLevel
+  const missionPrompt = useMemo(() => buildMissionPrompt({
+    goal: missionGoal,
+    template: missionTemplate,
+    provider: missionProvider.provider,
+    providerReason: missionProvider.reason,
+    validationProfile: missionProfile,
+    scope: missionScope,
+    riskLevel: missionRiskLevel,
+    runMode: missionRunMode,
+    activeFile,
+    openFiles: tabs.map(tab => tab.path),
+  }), [activeFile, missionGoal, missionProfile, missionProvider.provider, missionProvider.reason, missionRiskLevel, missionRunMode, missionScope, missionTemplate, tabs])
+  const missionWarnings = getMissionWarnings(missionScope, missionRiskLevel, missionRunMode, missionTemplate)
+  const missionSlug = slugify(missionGoal || missionTemplate.defaultGoal)
 
   const saveWorkspaceState = useCallback((nextTabs: OpenTab[], nextActiveFile: string) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -350,6 +691,34 @@ export function WorkspaceView() {
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || `Could not read ${path}`)
     return data.content ?? ''
+  }, [])
+
+  const writePatchFile = useCallback(async (
+    file: PatchFile,
+    options: { patchHistoryId?: string; confirmDelete?: boolean } = {},
+  ) => {
+    const body = file.operation === 'delete'
+      ? {
+          path: file.path,
+          operation: 'delete',
+          confirm: options.confirmDelete === true,
+          patchHistoryId: options.patchHistoryId,
+          confirmPatchHistoryId: options.patchHistoryId,
+        }
+      : {
+          path: file.path,
+          operation: file.operation === 'create' ? 'create' : 'write',
+          content: file.after ?? '',
+        }
+
+    const res = await fetch('/api/local-daemon/file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || `Could not ${file.operation} ${file.path}`)
+    return data
   }, [])
 
   const loadStatus = useCallback(async () => {
@@ -607,7 +976,7 @@ export function WorkspaceView() {
       }))
       setProposal({ ...data.proposal, files: hydratedFiles })
       setProposalProvider(data.provider ?? null)
-      setSelectedPatchFiles(new Set(hydratedFiles.filter(file => file.operation !== 'delete').map(file => file.path)))
+      setSelectedPatchFiles(new Set(hydratedFiles.map(file => file.path)))
       toast.success(`Patch proposed by ${data.provider?.providerName ?? data.proposal.provider ?? 'provider'}`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Patch generation failed.')
@@ -619,25 +988,24 @@ export function WorkspaceView() {
   const applyPatch = async () => {
     if (!proposal || selectedPatchFiles.size === 0) return
     if (!safe) return toast.error('Workspace is not safe.')
+    const selectedFiles = proposal.files.filter(file => selectedPatchFiles.has(file.path))
+    const hasDelete = selectedFiles.some(file => file.operation === 'delete')
+    if (hasDelete && !window.confirm('This patch deletes one or more files. Apply selected delete operations through the safe daemon endpoint?')) return
     setApplyingPatch(true)
     const appliedFiles: string[] = []
+    const patchHistoryId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     try {
-      for (const file of proposal.files) {
-        if (!selectedPatchFiles.has(file.path)) continue
-        if (file.operation === 'delete') {
-          toast.error(`Delete is blocked for ${file.path}.`)
-          continue
-        }
-        const res = await fetch('/api/local-daemon/file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: file.path, content: file.after ?? '' }),
+      for (const file of selectedFiles) {
+        await writePatchFile(file, {
+          patchHistoryId,
+          confirmDelete: file.operation === 'delete',
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || `Could not write ${file.path}`)
         appliedFiles.push(file.path)
         const existing = tabs.find(tab => tab.path === file.path)
-        if (existing) {
+        if (file.operation === 'delete') {
+          setTabs(current => current.filter(tab => tab.path !== file.path))
+          if (activeFile === file.path) setActiveFile('')
+        } else if (existing) {
           setTabs(current => current.map(tab => tab.path === file.path
             ? { ...tab, content: file.after ?? '', savedContent: file.after ?? '' }
             : tab))
@@ -645,10 +1013,10 @@ export function WorkspaceView() {
       }
       if (appliedFiles.length) {
         appendPatchHistory({
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          id: patchHistoryId,
           summary: proposal.summary,
           provider: proposalProvider?.providerName ?? proposal.provider,
-          riskLevel: proposal.riskLevel,
+          riskLevel: effectiveRiskLevel(proposal),
           files: proposal.files.filter(file => appliedFiles.includes(file.path)),
           appliedFiles,
           timestamp: Date.now(),
@@ -673,29 +1041,36 @@ export function WorkspaceView() {
 
   const revertPatchHistoryEntry = async (entry: PatchHistoryEntry) => {
     if (!safe) return toast.error('Workspace is not safe.')
-    const reversible = entry.files.filter(file => file.operation === 'modify' && typeof file.before === 'string')
-    const skipped = entry.files.filter(file => file.operation !== 'modify').map(file => file.path)
+    const reversible = entry.files.filter(file =>
+      file.operation === 'create' ||
+      (file.operation === 'modify' && typeof file.before === 'string') ||
+      (file.operation === 'delete' && typeof file.before === 'string')
+    )
+    const skipped = entry.files.filter(file => !reversible.includes(file)).map(file => file.path)
 
     if (!reversible.length) {
-      toast.error('This patch has no safely reversible modified files.')
+      toast.error('This patch has no safely reversible files.')
       return
     }
 
-    const skippedText = skipped.length ? ` Created/deleted files are skipped: ${skipped.join(', ')}` : ''
-    if (!window.confirm(`Revert ${reversible.length} modified file(s) from this patch?${skippedText}`)) return
+    const skippedText = skipped.length ? ` Unsupported files are skipped: ${skipped.join(', ')}` : ''
+    if (!window.confirm(`Revert ${reversible.length} file operation(s) from this patch?${skippedText}`)) return
 
     try {
       for (const file of reversible) {
-        const res = await fetch('/api/local-daemon/file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: file.path, content: file.before ?? '' }),
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data.error || `Could not revert ${file.path}`)
-        setTabs(current => current.map(tab => tab.path === file.path
-          ? { ...tab, content: file.before ?? '', savedContent: file.before ?? '' }
-          : tab))
+        if (file.operation === 'create') {
+          await writePatchFile({ ...file, operation: 'delete' }, {
+            patchHistoryId: entry.id,
+            confirmDelete: true,
+          })
+          setTabs(current => current.filter(tab => tab.path !== file.path))
+          if (activeFile === file.path) setActiveFile('')
+        } else {
+          await writePatchFile({ ...file, operation: 'modify', after: file.before ?? '' })
+          setTabs(current => current.map(tab => tab.path === file.path
+            ? { ...tab, content: file.before ?? '', savedContent: file.before ?? '' }
+            : tab))
+        }
       }
       toast.success('Patch reverted. Review git diff before committing.')
       await refresh()
@@ -905,6 +1280,112 @@ export function WorkspaceView() {
               <div className="space-y-4 p-4">
                 <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
                   <div className="mb-3 flex items-center gap-2">
+                    <Clipboard className="w-4 h-4 text-emerald-400" />
+                    <h2 className="text-sm font-semibold text-zinc-200">Mission Builder</h2>
+                    <Badge variant={missionScope === 'large' ? 'error' : missionScope === 'medium' ? 'warning' : 'success'} className="ml-auto text-[10px]">
+                      {missionScope}
+                    </Badge>
+                  </div>
+                  <textarea
+                    value={missionGoal}
+                    onChange={event => setMissionGoal(event.target.value)}
+                    placeholder="Rough request, e.g. fix chat scrolling or add a provider status smoke check."
+                    className="min-h-20 w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-700"
+                  />
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <select
+                      value={missionTemplateId}
+                      onChange={event => {
+                        const nextTemplate = TASK_TEMPLATES.find(template => template.id === event.target.value)
+                        setMissionTemplateId(event.target.value)
+                        if (nextTemplate) {
+                          setMissionProfile(nextTemplate.validationProfile)
+                          setMissionRunMode(nextTemplate.worktreeRecommended ? 'worktree' : 'main')
+                        }
+                      }}
+                      className="h-8 rounded-lg border border-zinc-800 bg-zinc-950 px-2 text-xs text-zinc-300 outline-none"
+                    >
+                      {TASK_TEMPLATES.map(template => (
+                        <option key={template.id} value={template.id}>{template.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={missionProfile}
+                      onChange={event => setMissionProfile(event.target.value as ValidationProfileId)}
+                      className="h-8 rounded-lg border border-zinc-800 bg-zinc-950 px-2 text-xs text-zinc-300 outline-none"
+                    >
+                      {Object.entries(VALIDATION_PROFILES).map(([id, profile]) => (
+                        <option key={id} value={id}>{profile.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <select
+                      value={missionRunMode}
+                      onChange={event => setMissionRunMode(event.target.value as MissionRunMode)}
+                      className="h-8 rounded-lg border border-zinc-800 bg-zinc-950 px-2 text-xs text-zinc-300 outline-none"
+                    >
+                      <option value="main">Run on main</option>
+                      <option value="worktree">Create worktree</option>
+                    </select>
+                    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-2 py-1.5 text-[11px] text-zinc-500">
+                      {missionProvider.reason}
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2 text-[11px] text-zinc-500">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="info" className="text-[10px]">{missionProvider.provider}</Badge>
+                      <span>{VALIDATION_PROFILES[missionProfile].commands.join(' / ')}</span>
+                    </div>
+                    <div>
+                      Worktree: {missionRunMode === 'worktree'
+                        ? `../bertos-ai-os-worktrees/${missionSlug} -> codex/${missionSlug}`
+                        : 'main branch after review'}
+                    </div>
+                    <div>{missionTemplate.description}</div>
+                  </div>
+                  {missionWarnings.length > 0 && (
+                    <div className="mt-3 space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-200">
+                      {missionWarnings.map(warning => <div key={warning}>- {warning}</div>)}
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(missionPrompt)
+                        toast.success('Mission prompt copied.')
+                      }}
+                    >
+                      <Copy className="w-3.5 h-3.5" />Copy mission
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        setTask(missionPrompt)
+                        setProvider(missionProvider.provider)
+                        toast.success('Mission loaded into AI Patch Loop.')
+                      }}
+                    >
+                      Use mission
+                    </Button>
+                  </div>
+                  <details className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950/80 p-2">
+                    <summary className="cursor-pointer text-xs text-zinc-400">How to get best Codex results</summary>
+                    <ul className="mt-2 space-y-1 text-[11px] leading-relaxed text-zinc-600">
+                      <li>Use scoped missions with goal, context, constraints, validation, and done-when.</li>
+                      <li>Use worktrees for risky daemon, routing, git, or multi-file changes.</li>
+                      <li>Run plan first for large integrations, then implementation, then review.</li>
+                      <li>Use Team Mode only when the task needs planning, architecture review, and implementation.</li>
+                      <li>Keep AGENTS.md for recurring rules so prompts stay shorter.</li>
+                    </ul>
+                  </details>
+                </section>
+
+                <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+                  <div className="mb-3 flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-violet-400" />
                     <h2 className="text-sm font-semibold text-zinc-200">AI Patch Loop</h2>
                     <Badge variant="info" className="ml-auto text-[10px]">review required</Badge>
@@ -943,10 +1424,15 @@ export function WorkspaceView() {
                   <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
                     <div className="mb-2 flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-zinc-200">Patch proposal</h3>
-                      <Badge variant={proposal.riskLevel === 'high' ? 'error' : proposal.riskLevel === 'medium' ? 'warning' : 'success'} className="text-[10px]">
-                        {proposal.riskLevel} risk
+                      <Badge variant={effectiveRiskLevel(proposal) === 'high' ? 'error' : effectiveRiskLevel(proposal) === 'medium' ? 'warning' : 'success'} className="text-[10px]">
+                        {effectiveRiskLevel(proposal)} risk
                       </Badge>
                     </div>
+                    {proposal.files.some(file => file.operation === 'delete') && (
+                      <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+                        This proposal includes delete operations. BertOS requires explicit confirmation and uses the daemon file-delete safety gate.
+                      </div>
+                    )}
                     <p className="mb-3 text-xs leading-relaxed text-zinc-500">{proposal.summary}</p>
                     <div className="space-y-3">
                       {proposal.files.length === 0 ? (
@@ -957,7 +1443,6 @@ export function WorkspaceView() {
                             <input
                               type="checkbox"
                               checked={selectedPatchFiles.has(file.path)}
-                              disabled={file.operation === 'delete'}
                               onChange={event => {
                                 setSelectedPatchFiles(current => {
                                   const next = new Set(current)
@@ -968,7 +1453,9 @@ export function WorkspaceView() {
                               }}
                             />
                             {file.path}
-                            <Badge variant="default" className="text-[10px]">{file.operation}</Badge>
+                            <Badge variant={file.operation === 'delete' ? 'error' : file.operation === 'create' ? 'success' : 'default'} className="text-[10px]">
+                              {operationLabel(file.operation)}
+                            </Badge>
                           </label>
                           <DiffBlock file={file} />
                         </div>
@@ -1016,7 +1503,7 @@ export function WorkspaceView() {
                           </div>
                           <div className="mt-2 flex items-center gap-2">
                             <Button size="sm" variant="ghost" onClick={() => void revertPatchHistoryEntry(entry)} disabled={!safe}>
-                              <RotateCcw className="w-3.5 h-3.5" />Revert modified files
+                              <RotateCcw className="w-3.5 h-3.5" />Revert patch
                             </Button>
                             <span className="truncate text-[10px] text-zinc-700">{entry.appliedFiles.join(', ')}</span>
                           </div>

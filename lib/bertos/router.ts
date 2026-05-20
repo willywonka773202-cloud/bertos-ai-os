@@ -1,4 +1,4 @@
-import type { AIModel, RouterDecision, TaskType, RoutingStrategy } from './types'
+import type { AIModel, RouterDecision, RoutingStrategy, TaskType } from './types'
 
 interface RoutingRule {
   patterns: RegExp[]
@@ -12,16 +12,27 @@ interface RoutingRule {
 const ROUTING_RULES: RoutingRule[] = [
   {
     patterns: [
-      /\b(code|function|bug|error|fix|implement|refactor|typescript|javascript|python|react|next|api|component|class|interface|algorithm)\b/i,
-      /\b(codebase|repo|repository|diff|edit files|change files)\b/i,
+      /\b(team mode|multi[- ]model|provider debate|hard task|complex task|large implementation)\b/i,
+      /\b(plan.*implement.*review|architecture.*implementation|design.*patch.*review)\b/i,
+    ],
+    taskType: 'analysis',
+    primary: 'gemini-cli',
+    secondary: ['claude-code', 'codex-cli', 'ollama-pro'],
+    strategy: 'sequential',
+    reasoning: 'Using Gemini first because this needs broad planning, then Claude for architecture review and Codex for implementation if the mission proceeds.',
+  },
+  {
+    patterns: [
+      /\b(implement|edit files|change files|apply patch|generate patch|write code|repo edit|code change|task automation)\b/i,
+      /\b(codex|workspace patch|patch generation|create file|modify file|delete file)\b/i,
+      /\b(codebase|repo|repository|diff)\b/i,
       /```/,
-      /\b(debug|stack trace|undefined|null|exception|compile)\b/i,
     ],
     taskType: 'coding',
-    primary: 'claude-code',
-    secondary: ['codex-cli', 'ollama-pro'],
+    primary: 'codex-cli',
+    secondary: ['claude-code', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Codebase and refactor tasks route to Claude Code through the local CLI bridge. If the daemon is offline, BertOS falls back to Ollama Pro.',
+    reasoning: 'Using Codex because this is an implementation or repo-edit task. Claude is the review fallback, and Ollama Pro is the always-on fallback.',
   },
   {
     patterns: [
@@ -32,7 +43,18 @@ const ROUTING_RULES: RoutingRule[] = [
     primary: 'codex-cli',
     secondary: ['claude-code', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Repo automation and terminal-style tasks route to Codex CLI through the local daemon. If the bridge is offline, BertOS falls back to Ollama Pro.',
+    reasoning: 'Using Codex because this is debugging, validation, or repo automation. Claude can review failures; Ollama Pro is the fallback.',
+  },
+  {
+    patterns: [
+      /\b(architecture|architect|ui review|ux review|review this|refactor plan|component design|layout|visual polish)\b/i,
+      /\b(cleanup|stabilize|quality review|risk review|technical debt)\b/i,
+    ],
+    taskType: 'analysis',
+    primary: 'claude-code',
+    secondary: ['gemini-cli', 'codex-cli', 'ollama-pro'],
+    strategy: 'single',
+    reasoning: 'Using Claude because this is architecture, UI review, or refactor-quality work. Gemini can broaden the plan; Codex can implement after review.',
   },
   {
     patterns: [
@@ -40,9 +62,9 @@ const ROUTING_RULES: RoutingRule[] = [
     ],
     taskType: 'writing',
     primary: 'ollama-pro',
-    secondary: ['claude-code'],
+    secondary: ['gemini-cli', 'claude-code'],
     strategy: 'single',
-    reasoning: 'Writing tasks route to Ollama Pro. Enable Claude Code CLI for Anthropic-quality prose.',
+    reasoning: 'Using Ollama first to reduce paid usage for writing, summaries, and explanation. Gemini or Claude can be selected for larger reviews.',
   },
   {
     patterns: [
@@ -52,9 +74,9 @@ const ROUTING_RULES: RoutingRule[] = [
     ],
     taskType: 'analysis',
     primary: 'gemini-cli',
-    secondary: ['ollama-pro'],
+    secondary: ['claude-code', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Long-context planning and analysis route to Gemini CLI through the local daemon. If the bridge is offline, BertOS falls back to Ollama Pro.',
+    reasoning: 'Using Gemini first because this needs long-context planning or research. Claude is the architecture fallback; Ollama Pro is the cheap fallback.',
   },
   {
     patterns: [
@@ -64,17 +86,17 @@ const ROUTING_RULES: RoutingRule[] = [
     primary: 'ollama-pro',
     secondary: ['claude-code', 'gemini-cli'],
     strategy: 'single',
-    reasoning: 'Brainstorming routes to Ollama Pro. Enable CLI providers for additional creative perspectives.',
+    reasoning: 'Using Ollama first to reduce paid usage for cheap ideation. Use Team Mode only if the task becomes complex.',
   },
   {
     patterns: [
       /\b(research|find|search|information about|tell me about|what is|who is|when did|history)\b/i,
     ],
     taskType: 'research',
-    primary: 'ollama-pro',
-    secondary: ['gemini-cli'],
+    primary: 'gemini-cli',
+    secondary: ['ollama-pro'],
     strategy: 'single',
-    reasoning: 'Research routes to Ollama Pro. Enable Gemini CLI for web-grounded knowledge.',
+    reasoning: 'Using Gemini because this is research or long-context information work. Ollama Pro remains the fallback.',
   },
   {
     patterns: [
@@ -135,7 +157,7 @@ export function routePrompt(prompt: string, preferredModel: AIModel): RouterDeci
   if (!rule) {
     return {
       primary: 'ollama-pro',
-      reasoning: 'General task — Ollama Pro is the default always-on subscription provider.',
+      reasoning: 'Using Ollama first to reduce paid usage for a general task. Pick Codex, Claude, or Gemini when the mission needs implementation, review, or long planning.',
       confidence: 0.5,
       taskType: 'general',
       strategy: 'single',

@@ -2,7 +2,7 @@
 import http from 'node:http'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdir, appendFile, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, appendFile, readdir, readFile, writeFile, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -44,6 +44,20 @@ const DANGEROUS_PATTERNS = [
   /\.env(\.|$)/i,
 ]
 const IGNORE_DIRS = new Set(['.git', '.next', 'node_modules', 'dist', 'coverage', '.turbo'])
+const PROTECTED_FILE_NAMES = new Set([
+  '.env',
+  '.env.local',
+  '.env.production',
+  '.env.development',
+  'package-lock.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+])
+const PROTECTED_PATH_PATTERNS = [
+  /(^|[\\/])\.env(\.|$)/i,
+  /(^|[\\/])config[\\/].*(secret|token|key|credential)/i,
+  /(secret|token|credential|private-key|api-key)/i,
+]
 
 const logs = []
 let toolsCache = null
@@ -74,6 +88,14 @@ function json(res, status, payload) {
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   })
   res.end(JSON.stringify(payload, null, 2))
+}
+
+function statusForDaemonError(error) {
+  const message = error instanceof Error ? error.message : String(error)
+  if (/invalid path|outside the BertOS repo|ignored directory|protected|blocked by the daemon|only files can be deleted|requires confirm/i.test(message)) {
+    return 400
+  }
+  return 500
 }
 
 function readJson(req) {
@@ -116,6 +138,20 @@ function safeRelativePath(value) {
     throw new Error('Path is inside an ignored directory.')
   }
   return raw
+}
+
+function safeWritableFilePath(value) {
+  const rel = safeRelativePath(value)
+  const base = path.basename(rel).toLowerCase()
+  if (PROTECTED_FILE_NAMES.has(base)) {
+    throw new Error(`${rel} is protected and cannot be written or deleted by the daemon.`)
+  }
+  for (const pattern of PROTECTED_PATH_PATTERNS) {
+    if (pattern.test(rel)) {
+      throw new Error(`${rel} is blocked by the daemon secret/config safety policy.`)
+    }
+  }
+  return rel
 }
 
 function isSafeCommand(executable, args = []) {
@@ -404,10 +440,42 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && (url.pathname === '/repo/file' || url.pathname === '/repo/file/write')) {
       const body = await readJson(req)
-      const rel = safeRelativePath(body.path)
+      const rel = safeWritableFilePath(body.path)
       await writeFile(path.join(REPO_ROOT, rel), String(body.content ?? ''), 'utf8')
       await logCommand({ type: 'write-file', path: rel, safe: true })
       return json(res, 200, { ok: true, path: rel })
+    }
+
+    if (req.method === 'POST' && url.pathname === '/repo/file/create') {
+      const body = await readJson(req)
+      const rel = safeWritableFilePath(body.path)
+      const target = path.join(REPO_ROOT, rel)
+      try {
+        await stat(target)
+        return json(res, 409, { ok: false, error: `${rel} already exists. Use modify instead of create.` })
+      } catch {
+        // Missing is expected.
+      }
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, String(body.content ?? ''), 'utf8')
+      await logCommand({ type: 'create-file', path: rel, safe: true })
+      return json(res, 200, { ok: true, path: rel, operation: 'create' })
+    }
+
+    if (req.method === 'POST' && url.pathname === '/repo/file/delete') {
+      const body = await readJson(req)
+      const rel = safeWritableFilePath(body.path)
+      if (body.confirm !== true || body.patchHistoryId !== body.confirmPatchHistoryId) {
+        return json(res, 400, { ok: false, error: 'File delete requires confirm=true and matching patch history confirmation ids.' })
+      }
+      const target = path.join(REPO_ROOT, rel)
+      const info = await stat(target)
+      if (!info.isFile()) {
+        return json(res, 400, { ok: false, error: 'Only files can be deleted by the daemon.' })
+      }
+      await rm(target, { force: false, recursive: false })
+      await logCommand({ type: 'delete-file', path: rel, patchHistoryId: body.patchHistoryId, safe: true })
+      return json(res, 200, { ok: true, path: rel, operation: 'delete' })
     }
 
     if (req.method === 'POST' && (url.pathname === '/run-cli' || url.pathname === '/repo/run')) {
@@ -438,7 +506,7 @@ const server = http.createServer(async (req, res) => {
 
     return json(res, 404, { error: 'Not found.' })
   } catch (error) {
-    return json(res, 500, { error: error instanceof Error ? error.message : String(error) })
+    return json(res, statusForDaemonError(error), { error: error instanceof Error ? error.message : String(error) })
   }
 })
 

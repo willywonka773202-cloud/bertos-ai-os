@@ -18,7 +18,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Local daemon unavailable in Vercel/cloud mode.' }, { status: 503 })
   }
   const body = await req.json()
-  const res = await fetch(`${getLocalDaemonBaseUrl()}/repo/file`, {
+  const operation = body.operation === 'create'
+    ? 'create'
+    : body.operation === 'delete'
+    ? 'delete'
+    : 'write'
+  const endpoint = operation === 'create'
+    ? '/repo/file/create'
+    : operation === 'delete'
+    ? '/repo/file/delete'
+    : '/repo/file'
+  const res = await fetch(`${getLocalDaemonBaseUrl()}${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
