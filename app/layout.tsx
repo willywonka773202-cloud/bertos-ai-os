@@ -11,7 +11,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'BertOS — AI Operating System',
+    default: 'BertOS - AI Operating System',
     template: '%s | BertOS',
   },
   description: 'A premium local AI command center. Control Claude, Codex, and Gemini from one unified workspace.',

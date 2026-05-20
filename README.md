@@ -4,6 +4,19 @@ BertOS is a standalone AI command center for Ollama Pro, local CLI agents, proje
 
 Repository: `willywonka773202-cloud/bertos-ai-os`
 
+## Standalone Scope
+
+BertOS is its own project. The app surface is limited to the AI operating system:
+
+- Chat and provider routing
+- Workspace coding tools
+- Local CLI bridge daemon
+- Evolution Lab
+- Memory, agents, compare, and settings
+- Composio/Hermes scaffolds
+
+Legacy clothing catalog, commerce, outfit-building, and discovery routes from the original scaffold are intentionally removed from this repository.
+
 ## Quick Start
 
 ```powershell

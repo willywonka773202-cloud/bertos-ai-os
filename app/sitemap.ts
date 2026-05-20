@@ -1,15 +1,16 @@
 import type { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://sylistly.com';
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://bertos-ai-os.vercel.app';
   const now = new Date();
 
   return [
     '',
-    '/discover',
-    '/saved',
-    '/profile',
-    '/checkout',
+    '/chat',
+    '/workspace',
+    '/evolution',
+    '/agents',
+    '/settings',
   ].map((path) => ({
     url: `${siteUrl}${path}`,
     lastModified: now,

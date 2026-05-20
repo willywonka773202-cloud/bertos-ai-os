@@ -2,13 +2,13 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Sylistly',
-    short_name: 'Sylistly',
-    description: 'Build and shop complete outfits from real products.',
+    name: 'BertOS AI OS',
+    short_name: 'BertOS',
+    description: 'AI command center for chat, local CLI agents, workspace coding, and project evolution.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#f7f2ee',
-    theme_color: '#e8365d',
+    background_color: '#0A0A0B',
+    theme_color: '#0A0A0B',
     icons: [
       {
         src: '/icon.svg',
