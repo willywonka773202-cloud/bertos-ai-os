@@ -193,6 +193,6 @@ export async function runLocalDaemonCommand(
     cache: 'no-store',
   })
   const data = await res.json()
-  if (!res.ok || !data.ok) throw new Error(data.error || `Command failed with HTTP ${res.status}.`)
+  if (!res.ok && !data) throw new Error(`Command failed with HTTP ${res.status}.`)
   return data
 }

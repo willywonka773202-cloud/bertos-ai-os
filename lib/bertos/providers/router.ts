@@ -74,10 +74,11 @@ export async function askWithProviderRouter(prompt: string, preferred: AIModel =
 
   const byId = new Map(statuses.map(status => [status.providerId, status]))
   const decision = routePrompt(prompt, preferred)
+  const fallbackOrder = ['codex-cli', 'claude-code', 'gemini-cli', 'ollama-pro']
   const ordered = [
     decision.primary,
     ...(decision.secondary ?? []),
-    'ollama-pro',
+    ...fallbackOrder,
   ].filter((value, index, array) => array.indexOf(value) === index)
     .filter(isProviderId)
 

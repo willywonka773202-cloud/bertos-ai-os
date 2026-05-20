@@ -20,7 +20,10 @@ export async function POST(req: NextRequest) {
       cwd: body.cwd,
       timeoutMs: body.timeoutMs,
     })
-    return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json(result, {
+      status: 200,
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (error) {
     return NextResponse.json({
       ok: false,

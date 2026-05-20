@@ -246,10 +246,8 @@ async function runResolvedCommand({ executable, args = [], input = '', cwd = REP
       shell: false,
     })
 
-    if (input) {
-      child.child.stdin?.write(String(input))
-      child.child.stdin?.end()
-    }
+    if (input) child.child.stdin?.write(String(input))
+    child.child.stdin?.end()
 
     const { stdout, stderr } = await child
     return {
@@ -404,7 +402,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { path: rel, content })
     }
 
-    if (req.method === 'POST' && url.pathname === '/repo/file') {
+    if (req.method === 'POST' && (url.pathname === '/repo/file' || url.pathname === '/repo/file/write')) {
       const body = await readJson(req)
       const rel = safeRelativePath(body.path)
       await writeFile(path.join(REPO_ROOT, rel), String(body.content ?? ''), 'utf8')
@@ -412,7 +410,7 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true, path: rel })
     }
 
-    if (req.method === 'POST' && url.pathname === '/run-cli') {
+    if (req.method === 'POST' && (url.pathname === '/run-cli' || url.pathname === '/repo/run')) {
       const body = await readJson(req)
       const result = await runResolvedCommand({
         executable: body.executable,

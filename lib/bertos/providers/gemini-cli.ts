@@ -18,7 +18,7 @@ export async function status(): Promise<ProviderStatusResult> {
 export async function ask(prompt: string): Promise<ProviderAskResult> {
   const started = Date.now()
   try {
-    const result = await askLocalDaemon('gemini-cli', prompt, { timeoutMs: 180000 })
+    const result = await askLocalDaemon('gemini-cli', prompt, { timeoutMs: 60000 })
     return {
       ok: true,
       providerId: 'gemini-cli',
