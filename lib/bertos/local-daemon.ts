@@ -129,7 +129,7 @@ export async function fetchLocalDaemonStatus(timeoutMs = 15000): Promise<LocalDa
 export async function askLocalDaemon(
   providerId: LocalCliProvider,
   prompt: string,
-  options: { cwd?: string; timeoutMs?: number } = {},
+  options: { cwd?: string; timeoutMs?: number; mode?: 'chat' | 'patch' } = {},
 ): Promise<LocalDaemonAskResult> {
   if (!isLocalDaemonAvailableFromServer()) {
     throw new Error('Local CLI bridge is only available in local development. Falling back to Ollama Pro.')
@@ -147,6 +147,7 @@ export async function askLocalDaemon(
         prompt,
         cwd: options.cwd,
         timeoutMs: options.timeoutMs,
+        mode: options.mode,
       }),
       signal: controller.signal,
     })

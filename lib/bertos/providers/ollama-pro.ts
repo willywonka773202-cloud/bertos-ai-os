@@ -1,6 +1,6 @@
 import { getOllamaConfig } from '../runtime'
 import { resolveOllamaModel } from './ollama'
-import type { ProviderAskResult, ProviderStatusResult } from './provider-result'
+import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 export async function status(): Promise<ProviderStatusResult> {
   const cfg = getOllamaConfig()
@@ -15,9 +15,11 @@ export async function status(): Promise<ProviderStatusResult> {
   }
 }
 
-export async function ask(prompt: string, modelAlias = 'ollama-pro'): Promise<ProviderAskResult> {
+export async function ask(prompt: string, options: ProviderAskOptions | string = {}): Promise<ProviderAskResult> {
   const started = Date.now()
   const cfg = getOllamaConfig()
+  const askOptions = typeof options === 'string' ? {} : options
+  const modelAlias = typeof options === 'string' ? options : 'ollama-pro'
   const model = resolveOllamaModel(modelAlias)
 
   if (cfg.requiresApiKey && !cfg.apiKey) {
@@ -44,6 +46,13 @@ export async function ask(prompt: string, modelAlias = 'ollama-pro'): Promise<Pr
         model,
         messages: [{ role: 'user', content: prompt }],
         stream: false,
+        format: askOptions.purpose === 'patch' ? 'json' : undefined,
+        options: askOptions.purpose === 'patch'
+          ? {
+              temperature: askOptions.temperature ?? 0,
+              num_predict: askOptions.maxTokens ?? 4096,
+            }
+          : undefined,
       }),
     })
     const data = await res.json().catch(() => ({})) as { message?: { content?: string }; response?: string; error?: string }

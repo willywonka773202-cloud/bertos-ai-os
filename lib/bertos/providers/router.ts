@@ -4,7 +4,7 @@ import * as claudeCli from './claude-cli'
 import * as codexCli from './codex-cli'
 import * as geminiCli from './gemini-cli'
 import * as ollamaPro from './ollama-pro'
-import type { ProviderAskResult, ProviderStatusResult } from './provider-result'
+import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 const PROVIDERS = {
   'claude-code': claudeCli,
@@ -19,15 +19,31 @@ function isProviderId(value: string): value is ProviderId {
   return value in PROVIDERS
 }
 
-function isProviderInventoryPrompt(prompt: string) {
+export function isProviderInventoryPrompt(prompt: string) {
   return /\b(providers?|models?|tools?)\b/i.test(prompt)
     && /\b(reach|available|status|which|can you|connected|detect)\b/i.test(prompt)
+}
+
+export function shouldUseProviderInventoryShortcut(prompt: string, options: ProviderAskOptions = {}) {
+  if (options.disableInventoryShortcut || options.purpose === 'patch' || options.mode === 'patch' || options.taskType === 'code_patch') {
+    return false
+  }
+  return isProviderInventoryPrompt(prompt)
 }
 
 export async function getVerifiedProviderStatuses(): Promise<ProviderStatusResult[]> {
   return Promise.all(
     (Object.keys(PROVIDERS) as ProviderId[]).map(async providerId => PROVIDERS[providerId].status()),
   )
+}
+
+function reorderForPatchMode(providerIds: ProviderId[], deprioritizedProviders: string[] = []) {
+  if (deprioritizedProviders.length === 0) return providerIds
+  const deprioritized = new Set(deprioritizedProviders)
+  return [
+    ...providerIds.filter(providerId => !deprioritized.has(providerId)),
+    ...providerIds.filter(providerId => deprioritized.has(providerId)),
+  ]
 }
 
 function formatProviderReport(statuses: ProviderStatusResult[]) {
@@ -55,11 +71,17 @@ function providerStatusToAttempt(status: ProviderStatusResult) {
   }
 }
 
-export async function askWithProviderRouter(prompt: string, preferred: AIModel = 'auto'): Promise<ProviderAskResult> {
+export async function askWithProviderRouter(
+  prompt: string,
+  preferred: AIModel = 'auto',
+  options: ProviderAskOptions & { deprioritizedProviders?: string[] } = {},
+): Promise<ProviderAskResult> {
   const started = Date.now()
+  const routerMode = options.mode ?? options.purpose ?? 'chat'
+  const taskType = options.taskType ?? (routerMode === 'patch' ? 'code_patch' : 'general')
   const statuses = await getVerifiedProviderStatuses()
 
-  if (isProviderInventoryPrompt(prompt)) {
+  if (shouldUseProviderInventoryShortcut(prompt, options)) {
     return {
       ok: true,
       providerId: 'bertos-router',
@@ -68,19 +90,26 @@ export async function askWithProviderRouter(prompt: string, preferred: AIModel =
       text: formatProviderReport(statuses),
       latencyMs: Date.now() - started,
       source: 'router',
+      routerMode,
+      taskType,
+      inventoryShortcutUsed: true,
+      selectedProvider: 'bertos-router',
       attemptedProviders: statuses.map(providerStatusToAttempt),
     }
   }
 
   const byId = new Map(statuses.map(status => [status.providerId, status]))
   const decision = routePrompt(prompt, preferred)
-  const fallbackOrder = ['codex-cli', 'claude-code', 'gemini-cli', 'ollama-pro']
-  const ordered = [
-    decision.primary,
-    ...(decision.secondary ?? []),
+  const fallbackOrder: ProviderId[] = routerMode === 'patch'
+    ? ['codex-cli', 'claude-code', 'ollama-pro', 'gemini-cli']
+    : ['codex-cli', 'claude-code', 'gemini-cli', 'ollama-pro']
+  const requested = preferred !== 'auto' && isProviderId(preferred) ? [preferred] : []
+  const ordered = reorderForPatchMode([
+    ...requested,
+    ...(routerMode === 'patch' ? [] : [decision.primary, ...(decision.secondary ?? [])]),
     ...fallbackOrder,
   ].filter((value, index, array) => array.indexOf(value) === index)
-    .filter(isProviderId)
+    .filter(isProviderId), options.deprioritizedProviders)
 
   const errors: string[] = []
   const attemptedProviders: ProviderAskResult['attemptedProviders'] = []
@@ -99,12 +128,16 @@ export async function askWithProviderRouter(prompt: string, preferred: AIModel =
       continue
     }
 
-    const result = await PROVIDERS[providerId].ask(prompt)
+    const result = await PROVIDERS[providerId].ask(prompt, options)
     if (result.ok) {
       return {
         ...result,
-        fallbackUsed: providerId === decision.primary ? undefined : providerId,
+        fallbackUsed: providerId === (requested[0] ?? decision.primary) ? undefined : providerId,
         fallbackChain: ordered,
+        routerMode,
+        taskType,
+        inventoryShortcutUsed: false,
+        selectedProvider: providerId,
         attemptedProviders,
       }
     }
@@ -120,6 +153,10 @@ export async function askWithProviderRouter(prompt: string, preferred: AIModel =
     latencyMs: Date.now() - started,
     source: 'router',
     fallbackChain: ordered,
+    routerMode,
+    taskType,
+    inventoryShortcutUsed: false,
+    selectedProvider: String(ordered[0] ?? decision.primary),
     attemptedProviders,
     error: `All verified providers failed or were unavailable. ${errors.join(' | ')}`,
   }

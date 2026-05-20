@@ -322,13 +322,52 @@ function explainSpawnFailure(message, exe) {
   return undefined
 }
 
-function buildAskCommand(providerId, prompt) {
+function buildPatchModePrompt(providerId, prompt) {
+  const common = [
+    'PATCH MODE IS ACTIVE.',
+    'You are a patch compiler. Return only valid JSON for the requested patch schema.',
+    'No markdown fences. No explanations. No conversational text. No prose before or after JSON.',
+    'Use deterministic output. Prioritize machine-readable correctness over creativity.',
+  ].join('\n')
+
+  if (providerId === 'claude-code') {
+    return [
+      common,
+      'Your response must be wrapped exactly as:',
+      'BEGIN_PATCH_JSON',
+      '{"summary":"...","files":[],"validation":{"commands":["npm run typecheck","npm run build"]}}',
+      'END_PATCH_JSON',
+      prompt,
+    ].join('\n\n')
+  }
+
+  if (providerId === 'codex-cli') {
+    return [
+      common,
+      'If your runtime supports response_format=json, use it. Otherwise still output raw JSON only.',
+      prompt,
+    ].join('\n\n')
+  }
+
+  if (providerId === 'gemini-cli') {
+    return [
+      common,
+      'If your runtime supports application/json MIME output, use it. Otherwise still output raw JSON only.',
+      prompt,
+    ].join('\n\n')
+  }
+
+  return `${common}\n\n${prompt}`
+}
+
+function buildAskCommand(providerId, prompt, mode = 'chat') {
   const normalized = String(providerId || 'codex-cli')
   if (!CLI_TOOLS[normalized]) throw new Error(`Unsupported CLI provider: ${providerId}`)
+  const finalPrompt = mode === 'patch' ? buildPatchModePrompt(normalized, prompt) : prompt
 
-  if (normalized === 'claude-code') return { providerId: normalized, executable: 'claude', args: ['-p', prompt] }
-  if (normalized === 'gemini-cli') return { providerId: normalized, executable: 'gemini', args: ['-p', prompt] }
-  return { providerId: normalized, executable: 'codex', args: ['exec', prompt] }
+  if (normalized === 'claude-code') return { providerId: normalized, executable: 'claude', args: ['-p', finalPrompt] }
+  if (normalized === 'gemini-cli') return { providerId: normalized, executable: 'gemini', args: ['-p', finalPrompt] }
+  return { providerId: normalized, executable: 'codex', args: ['exec', finalPrompt] }
 }
 
 async function detectTool(tool) {
@@ -495,7 +534,7 @@ const server = http.createServer(async (req, res) => {
       if (!body.prompt || typeof body.prompt !== 'string') {
         return json(res, 400, { ok: false, error: 'prompt is required.' })
       }
-      const command = buildAskCommand(body.providerId, body.prompt)
+      const command = buildAskCommand(body.providerId, body.prompt, body.mode)
       const result = await runResolvedCommand({
         ...command,
         cwd: body.cwd || REPO_ROOT,

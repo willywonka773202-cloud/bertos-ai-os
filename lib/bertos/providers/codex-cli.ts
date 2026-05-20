@@ -1,5 +1,5 @@
 import { askLocalDaemon, fetchLocalDaemonStatus } from '../local-daemon'
-import type { ProviderAskResult, ProviderStatusResult } from './provider-result'
+import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 export async function status(): Promise<ProviderStatusResult> {
   const daemon = await fetchLocalDaemonStatus()
@@ -15,10 +15,13 @@ export async function status(): Promise<ProviderStatusResult> {
   }
 }
 
-export async function ask(prompt: string): Promise<ProviderAskResult> {
+export async function ask(prompt: string, options: ProviderAskOptions = {}): Promise<ProviderAskResult> {
   const started = Date.now()
   try {
-    const result = await askLocalDaemon('codex-cli', prompt, { timeoutMs: 180000 })
+    const result = await askLocalDaemon('codex-cli', prompt, {
+      timeoutMs: 180000,
+      mode: options.purpose,
+    })
     return {
       ok: true,
       providerId: 'codex-cli',

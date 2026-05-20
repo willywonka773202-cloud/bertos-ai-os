@@ -27,6 +27,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
+import {
+  readPatchReliabilityMetrics,
+  recordPatchReliabilityEvent,
+  summarizePatchReliability,
+  type PatchReliabilityProviderMetrics,
+} from '@/lib/bertos/metrics/patch-reliability'
 import type { AIModel } from '@/lib/bertos/types'
 
 interface FileNode {
@@ -68,6 +74,13 @@ interface TerminalEntry {
   running?: boolean
 }
 
+interface PatchCheckResult {
+  command: string
+  status: 'passed' | 'failed' | 'skipped'
+  exitCode?: number | null
+  error?: string
+}
+
 interface PatchFile {
   path: string
   operation: 'modify' | 'create' | 'delete'
@@ -83,9 +96,43 @@ interface PatchProposal {
   riskLevel: 'low' | 'medium' | 'high'
 }
 
+interface CanonicalPatchPayload {
+  summary: string
+  files: Array<{
+    path: string
+    action: 'create' | 'update' | 'delete'
+    content: string
+  }>
+  validation: {
+    commands: string[]
+  }
+}
+
+interface PatchParseDebug {
+  raw: string
+  rawDiagnostics?: {
+    byteLength: number
+    charLength: number
+    first500: string
+    last500: string
+  }
+  extractedJsonCandidate?: string
+  normalized?: CanonicalPatchPayload
+  parseError?: string
+  repairAttempts: Array<{
+    attempt: number
+    providerId?: string
+    stage?: 'initial' | 'local-cleanup' | 'repair'
+    ok: boolean
+    error?: string
+    rawPreview: string
+  }>
+}
+
 interface PatchResponse {
   ok: boolean
   proposal?: PatchProposal
+  canonicalPatch?: CanonicalPatchPayload
   provider?: {
     providerId?: string
     providerName?: string
@@ -97,6 +144,13 @@ interface PatchResponse {
   }
   error?: string
   raw?: string
+  debug?: PatchParseDebug
+  routeDebug?: {
+    selectedProvider?: string
+    routerMode?: string
+    taskType?: string
+    inventoryShortcutUsed?: boolean
+  }
 }
 
 interface PatchHistoryEntry {
@@ -132,6 +186,8 @@ interface MissionTemplate {
 const STORAGE_KEY = 'bertos-workspace-tabs-v2'
 const TERMINAL_HISTORY_KEY = 'bertos-workspace-terminal-v1'
 const PATCH_HISTORY_KEY = 'bertos-workspace-patch-history-v1'
+const MAX_PATCH_FILE_BYTES = 250_000
+const MAX_PATCH_TOTAL_BYTES = 700_000
 
 const SAFE_COMMANDS = [
   { label: 'git status', executable: 'git', args: ['status', '--short'] },
@@ -154,6 +210,11 @@ const CUSTOM_COMMANDS = new Map<string, { executable: string; args: string[]; ti
   ['npm run lint', { executable: 'npm', args: ['run', 'lint'], timeoutMs: 180000 }],
   ['npm test', { executable: 'npm', args: ['test'], timeoutMs: 180000 }],
   ['npm install', { executable: 'npm', args: ['install'], timeoutMs: 300000 }],
+])
+
+const VALIDATION_COMMANDS = new Map<string, { executable: string; args: string[]; timeoutMs?: number }>([
+  ['npm run typecheck', { executable: 'npm', args: ['run', 'typecheck'], timeoutMs: 180000 }],
+  ['npm run build', { executable: 'npm', args: ['run', 'build'], timeoutMs: 240000 }],
 ])
 
 const MEMORY_FACTS = [
@@ -359,6 +420,56 @@ function operationLabel(operation: PatchFile['operation']) {
 function effectiveRiskLevel(proposal: PatchProposal): PatchProposal['riskLevel'] {
   if (proposal.files.some(file => file.operation === 'delete')) return 'high'
   return proposal.riskLevel
+}
+
+function validatePatchDryRun(proposal: PatchProposal) {
+  const errors: string[] = []
+  const seen = new Set<string>()
+  let totalBytes = 0
+
+  for (const file of proposal.files) {
+    const normalized = file.path.replace(/\\/g, '/').trim()
+    if (!normalized) errors.push('Patch contains an empty path.')
+    if (normalized.startsWith('/') || /^[a-z]:\//i.test(normalized)) errors.push(`${file.path} is absolute; paths must be repo-relative.`)
+    if (normalized.split('/').some(part => part === '..')) errors.push(`${file.path} contains path traversal.`)
+    if (/(^|\/)(node_modules|\.git|\.next|dist|build|coverage|\.vercel)(\/|$)/i.test(normalized)) errors.push(`${file.path} targets an ignored/generated directory.`)
+    if (/(^|\/)\.env(\.|$)/i.test(normalized) || /(secret|token|credential|private-key|api-key)/i.test(normalized)) errors.push(`${file.path} is blocked by secret/config safety rules.`)
+    if (!['modify', 'create', 'delete'].includes(file.operation)) errors.push(`${file.path} has malformed action ${String(file.operation)}.`)
+    if (seen.has(normalized)) errors.push(`${file.path} appears more than once in the patch.`)
+    seen.add(normalized)
+    const content = file.after ?? ''
+    if (content.includes('\u0000')) errors.push(`${file.path} appears to contain binary content.`)
+    if (content.length > MAX_PATCH_FILE_BYTES) errors.push(`${file.path} exceeds the per-file patch size limit.`)
+    totalBytes += content.length
+  }
+
+  if (totalBytes > MAX_PATCH_TOTAL_BYTES) errors.push('Patch exceeds the total size limit.')
+  return errors
+}
+
+function normalizeCommandText(commandText: unknown) {
+  return typeof commandText === 'string' ? commandText.trim().replace(/\s+/g, ' ') : ''
+}
+
+function createTinyTestProposal(): PatchProposal {
+  const stamp = new Date().toISOString()
+  return {
+    summary: 'Tiny deterministic patch smoke test. Creates a temporary file that can be reverted from patch history.',
+    provider: 'BertOS deterministic smoke test',
+    riskLevel: 'low',
+    commandsToRun: ['npm run typecheck'],
+    files: [{
+      path: 'tmp/bertos-patch-loop-smoke.md',
+      operation: 'create',
+      after: [
+        '# BertOS Patch Loop Smoke Test',
+        '',
+        `Created at: ${stamp}`,
+        'This file is generated by the Workspace tiny test patch and should be reverted from patch history.',
+        '',
+      ].join('\n'),
+    }],
+  }
 }
 
 function slugify(value: string) {
@@ -623,6 +734,14 @@ export function WorkspaceView() {
   const [missionRunMode, setMissionRunMode] = useState<MissionRunMode>('main')
   const [proposal, setProposal] = useState<PatchProposal | null>(null)
   const [proposalProvider, setProposalProvider] = useState<PatchResponse['provider'] | null>(null)
+  const [patchDebug, setPatchDebug] = useState<PatchParseDebug | null>(null)
+  const [patchRouteDebug, setPatchRouteDebug] = useState<PatchResponse['routeDebug'] | null>(null)
+  const [patchError, setPatchError] = useState('')
+  const [patchControlError, setPatchControlError] = useState('')
+  const [patchChecksRunning, setPatchChecksRunning] = useState(false)
+  const [patchCheckResults, setPatchCheckResults] = useState<PatchCheckResult[]>([])
+  const [patchApplied, setPatchApplied] = useState(false)
+  const [patchMetrics, setPatchMetrics] = useState<Record<string, PatchReliabilityProviderMetrics>>({})
   const [selectedPatchFiles, setSelectedPatchFiles] = useState<Set<string>>(new Set())
   const [patchHistory, setPatchHistory] = useState<PatchHistoryEntry[]>([])
   const [generatingPatch, setGeneratingPatch] = useState(false)
@@ -654,6 +773,17 @@ export function WorkspaceView() {
   }), [activeFile, missionGoal, missionProfile, missionProvider.provider, missionProvider.reason, missionRiskLevel, missionRunMode, missionScope, missionTemplate, tabs])
   const missionWarnings = getMissionWarnings(missionScope, missionRiskLevel, missionRunMode, missionTemplate)
   const missionSlug = slugify(missionGoal || missionTemplate.defaultGoal)
+  const proposalMetric = proposalProvider?.providerId ? patchMetrics[proposalProvider.providerId] : undefined
+  const proposalMetricSummary = summarizePatchReliability(proposalMetric)
+  const suggestedValidationCommands = (proposal?.commandsToRun ?? []).map(normalizeCommandText).filter(Boolean)
+  const allowedSuggestedValidationCommands = suggestedValidationCommands.filter(command => VALIDATION_COMMANDS.has(command))
+  const skippedSuggestedValidationCommands = suggestedValidationCommands.filter(command => !VALIDATION_COMMANDS.has(command))
+  const canRunSuggestedChecks = Boolean(
+    proposal &&
+    safe &&
+    !patchChecksRunning &&
+    allowedSuggestedValidationCommands.length > 0
+  )
 
   const saveWorkspaceState = useCallback((nextTabs: OpenTab[], nextActiveFile: string) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -778,6 +908,7 @@ export function WorkspaceView() {
     if (restoredPatches) {
       try { setPatchHistory(JSON.parse(restoredPatches)) } catch { localStorage.removeItem(PATCH_HISTORY_KEY) }
     }
+    setPatchMetrics(readPatchReliabilityMetrics())
     refresh()
   }, [refresh])
 
@@ -925,6 +1056,12 @@ export function WorkspaceView() {
     setGeneratingPatch(true)
     setProposal(null)
     setProposalProvider(null)
+    setPatchDebug(null)
+    setPatchRouteDebug(null)
+    setPatchError('')
+    setPatchControlError('')
+    setPatchCheckResults([])
+    setPatchApplied(false)
     try {
       const res = await fetch('/api/workspace/patch', {
         method: 'POST',
@@ -949,7 +1086,15 @@ export function WorkspaceView() {
         }),
       })
       const data = await res.json() as PatchResponse
-      if (!res.ok || !data.ok || !data.proposal) throw new Error(data.error || 'Patch generation failed.')
+      setPatchDebug(data.debug ?? null)
+      setPatchRouteDebug(data.routeDebug ?? null)
+      setPatchError(data.error ?? '')
+      if (!res.ok || !data.ok || !data.proposal) {
+        const providerId = data.provider?.providerId ?? provider
+        recordPatchReliabilityEvent({ type: 'generation', providerId, validJson: false, latencyMs: data.provider?.latencyMs })
+        setPatchMetrics(readPatchReliabilityMetrics())
+        throw new Error(data.error || 'Patch generation failed.')
+      }
       const hydratedFiles = await Promise.all(data.proposal.files.map(async file => {
         const open = tabs.find(tab => tab.path === file.path)
         let before = file.before ?? open?.savedContent
@@ -977,11 +1122,147 @@ export function WorkspaceView() {
       setProposal({ ...data.proposal, files: hydratedFiles })
       setProposalProvider(data.provider ?? null)
       setSelectedPatchFiles(new Set(hydratedFiles.map(file => file.path)))
+      recordPatchReliabilityEvent({
+        type: 'generation',
+        providerId: data.provider?.providerId ?? data.proposal.provider ?? provider,
+        validJson: true,
+        latencyMs: data.provider?.latencyMs,
+      })
+      setPatchMetrics(readPatchReliabilityMetrics())
       toast.success(`Patch proposed by ${data.provider?.providerName ?? data.proposal.provider ?? 'provider'}`)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Patch generation failed.')
+      setPatchError(error instanceof Error ? error.message : 'Patch generation failed.')
+      toast.error('Patch generation failed. Open Raw Output for details.')
     } finally {
       setGeneratingPatch(false)
+    }
+  }
+
+  const generateTinyTestPatch = () => {
+    const tiny = createTinyTestProposal()
+    setProposal(tiny)
+    setProposalProvider({
+      providerId: 'bertos-smoke-test',
+      providerName: 'BertOS Smoke Test',
+      modelOrTool: 'deterministic',
+      source: 'router',
+      latencyMs: 0,
+    })
+    setPatchDebug({
+      raw: JSON.stringify({
+        summary: tiny.summary,
+        files: tiny.files.map(file => ({ path: file.path, action: 'create', content: file.after ?? '' })),
+        validation: { commands: tiny.commandsToRun },
+      }, null, 2),
+      rawDiagnostics: {
+        byteLength: 0,
+        charLength: 0,
+        first500: 'Deterministic local smoke patch.',
+        last500: 'Deterministic local smoke patch.',
+      },
+      extractedJsonCandidate: JSON.stringify({
+        summary: tiny.summary,
+        files: tiny.files.map(file => ({ path: file.path, action: 'create', content: file.after ?? '' })),
+        validation: { commands: tiny.commandsToRun },
+      }, null, 2),
+      normalized: {
+        summary: tiny.summary,
+        files: tiny.files.map(file => ({ path: file.path, action: 'create', content: file.after ?? '' })),
+        validation: { commands: tiny.commandsToRun },
+      },
+      repairAttempts: [{ attempt: 0, ok: true, rawPreview: 'Deterministic local smoke patch.' }],
+    })
+    setPatchRouteDebug({
+      selectedProvider: 'bertos-smoke-test',
+      routerMode: 'patch',
+      taskType: 'code_patch',
+      inventoryShortcutUsed: false,
+    })
+    setPatchError('')
+    setPatchControlError('')
+    setPatchCheckResults([])
+    setPatchApplied(false)
+    setSelectedPatchFiles(new Set(tiny.files.map(file => file.path)))
+    toast.success('Tiny test patch generated. Apply it, then revert it from Patch history.')
+  }
+
+  const runTinyPatchSmokeTest = async () => {
+    if (!safe) return toast.error('Workspace is not safe.')
+    const stamp = Date.now()
+    const path = `tmp/bertos-patch-loop-smoke-${stamp}.md`
+    const patchHistoryId = `smoke-${stamp}`
+    const createFile: PatchFile = {
+      path,
+      operation: 'create',
+      after: `# BertOS Patch Loop Smoke Test\n\nCreated at ${new Date(stamp).toISOString()}\n`,
+    }
+    const modifyFile: PatchFile = {
+      path,
+      operation: 'modify',
+      before: createFile.after,
+      after: `${createFile.after}\nPatched line: dry-run validation, apply, and revert succeeded.\n`,
+    }
+    const validationErrors = validatePatchDryRun({
+      summary: 'Tiny smoke test',
+      provider: 'BertOS deterministic smoke test',
+      files: [createFile, modifyFile],
+      commandsToRun: [],
+      riskLevel: 'low',
+    })
+    if (validationErrors.length) {
+      setPatchError(`Tiny smoke dry-run failed: ${validationErrors.join(' ')}`)
+      return toast.error('Tiny smoke dry-run failed.')
+    }
+
+    setApplyingPatch(true)
+    setPatchControlError('')
+    setPatchCheckResults([])
+    try {
+      await writePatchFile(createFile, { patchHistoryId })
+      await writePatchFile(modifyFile, { patchHistoryId })
+      await writePatchFile({ ...modifyFile, operation: 'delete' }, {
+        patchHistoryId,
+        confirmDelete: true,
+      })
+      setPatchDebug({
+      raw: JSON.stringify({
+          summary: 'Tiny deterministic smoke test completed.',
+          files: [{ path, action: 'create', content: createFile.after }],
+          validation: { commands: [] },
+        }, null, 2),
+        rawDiagnostics: {
+          byteLength: 0,
+          charLength: 0,
+          first500: 'Create, modify, and safe delete completed through daemon.',
+          last500: 'Create, modify, and safe delete completed through daemon.',
+        },
+        extractedJsonCandidate: JSON.stringify({
+          summary: 'Tiny deterministic smoke test completed.',
+          files: [{ path, action: 'create', content: createFile.after }],
+          validation: { commands: [] },
+        }, null, 2),
+        normalized: {
+          summary: 'Tiny deterministic smoke test completed.',
+          files: [{ path, action: 'create', content: createFile.after ?? '' }],
+          validation: { commands: [] },
+        },
+        repairAttempts: [{ attempt: 0, ok: true, rawPreview: 'Create, modify, and safe delete completed through daemon.' }],
+      })
+      setPatchRouteDebug({
+        selectedProvider: 'bertos-smoke-test',
+        routerMode: 'patch',
+        taskType: 'code_patch',
+        inventoryShortcutUsed: false,
+      })
+      setPatchError('')
+      setPatchApplied(true)
+      await refresh()
+      toast.success('Tiny patch smoke test created, modified, and reverted a temp file.')
+    } catch (error) {
+      setPatchError(error instanceof Error ? error.message : 'Tiny patch smoke test failed.')
+      toast.error('Tiny patch smoke test failed.')
+    } finally {
+      setApplyingPatch(false)
     }
   }
 
@@ -989,6 +1270,12 @@ export function WorkspaceView() {
     if (!proposal || selectedPatchFiles.size === 0) return
     if (!safe) return toast.error('Workspace is not safe.')
     const selectedFiles = proposal.files.filter(file => selectedPatchFiles.has(file.path))
+    const dryRunErrors = validatePatchDryRun({ ...proposal, files: selectedFiles })
+    if (dryRunErrors.length > 0) {
+      setPatchError(`Dry-run validation blocked apply: ${dryRunErrors.join(' ')}`)
+      toast.error('Dry-run patch validation blocked apply.')
+      return
+    }
     const hasDelete = selectedFiles.some(file => file.operation === 'delete')
     if (hasDelete && !window.confirm('This patch deletes one or more files. Apply selected delete operations through the safe daemon endpoint?')) return
     setApplyingPatch(true)
@@ -1021,21 +1308,92 @@ export function WorkspaceView() {
           appliedFiles,
           timestamp: Date.now(),
         })
+        recordPatchReliabilityEvent({
+          type: 'apply',
+          providerId: proposalProvider?.providerId ?? proposal.provider ?? 'unknown-provider',
+          success: true,
+        })
+        setPatchMetrics(readPatchReliabilityMetrics())
       }
       toast.success('Approved patch files applied.')
+      setPatchApplied(true)
+      setPatchControlError('')
       await refresh()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Patch apply failed.')
+      const message = error instanceof Error ? error.message : 'Patch apply failed.'
+      setPatchControlError(message)
+      toast.error(message)
     } finally {
       setApplyingPatch(false)
     }
   }
 
   const runSuggestedCommands = async () => {
-    if (!proposal) return
-    for (const commandText of proposal.commandsToRun) {
-      const command = CUSTOM_COMMANDS.get(commandText.trim().replace(/\s+/g, ' '))
-      if (command) await runCommand({ label: commandText, ...command })
+    if (!proposal) {
+      setPatchControlError('No patch proposal exists yet.')
+      return toast.error('No patch proposal exists yet.')
+    }
+    if (!safe) {
+      setPatchControlError('Suggested checks require the local daemon and a safe BertOS repo.')
+      return toast.error('Suggested checks require the local daemon.')
+    }
+    if (suggestedValidationCommands.length === 0) {
+      setPatchControlError('This patch did not include validation commands.')
+      return toast.message('This patch did not include validation commands.')
+    }
+    if (allowedSuggestedValidationCommands.length === 0) {
+      const message = `No suggested checks are allowlisted. Skipped: ${suggestedValidationCommands.join(', ')}`
+      setPatchControlError(message)
+      setPatchCheckResults(suggestedValidationCommands.map(command => ({
+        command,
+        status: 'skipped',
+        error: 'Command is not allowlisted for patch validation.',
+      })))
+      return toast.error('No suggested checks are allowlisted.')
+    }
+
+    setPatchChecksRunning(true)
+    setPatchControlError('')
+    const results: PatchCheckResult[] = skippedSuggestedValidationCommands.map(command => ({
+      command,
+      status: 'skipped',
+      error: 'Command is not allowlisted for patch validation.',
+    }))
+    let ran = 0
+    let passed = 0
+    try {
+      for (const commandText of allowedSuggestedValidationCommands) {
+        const command = VALIDATION_COMMANDS.get(commandText)
+        if (!command) continue
+        ran += 1
+        const result = await runCommand({ label: commandText, ...command })
+        const exitCode = result?.exitCode
+        const passedCommand = exitCode === 0
+        if (passedCommand) passed += 1
+        results.push({
+          command: commandText,
+          status: passedCommand ? 'passed' : 'failed',
+          exitCode,
+          error: result?.error || result?.stderr,
+        })
+      }
+      setPatchCheckResults(results)
+      if (ran > 0) {
+        recordPatchReliabilityEvent({
+          type: 'validation',
+          providerId: proposalProvider?.providerId ?? proposal.provider ?? 'unknown-provider',
+          success: passed === ran,
+        })
+        setPatchMetrics(readPatchReliabilityMetrics())
+      }
+      if (passed === ran) toast.success('Suggested checks passed.')
+      else toast.error('One or more suggested checks failed.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Suggested checks failed to run.'
+      setPatchControlError(message)
+      toast.error(message)
+    } finally {
+      setPatchChecksRunning(false)
     }
   }
 
@@ -1412,11 +1770,102 @@ export function WorkspaceView() {
                       {generatingPatch ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bot className="w-3.5 h-3.5" />}
                       Generate patch
                     </Button>
+                    <Button size="sm" variant="outline" onClick={generateTinyTestPatch} disabled={!safe || applyingPatch}>
+                      Tiny patch
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={runTinyPatchSmokeTest} disabled={!safe || applyingPatch}>
+                      Smoke
+                    </Button>
                   </div>
+                  {patchError && (
+                    <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+                      <div className="font-medium">Patch generation did not produce apply-ready JSON.</div>
+                      <div className="mt-1 text-red-200/80">{patchError}</div>
+                      <div className="mt-2 text-red-200/70">
+                        Suggested fix: open Raw Output, check the parse failure, then retry with a smaller task or use Mission Builder to scope the request.
+                      </div>
+                    </div>
+                  )}
                   {proposalProvider && (
                     <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2 text-[11px] text-zinc-500">
                       Provider: {proposalProvider.providerName ?? proposalProvider.providerId} / {proposalProvider.modelOrTool ?? 'unknown'} / {proposalProvider.source ?? 'unknown'} / {proposalProvider.latencyMs ?? 'n/a'}ms
+                      <div className="mt-1">
+                        JSON reliability: {proposalMetricSummary.validJsonRate} / avg latency {proposalMetricSummary.averageLatencyMs}
+                        {proposalMetricSummary.quarantined && (
+                          <Badge variant="error" className="ml-2 text-[10px]">quarantined</Badge>
+                        )}
+                      </div>
                     </div>
+                  )}
+                  {(patchDebug || patchError) && (
+                    <details className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950/80 p-2">
+                      <summary className="cursor-pointer text-xs text-zinc-400">Raw Output / Parse Debug</summary>
+                      <div className="mt-2 space-y-3 text-[11px] text-zinc-500">
+                        {patchRouteDebug && (
+                          <div className="rounded border border-zinc-800 p-2">
+                            Route: selected {patchRouteDebug.selectedProvider ?? 'unknown'} / mode {patchRouteDebug.routerMode ?? 'unknown'} / task {patchRouteDebug.taskType ?? 'unknown'} / inventory shortcut {patchRouteDebug.inventoryShortcutUsed ? 'used' : 'disabled'}
+                          </div>
+                        )}
+                        {patchDebug?.parseError && (
+                          <div className="rounded border border-red-500/20 bg-red-500/5 p-2 text-red-200">
+                            Parse error: {patchDebug.parseError}
+                          </div>
+                        )}
+                        {patchDebug?.repairAttempts?.length ? (
+                          <div>
+                            <div className="mb-1 text-zinc-400">Parse timeline</div>
+                            <div className="space-y-1">
+                              {patchDebug.repairAttempts.map(attempt => (
+                                <div key={`${attempt.attempt}-${attempt.providerId ?? 'initial'}`} className="rounded border border-zinc-800 p-2">
+                                  Attempt {attempt.attempt} / {attempt.stage ?? 'initial'} / {attempt.providerId ?? 'initial'} / {attempt.ok ? 'valid' : 'failed'}
+                                  {attempt.error && <div className="mt-1 text-red-300">{attempt.error}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {patchDebug?.rawDiagnostics && (
+                          <div>
+                            <div className="mb-1 text-zinc-400">Raw output diagnostics</div>
+                            <div className="grid gap-2">
+                              <div className="rounded border border-zinc-800 p-2">
+                                bytes {patchDebug.rawDiagnostics.byteLength} / chars {patchDebug.rawDiagnostics.charLength}
+                              </div>
+                              <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-black/40 p-2 text-zinc-500">
+                                first 500 chars:{'\n'}{patchDebug.rawDiagnostics.first500}
+                              </pre>
+                              <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-black/40 p-2 text-zinc-500">
+                                last 500 chars:{'\n'}{patchDebug.rawDiagnostics.last500}
+                              </pre>
+                            </div>
+                          </div>
+                        )}
+                        {patchDebug?.extractedJsonCandidate && (
+                          <div>
+                            <div className="mb-1 text-zinc-400">Extracted JSON candidate</div>
+                            <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-black/40 p-2 text-zinc-400">
+                              {patchDebug.extractedJsonCandidate}
+                            </pre>
+                          </div>
+                        )}
+                        {patchDebug?.normalized && (
+                          <div>
+                            <div className="mb-1 text-zinc-400">Normalized patch JSON</div>
+                            <pre className="max-h-56 overflow-auto rounded border border-zinc-800 bg-black/40 p-2 text-zinc-400">
+                              {JSON.stringify(patchDebug.normalized, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                        {patchDebug?.raw && (
+                          <div>
+                            <div className="mb-1 text-zinc-400">Raw provider output</div>
+                            <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-black/40 p-2 text-zinc-500">
+                              {patchDebug.raw}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    </details>
                   )}
                 </section>
 
@@ -1427,7 +1876,24 @@ export function WorkspaceView() {
                       <Badge variant={effectiveRiskLevel(proposal) === 'high' ? 'error' : effectiveRiskLevel(proposal) === 'medium' ? 'warning' : 'success'} className="text-[10px]">
                         {effectiveRiskLevel(proposal)} risk
                       </Badge>
+                      {patchApplied && <Badge variant="success" className="text-[10px]">applied</Badge>}
                     </div>
+                    <div className="mb-3 grid grid-cols-3 gap-2 text-[10px] text-zinc-500">
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+                        1. Review<br /><span className="text-zinc-300">{proposal.files.length} file(s)</span>
+                      </div>
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+                        2. Apply<br /><span className="text-zinc-300">{patchApplied ? 'done' : 'pending'}</span>
+                      </div>
+                      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+                        3. Check<br /><span className="text-zinc-300">{allowedSuggestedValidationCommands.length} safe</span>
+                      </div>
+                    </div>
+                    {patchControlError && (
+                      <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
+                        {patchControlError}
+                      </div>
+                    )}
                     {proposal.files.some(file => file.operation === 'delete') && (
                       <div className="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-200">
                         This proposal includes delete operations. BertOS requires explicit confirmation and uses the daemon file-delete safety gate.
@@ -1462,17 +1928,54 @@ export function WorkspaceView() {
                       ))}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Button size="sm" onClick={applyPatch} disabled={applyingPatch || selectedPatchFiles.size === 0}>
-                        {applyingPatch ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                        Apply selected
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={runSuggestedCommands} disabled={!proposal.commandsToRun.length}>
+                      {proposal.files.length > 0 && (
+                        <Button size="sm" onClick={applyPatch} disabled={applyingPatch || selectedPatchFiles.size === 0 || !safe}>
+                          {applyingPatch ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          Apply selected
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void runSuggestedCommands()}
+                        disabled={!canRunSuggestedChecks}
+                        title={!proposal ? 'No patch proposal exists yet.'
+                          : !safe ? 'Start the local daemon and pass repo safety first.'
+                          : suggestedValidationCommands.length === 0 ? 'This patch did not include validation commands.'
+                          : allowedSuggestedValidationCommands.length === 0 ? 'No suggested commands are allowlisted for patch validation.'
+                          : 'Run safe suggested checks through the daemon terminal.'}
+                      >
+                        {patchChecksRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PanelBottom className="w-3.5 h-3.5" />}
                         Run suggested checks
                       </Button>
                     </div>
-                    {proposal.commandsToRun.length > 0 && (
-                      <div className="mt-3 text-[11px] text-zinc-600">
-                        Suggested: {proposal.commandsToRun.join(', ')}
+                    {suggestedValidationCommands.length > 0 && (
+                      <div className="mt-3 space-y-1 text-[11px] text-zinc-600">
+                        <div>Suggested checks:</div>
+                        {suggestedValidationCommands.map(command => (
+                          <div key={command} className="flex items-center gap-2">
+                            <Badge variant={VALIDATION_COMMANDS.has(command) ? 'success' : 'warning'} className="text-[10px]">
+                              {VALIDATION_COMMANDS.has(command) ? 'safe' : 'skipped'}
+                            </Badge>
+                            <span className="font-mono">{command}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {patchCheckResults.length > 0 && (
+                      <div className="mt-3 space-y-2 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
+                        <div className="text-[11px] text-zinc-500">Last check results</div>
+                        {patchCheckResults.map(result => (
+                          <div key={result.command} className="flex items-start gap-2 text-[11px] text-zinc-400">
+                            <Badge variant={result.status === 'passed' ? 'success' : result.status === 'failed' ? 'error' : 'warning'} className="text-[10px]">
+                              {result.status}
+                            </Badge>
+                            <div className="min-w-0">
+                              <div className="truncate font-mono">{result.command}{result.exitCode !== undefined ? ` (exit ${result.exitCode})` : ''}</div>
+                              {result.error && <div className="mt-1 line-clamp-3 text-red-300">{result.error}</div>}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </section>
