@@ -7,6 +7,7 @@ import type { Message } from '@/lib/bertos/types'
 import { resolveOllamaModel, CLI_MODEL_ALIASES, API_MODEL_ALIASES } from '@/lib/bertos/providers'
 import { getOllamaConfig } from '@/lib/bertos/runtime'
 import { askLocalDaemon, type LocalCliProvider } from '@/lib/bertos/local-daemon'
+import { callGeminiNative } from '@/lib/bertos/providers/gemini-native'
 
 // Node.js runtime required:
 // - reads process.env.VERCEL to detect cloud mode
@@ -17,6 +18,7 @@ const API_MODEL_IDS: Record<string, string> = {
   'claude-api':  'claude-opus-4-5',
   'openai-api':  'gpt-4o',
   'gemini-api':  'gemini-2.0-flash',
+  'gemini-api-native': 'gemini-2.5-flash',
 }
 
 interface ClientKeys {
@@ -128,7 +130,18 @@ export async function POST(req: NextRequest) {
         // ── Optional API providers (disabled by default) ────────────────
         if (API_MODEL_ALIASES.has(effectiveModelAlias)) {
           const enableApi = body.enableApiProviders ?? (process.env.ENABLE_API_PROVIDERS === 'true')
-          if (!enableApi) {
+          if (!enableApi && effectiveModelAlias === 'gemini-api-native') {
+            send({
+              apiFallback: {
+                requestedProvider: 'gemini-api-native',
+                fallbackProvider: 'ollama-pro',
+                reason: 'Gemini Native API is disabled until API providers are enabled.',
+              },
+            })
+            effectiveModelAlias = 'ollama-pro'
+          }
+
+          if (!enableApi && effectiveModelAlias !== 'ollama-pro') {
             throw new Error(
               `API providers are disabled by default. ` +
               `Enable them in Settings → Providers → Enable API Providers. ` +
@@ -191,10 +204,30 @@ export async function POST(req: NextRequest) {
               const text = chunk.text
               if (text) send({ text })
             }
+          } else if (effectiveModelAlias === 'gemini-api-native') {
+            const result = await callGeminiNative({
+              model: API_MODEL_IDS['gemini-api-native'],
+              mode: 'chat',
+              prompt: conversationMessages.map(m => `${m.role}: ${m.content}`).join('\n\n'),
+              systemInstruction: systemPrompt,
+              responseMimeType: 'text/plain',
+              temperature: 0.4,
+            })
+            if (!result.ok) throw new Error(result.error || 'Gemini Native API request failed.')
+            send({
+              provider: {
+                providerId: result.provider,
+                model: result.model,
+                latencyMs: result.latencyMs,
+              },
+            })
+            send({ text: result.text ?? '' })
           }
 
-          done()
-          return
+          if (effectiveModelAlias !== 'ollama-pro') {
+            done()
+            return
+          }
         }
 
         // ── Ollama (default provider, no API billing) ───────────────────

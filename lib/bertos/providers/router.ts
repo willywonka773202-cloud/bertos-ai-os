@@ -3,12 +3,14 @@ import { routePrompt } from '../router'
 import * as claudeCli from './claude-cli'
 import * as codexCli from './codex-cli'
 import * as geminiCli from './gemini-cli'
+import * as geminiNative from './gemini-native'
 import * as ollamaPro from './ollama-pro'
 import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 const PROVIDERS = {
   'claude-code': claudeCli,
   'codex-cli': codexCli,
+  'gemini-api-native': geminiNative,
   'gemini-cli': geminiCli,
   'ollama-pro': ollamaPro,
 }
@@ -52,7 +54,7 @@ function formatProviderReport(statuses: ProviderStatusResult[]) {
     '',
     ...statuses.map(status => {
       const state = status.online ? 'available' : 'unavailable'
-      const source = status.providerId === 'ollama-pro' ? 'API' : 'daemon'
+      const source = status.providerId === 'ollama-pro' || status.providerId === 'gemini-api-native' ? 'API' : 'daemon'
       const detail = status.error ? ` - ${status.error}` : ''
       return `- ${status.providerName}: ${state} via ${source}; tool/model: ${status.modelOrTool}${detail}`
     }),
@@ -66,7 +68,7 @@ function providerStatusToAttempt(status: ProviderStatusResult) {
   return {
     providerId: status.providerId,
     available: status.online,
-    source: status.providerId === 'ollama-pro' ? 'api' as const : 'daemon' as const,
+    source: status.providerId === 'ollama-pro' || status.providerId === 'gemini-api-native' ? 'api' as const : 'daemon' as const,
     error: status.error,
   }
 }
@@ -102,7 +104,7 @@ export async function askWithProviderRouter(
   const decision = routePrompt(prompt, preferred)
   const fallbackOrder: ProviderId[] = routerMode === 'patch'
     ? ['codex-cli', 'claude-code', 'ollama-pro', 'gemini-cli']
-    : ['codex-cli', 'claude-code', 'gemini-cli', 'ollama-pro']
+    : ['gemini-api-native', 'codex-cli', 'claude-code', 'gemini-cli', 'ollama-pro']
   const requested = preferred !== 'auto' && isProviderId(preferred) ? [preferred] : []
   const ordered = reorderForPatchMode([
     ...requested,
@@ -119,7 +121,7 @@ export async function askWithProviderRouter(
     attemptedProviders?.push({
       providerId,
       available: Boolean(status?.online),
-      source: providerId === 'ollama-pro' ? 'api' : 'daemon',
+      source: providerId === 'ollama-pro' || providerId === 'gemini-api-native' ? 'api' : 'daemon',
       error: status?.error,
     })
 

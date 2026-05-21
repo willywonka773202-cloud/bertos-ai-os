@@ -9,6 +9,7 @@ export const CLI_COMMANDS: Record<ProviderId, string | undefined> = {
   'claude-api':  undefined,
   'openai-api':  undefined,
   'gemini-api':  undefined,
+  'gemini-api-native': undefined,
 }
 
 /** User-facing setup instructions for each CLI provider. */

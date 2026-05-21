@@ -16,16 +16,23 @@ import { useChatStore } from '@/store/bertos/chat'
 import { usePromptStore } from '@/store/bertos/prompts'
 import { toast } from 'sonner'
 
-type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'codex-cli'
+type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'gemini-api-native' | 'codex-cli'
 type CouncilMode = 'compare' | 'judge' | 'build'
 
-const ALL_MODELS: ModelId[] = ['ollama-pro', 'claude-code', 'gemini-cli', 'codex-cli']
+const ALL_MODELS: ModelId[] = ['ollama-pro', 'claude-code', 'gemini-cli', 'gemini-api-native', 'codex-cli']
 
-const MODEL_META: Record<ModelId, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
+const MODEL_META: Record<string, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
   'ollama-pro':  { label: 'Ollama',  icon: <Bot   className="w-4 h-4" />, color: '#F97316', desc: 'Local/Cloud · Always-on' },
   'claude-code': { label: 'Claude',  icon: <Cpu   className="w-4 h-4" />, color: '#8B5CF6', desc: 'CLI · Subscription' },
   'gemini-cli':  { label: 'Gemini',  icon: <Globe className="w-4 h-4" />, color: '#3B82F6', desc: 'CLI · Subscription' },
   'codex-cli':   { label: 'Codex',   icon: <Zap   className="w-4 h-4" />, color: '#10B981', desc: 'CLI · Subscription' },
+}
+
+MODEL_META['gemini-api-native'] = {
+  label: 'Gemini Native',
+  icon: <Globe className="w-4 h-4" />,
+  color: '#3B82F6',
+  desc: 'API - Structured',
 }
 
 const COUNCIL_MODES: { id: CouncilMode; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -204,6 +211,7 @@ export function CompareView() {
         systemPrompt,
         clientKeys: settings.apiKeys,
         ollamaEndpoint: settings.ollamaEndpoint,
+        enableApiProviders: settings.enableApiProviders,
       }),
       signal,
     })
@@ -246,6 +254,42 @@ export function CompareView() {
       const systemPrompt = mode === 'build'
         ? 'You are a technical planning judge. Return a structured build decision.'
         : 'You are an AI council judge. Synthesize the responses with clear sections.'
+
+      if (judgeModel === 'gemini-api-native') {
+        const res = await fetch('/api/providers/gemini-native', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'council-judge',
+            prompt: synthesisPrompt,
+            systemInstruction: systemPrompt,
+          }),
+        })
+        const data = await res.json() as {
+          ok: boolean
+          json?: {
+            finalAnswer?: string
+            confidence?: string
+            recommendedNextAction?: string
+            bestPoints?: Array<{ model: string; point: string }>
+            conflicts?: string[]
+          }
+          error?: string
+          latencyMs?: number
+        }
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Gemini Native judge failed.')
+        const json = data.json
+        const content = [
+          json?.finalAnswer ?? '',
+          '',
+          json?.bestPoints?.length ? `Best points:\n${json.bestPoints.map(item => `- ${item.model}: ${item.point}`).join('\n')}` : '',
+          json?.conflicts?.length ? `\nConflicts:\n${json.conflicts.map(item => `- ${item}`).join('\n')}` : '',
+          json?.confidence ? `\nConfidence: ${json.confidence}` : '',
+          json?.recommendedNextAction ? `\nNext action: ${json.recommendedNextAction}` : '',
+        ].filter(Boolean).join('\n')
+        setJudgeResult({ content, providerUsed: judgeModel, latencyMs: data.latencyMs ?? Date.now() - start, streaming: false })
+        return
+      }
 
       const { content, latencyMs } = await streamChat(
         synthesisPrompt,

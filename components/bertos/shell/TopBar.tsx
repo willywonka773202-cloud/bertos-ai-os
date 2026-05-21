@@ -13,6 +13,14 @@ import { ProviderStatusIndicator } from './ProviderStatusIndicator'
 
 type ModelOption = { value: AIModel; label: string; description: string; icon: React.ReactNode; color: string }
 
+const GEMINI_NATIVE_MODEL: ModelOption = {
+  value: 'gemini-api-native',
+  label: 'Gemini Native',
+  description: 'Google GenAI API - structured planning',
+  icon: <Globe className="w-3.5 h-3.5" />,
+  color: '#3B82F6',
+}
+
 const BASE_SUBSCRIPTION_MODELS: ModelOption[] = [
   { value: 'auto',        label: 'Auto',        description: 'Smart routing · Subscription only',          icon: <Sparkles className="w-3.5 h-3.5" />, color: '#F59E0B' },
   { value: 'ollama-pro',  label: 'Ollama Pro',  description: 'Ollama · gpt-oss:120b-cloud · Default',      icon: <Bot className="w-3.5 h-3.5" />,      color: '#F97316' },
@@ -36,7 +44,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const { selectedModel, setSelectedModel, activeView, rightPanelOpen, setRightPanelOpen, setCommandPaletteOpen } = useUIStore()
   const { isStreaming } = useChatStore()
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
-  const [subscriptionModels, setSubscriptionModels] = useState<ModelOption[]>(BASE_SUBSCRIPTION_MODELS)
+  const [subscriptionModels, setSubscriptionModels] = useState<ModelOption[]>([...BASE_SUBSCRIPTION_MODELS, GEMINI_NATIVE_MODEL])
   const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
 

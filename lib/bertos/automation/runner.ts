@@ -3,6 +3,7 @@ import path from 'node:path'
 import type { AutomationAction } from '@/lib/bertos/types'
 import { fetchLocalDaemonStatus, fetchLocalRepoStatus, runLocalDaemonCommand } from '@/lib/bertos/local-daemon'
 import { getOllamaConfig } from '@/lib/bertos/runtime'
+import { callGeminiNative, getGeminiNativeApiKey } from '@/lib/bertos/providers/gemini-native'
 
 export interface AutomationActionResult {
   action: AutomationAction
@@ -114,7 +115,7 @@ async function checkProviderHealth(): Promise<AutomationActionResult> {
 async function createProjectHealthReport(previous: AutomationActionResult[]): Promise<AutomationActionResult> {
   const started = Date.now()
   const repo = await fetchLocalRepoStatus(5000)
-  const lines = [
+  const baseReport = [
     'Project Health Report',
     repo ? `Branch: ${repo.branch}` : 'Branch: unavailable',
     repo ? `Remote: ${repo.remote}` : 'Remote: unavailable',
@@ -124,6 +125,27 @@ async function createProjectHealthReport(previous: AutomationActionResult[]): Pr
       `${result.status === 'completed' ? 'PASS' : 'FAIL'} ${result.action}`,
       (result.error ?? result.output ?? '').split('\n').slice(0, 6).join('\n'),
     ].join('\n')),
+  ].join('\n')
+
+  if (getGeminiNativeApiKey()) {
+    const gemini = await callGeminiNative({
+      mode: 'autopilot-report',
+      prompt: baseReport,
+      systemInstruction: 'You are BertOS Autopilot. Return a concise structured project health report.',
+      responseMimeType: 'application/json',
+    })
+    if (gemini.ok && gemini.json) {
+      return {
+        action: 'create-project-health-report',
+        status: previous.some(result => result.status === 'failed') ? 'failed' : 'completed',
+        output: JSON.stringify(gemini.json, null, 2),
+        durationMs: Date.now() - started,
+      }
+    }
+  }
+
+  const lines = [
+    baseReport,
   ]
   return {
     action: 'create-project-health-report',

@@ -32,6 +32,8 @@ The daemon enables local-only features:
 - Autopilot project checks
 - Claude Code, Codex CLI, and Gemini CLI agent runs
 
+Gemini Native API does not require the daemon, but it does require a server-side `GEMINI_API_KEY` or `GOOGLE_API_KEY`. See `docs/gemini-native-provider.md`.
+
 ## Verify health
 
 With the app running, open:

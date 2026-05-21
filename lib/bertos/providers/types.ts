@@ -1,4 +1,4 @@
-export type ProviderKind = 'ollama' | 'cli-subscription' | 'api-optional'
+export type ProviderKind = 'ollama' | 'cli-subscription' | 'api-optional' | 'api-native'
 export type BillingMode = 'subscription' | 'local' | 'api'
 export type ProviderId =
   | 'ollama'
@@ -8,6 +8,7 @@ export type ProviderId =
   | 'claude-api'
   | 'openai-api'
   | 'gemini-api'
+  | 'gemini-api-native'
 
 export interface ProviderHealth {
   available: boolean
@@ -31,4 +32,6 @@ export interface ProviderDefinition {
   docsUrl: string
   models: string[]
   color: string
+  capabilities?: string[]
+  requiredEnvVars?: string[]
 }

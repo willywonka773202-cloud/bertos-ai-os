@@ -89,10 +89,25 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
     models: ['gemini-2.0-flash', 'gemini-1.5-pro'],
     color: '#3B82F6',
   },
+  'gemini-api-native': {
+    id: 'gemini-api-native',
+    name: 'Gemini Native API',
+    kind: 'api-native',
+    billingMode: 'api',
+    defaultModel: 'gemini-2.5-pro',
+    description: 'Native Google GenAI SDK provider for structured planning, long context, council judging, and system analysis.',
+    billingWarning: 'Google One AI Premium does NOT include Gemini API credits. Enabling this creates a separate metered bill.',
+    setupCommand: 'Set GEMINI_API_KEY env var. GOOGLE_API_KEY is also supported as a fallback.',
+    docsUrl: 'https://ai.google.dev/gemini-api/docs',
+    models: ['gemini-2.5-pro', 'gemini-2.5-flash'],
+    color: '#3B82F6',
+    capabilities: ['chat', 'structured-json', 'long-context', 'planning', 'code-analysis', 'council-judge', 'workspace-planning', 'multimodal-foundation'],
+    requiredEnvVars: ['GEMINI_API_KEY'],
+  },
 }
 
 export const SUBSCRIPTION_PROVIDERS: ProviderId[] = ['ollama', 'claude-code', 'gemini-cli', 'codex-cli']
-export const API_PROVIDERS: ProviderId[] = ['claude-api', 'openai-api', 'gemini-api']
+export const API_PROVIDERS: ProviderId[] = ['claude-api', 'openai-api', 'gemini-api', 'gemini-api-native']
 export const DEFAULT_PROVIDER: ProviderId = 'ollama'
 export const DEFAULT_PROVIDER_MODEL = 'gpt-oss:120b-cloud'
 export const LOCAL_FALLBACK_MODEL = 'qwen2.5-coder:latest'

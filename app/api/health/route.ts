@@ -14,6 +14,7 @@ export async function GET() {
     'claude-api': Boolean(process.env.ANTHROPIC_API_KEY),
     'openai-api': Boolean(process.env.OPENAI_API_KEY),
     'gemini-api': Boolean(process.env.GEMINI_API_KEY),
+    'gemini-api-native': Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY),
     enableApiProviders: process.env.ENABLE_API_PROVIDERS === 'true',
     localDaemon: daemon.online,
   }, {

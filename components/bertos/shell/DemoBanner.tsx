@@ -12,6 +12,7 @@ type HealthStatus = {
   'claude-api':  boolean
   'openai-api':  boolean
   'gemini-api':  boolean
+  'gemini-api-native': boolean
   enableApiProviders: boolean
 }
 
@@ -22,7 +23,7 @@ const ALWAYS_ON = new Set(['auto', 'ollama-pro', 'qwen2.5-coder', 'llama3', 'lla
 const CLI_MODELS = new Set(['claude-code', 'gemini-cli', 'codex-cli'])
 
 // API models — require API key + enableApiProviders
-const API_MODELS = new Set(['claude-api', 'openai-api', 'gemini-api'])
+const API_MODELS = new Set(['claude-api', 'openai-api', 'gemini-api', 'gemini-api-native'])
 
 function isModelConfigured(
   model: string,
@@ -35,6 +36,7 @@ function isModelConfigured(
   if (model === 'claude-api') return enableApiProviders && (health['claude-api'] || !!apiKeys.anthropic)
   if (model === 'openai-api') return enableApiProviders && (health['openai-api'] || !!apiKeys.openai)
   if (model === 'gemini-api') return enableApiProviders && (health['gemini-api'] || !!apiKeys.google)
+  if (model === 'gemini-api-native') return enableApiProviders && health['gemini-api-native']
   return false
 }
 
@@ -45,6 +47,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   'claude-api':  'Anthropic API',
   'openai-api':  'OpenAI API',
   'gemini-api':  'Gemini API',
+  'gemini-api-native': 'Gemini Native API',
 }
 
 function getBannerMessage(model: string, enableApiProviders: boolean): { title: string; body: string } {
@@ -60,6 +63,12 @@ function getBannerMessage(model: string, enableApiProviders: boolean): { title: 
     }
   }
   if (API_MODELS.has(model)) {
+    if (model === 'gemini-api-native' && enableApiProviders) {
+      return {
+        title: `No API key for ${PROVIDER_LABEL[model]}`,
+        body: 'Set GEMINI_API_KEY or GOOGLE_API_KEY on the server, then restart Bert OS.',
+      }
+    }
     if (!enableApiProviders) {
       return {
         title: `API providers are disabled`,
@@ -87,6 +96,7 @@ export function DemoBanner() {
       .catch(() => setHealth({
         'claude-code': false, 'gemini-cli': false, 'codex-cli': false,
         'claude-api': false, 'openai-api': false, 'gemini-api': false,
+        'gemini-api-native': false,
         enableApiProviders: false,
       }))
   }, [])

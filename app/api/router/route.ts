@@ -6,7 +6,7 @@ export const runtime = 'edge'
 
 const SYSTEM = `You are an AI routing specialist for BertOS. Analyze the user's prompt and return ONLY a JSON object with:
 - "reasoning": one sentence explaining why you chose this model
-- "recommendedModel": exactly one of "ollama-pro", "claude-code", "codex-cli", "gemini-cli"
+- "recommendedModel": exactly one of "ollama-pro", "claude-code", "codex-cli", "gemini-cli", "gemini-api-native"
 - "taskType": one of "coding", "writing", "research", "analysis", "math", "brainstorming", "debugging", "general"
 - "confidence": number 0-1
 
@@ -14,7 +14,8 @@ Rules:
 - Default is always "ollama-pro" (always-on subscription provider, no extra billing)
 - Heavy coding / debugging / implementation → "codex-cli" (OpenAI Codex via CLI subscription)
 - Long-form writing / reasoning / nuanced analysis → "claude-code" (Claude via CLI subscription)
-- Research / large documents / web knowledge → "gemini-cli" (Gemini via CLI subscription)
+- Structured planning / long context / council judge → "gemini-api-native" when configured
+- Research / large documents / web knowledge → "gemini-api-native" with Gemini CLI fallback
 - Math / general → "ollama-pro"`
 
 const MODEL_TO_ALIAS: Record<string, string> = {
@@ -22,6 +23,7 @@ const MODEL_TO_ALIAS: Record<string, string> = {
   'claude-code': 'claude-code',
   'codex-cli':   'codex-cli',
   'gemini-cli':  'gemini-cli',
+  'gemini-api-native': 'gemini-api-native',
 }
 
 export async function POST(req: NextRequest) {

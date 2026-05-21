@@ -51,6 +51,14 @@ interface ComposioStatus {
   error?: string
 }
 
+interface GeminiNativeStatus {
+  available: boolean
+  hasApiKey: boolean
+  models: string[]
+  capabilities: string[]
+  error?: string
+}
+
 const SECTIONS = [
   { id: 'providers', icon: Bot,      label: 'Providers'   },
   { id: 'api-keys',  icon: Key,      label: 'API Keys'    },
@@ -107,6 +115,7 @@ export function SettingsView() {
   const [ollamaStatus, setOllamaStatus] = useState<OllamaStatus | null>(null)
   const [localDaemonStatus, setLocalDaemonStatus] = useState<LocalDaemonStatus | null>(null)
   const [composioStatus, setComposioStatus] = useState<ComposioStatus | null>(null)
+  const [geminiNativeStatus, setGeminiNativeStatus] = useState<GeminiNativeStatus | null>(null)
   const [ollamaLoading, setOllamaLoading] = useState(false)
   const [daemonLoading, setDaemonLoading] = useState(false)
   const [testingCloud, setTestingCloud] = useState(false)
@@ -157,11 +166,27 @@ export function SettingsView() {
     }
   }
 
+  const fetchGeminiNativeStatus = async () => {
+    try {
+      const res = await fetch('/api/providers/gemini-native', { cache: 'no-store' })
+      setGeminiNativeStatus(await res.json() as GeminiNativeStatus)
+    } catch {
+      setGeminiNativeStatus({
+        available: false,
+        hasApiKey: false,
+        models: [],
+        capabilities: [],
+        error: 'Could not check Gemini Native API status.',
+      })
+    }
+  }
+
   useEffect(() => {
     if (activeSection === 'providers') {
       fetchOllamaStatus()
       fetchLocalDaemonStatus()
       fetchComposioStatus()
+      fetchGeminiNativeStatus()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection])
@@ -558,11 +583,49 @@ export function SettingsView() {
                 </div>
               </div>
 
+              <div className={cn(
+                'rounded-xl border p-4',
+                geminiNativeStatus?.available
+                  ? 'border-blue-500/20 bg-blue-500/5'
+                  : 'border-zinc-800 bg-zinc-900/30'
+              )}>
+                <div className="flex items-start gap-3">
+                  <Globe className={cn('mt-0.5 h-4 w-4 shrink-0', geminiNativeStatus?.available ? 'text-blue-400' : 'text-zinc-600')} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-zinc-300">Gemini Native API</p>
+                      <Badge variant={geminiNativeStatus?.available ? 'success' : 'default'} className="text-[9px]">
+                        {geminiNativeStatus?.available ? 'Configured' : 'Missing key'}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-zinc-600">
+                      Structured JSON planning, long context, council judging, workspace planning, and multimodal foundation.
+                    </p>
+                    <p className="mt-2 text-[11px] text-zinc-700">
+                      Required env var: <code>GEMINI_API_KEY</code>. Optional fallback: <code>GOOGLE_API_KEY</code>. API usage is billed separately.
+                    </p>
+                    {geminiNativeStatus?.error && <p className="mt-2 text-[11px] text-amber-400">{geminiNativeStatus.error}</p>}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(geminiNativeStatus?.capabilities ?? ['structured-json', 'long-context', 'planning', 'council-judge']).slice(0, 6).map(capability => (
+                        <Badge key={capability} variant="default" className="text-[9px]">{capability}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={fetchGeminiNativeStatus}
+                    className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
               {/* Enable API providers toggle */}
               <div className="flex items-center justify-between p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/30">
                 <div>
                   <p className="text-sm font-medium text-zinc-300">Enable API Providers</p>
-                  <p className="text-xs text-zinc-600">Allow claude-api, openai-api, gemini-api models</p>
+                  <p className="text-xs text-zinc-600">Allow claude-api, openai-api, gemini-api, and gemini-api-native models</p>
                 </div>
                 <ToggleSwitch
                   value={settings.enableApiProviders ?? false}

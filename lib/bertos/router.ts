@@ -16,10 +16,10 @@ const ROUTING_RULES: RoutingRule[] = [
       /\b(plan.*implement.*review|architecture.*implementation|design.*patch.*review)\b/i,
     ],
     taskType: 'analysis',
-    primary: 'gemini-cli',
-    secondary: ['claude-code', 'codex-cli', 'ollama-pro'],
+    primary: 'gemini-api-native',
+    secondary: ['gemini-cli', 'claude-code', 'codex-cli', 'ollama-pro'],
     strategy: 'sequential',
-    reasoning: 'Using Gemini first because this needs broad planning, then Claude for architecture review and Codex for implementation if the mission proceeds.',
+    reasoning: 'Using Gemini Native API because this needs structured long-context planning; Gemini CLI, Claude, Codex, and Ollama remain fallbacks.',
   },
   {
     patterns: [
@@ -73,10 +73,10 @@ const ROUTING_RULES: RoutingRule[] = [
       /\b(long context|planning|plan|strategy|architecture|roadmap)\b/i,
     ],
     taskType: 'analysis',
-    primary: 'gemini-cli',
-    secondary: ['claude-code', 'ollama-pro'],
+    primary: 'gemini-api-native',
+    secondary: ['gemini-cli', 'claude-code', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Using Gemini first because this needs long-context planning or research. Claude is the architecture fallback; Ollama Pro is the cheap fallback.',
+    reasoning: 'Using Gemini Native API because this needs long-context planning or research. Gemini CLI, Claude, and Ollama Pro remain fallbacks.',
   },
   {
     patterns: [
@@ -93,10 +93,10 @@ const ROUTING_RULES: RoutingRule[] = [
       /\b(research|find|search|information about|tell me about|what is|who is|when did|history)\b/i,
     ],
     taskType: 'research',
-    primary: 'gemini-cli',
-    secondary: ['ollama-pro'],
+    primary: 'gemini-api-native',
+    secondary: ['gemini-cli', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Using Gemini because this is research or long-context information work. Ollama Pro remains the fallback.',
+    reasoning: 'Using Gemini Native API because this is research or long-context information work. Gemini CLI and Ollama Pro remain fallbacks.',
   },
   {
     patterns: [
@@ -185,6 +185,7 @@ export function getModelColor(model: string): string {
     case 'hermes3':         return '#A855F7'
     case 'claude-code':     return '#8B5CF6'
     case 'gemini-cli':      return '#3B82F6'
+    case 'gemini-api-native': return '#3B82F6'
     case 'codex-cli':       return '#10B981'
     case 'claude-api':      return '#8B5CF6'
     case 'openai-api':      return '#10B981'
@@ -205,6 +206,7 @@ export function getModelLabel(model: string): string {
     case 'hermes3':         return 'Hermes 3'
     case 'claude-code':     return 'Claude Code'
     case 'gemini-cli':      return 'Gemini CLI'
+    case 'gemini-api-native': return 'Gemini Native API'
     case 'codex-cli':       return 'Codex CLI'
     case 'claude-api':      return 'Anthropic API'
     case 'openai-api':      return 'OpenAI API'

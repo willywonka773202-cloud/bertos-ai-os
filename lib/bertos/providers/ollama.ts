@@ -35,5 +35,5 @@ export const CLI_MODEL_ALIASES = new Set([
 
 /** All model aliases that are optional API providers (disabled by default). */
 export const API_MODEL_ALIASES = new Set([
-  'claude-api', 'openai-api', 'gemini-api',
+  'claude-api', 'openai-api', 'gemini-api', 'gemini-api-native',
 ])

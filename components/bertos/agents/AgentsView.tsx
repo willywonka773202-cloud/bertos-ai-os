@@ -33,6 +33,7 @@ const MODEL_META: Record<string, { icon: React.ReactNode; color: string }> = {
   'ollama-pro':  { icon: <Bot      className="w-3.5 h-3.5" />, color: '#F97316' },
   'claude-code': { icon: <Cpu      className="w-3.5 h-3.5" />, color: '#8B5CF6' },
   'gemini-cli':  { icon: <Globe    className="w-3.5 h-3.5" />, color: '#3B82F6' },
+  'gemini-api-native': { icon: <Globe className="w-3.5 h-3.5" />, color: '#3B82F6' },
   'codex-cli':   { icon: <Zap      className="w-3.5 h-3.5" />, color: '#10B981' },
   auto:          { icon: <Sparkles className="w-3.5 h-3.5" />, color: '#F59E0B' },
 }
@@ -215,7 +216,62 @@ function TaskCard({ task, daemonOnline }: { task: AgentTask; daemonOnline: boole
     addLog(task.id, { level: 'info', message: `Routing ${task.mode ?? 'build'} task to ${task.model}…` })
 
     try {
-      const providerId = task.model === 'auto' || task.model === 'ollama-pro' ? 'codex-cli' : task.model
+      if (task.mode === 'plan' && task.model === 'gemini-api-native') {
+        updateStep(task.id, step1.id, { status: 'done', completedAt: Date.now() })
+        setProgress(task.id, 25)
+        const step2 = addStep(task.id, {
+          number: 2, status: 'running', type: 'plan',
+          title: 'Calling Gemini Native Planner...', timestamp: Date.now(),
+          providerUsed: 'gemini-api-native',
+        })
+        const res = await fetch('/api/providers/gemini-native', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'structured-plan',
+            prompt: `${task.title}\n\n${task.description}`,
+            systemInstruction: 'You are BertOS structured planning engine. Return the requested JSON schema only.',
+          }),
+        })
+        const data = await res.json() as {
+          ok: boolean
+          json?: {
+            summary?: string
+            todos?: Array<{ title: string }>
+            likelyFiles?: string[]
+            verification?: string[]
+            risks?: string[]
+            nextAction?: string
+          }
+          error?: string
+          latencyMs?: number
+        }
+        if (!res.ok || !data.ok) throw new Error(data.error || 'Gemini Native Planner failed.')
+        const plan = data.json ?? {}
+        updateStep(task.id, step2.id, {
+          status: 'done',
+          completedAt: Date.now(),
+          output: JSON.stringify(plan, null, 2).slice(0, 800),
+        })
+        setReport(task.id, {
+          goal: `${task.title}: ${task.description}`,
+          completed: [plan.summary, ...(plan.todos ?? []).map(todo => todo.title)].filter((item): item is string => Boolean(item)).slice(0, 8),
+          filesChanged: plan.likelyFiles ?? [],
+          commandsRun: plan.verification ?? [],
+          passedChecks: [],
+          failedChecks: [],
+          risks: plan.risks ?? [],
+          nextStep: plan.nextAction ?? 'Review the plan and open Workspace for implementation.',
+          generatedAt: Date.now(),
+        })
+        addLog(task.id, { level: 'success', message: `Gemini Native Planner responded in ${data.latencyMs ?? 0}ms.` })
+        setProgress(task.id, 100)
+        setStatus(task.id, 'done')
+        setExpanded(true)
+        return
+      }
+
+      const providerId = task.model === 'auto' || task.model === 'ollama-pro' || task.model === 'gemini-api-native' ? 'codex-cli' : task.model
       const modePrefix = task.mode === 'plan' ? 'Plan only (no edits): '
         : task.mode === 'debug' ? 'Debug and diagnose: '
         : task.mode === 'review' ? 'Review and report findings: '
@@ -537,6 +593,7 @@ export function AgentsView() {
                 <option value="claude-code">Claude Code</option>
                 <option value="codex-cli">Codex CLI</option>
                 <option value="gemini-cli">Gemini CLI</option>
+                <option value="gemini-api-native">Gemini Native Planner</option>
                 <option value="ollama-pro">Ollama</option>
               </select>
               <Button onClick={addCustom} disabled={!customTitle.trim()} size="sm" className="ml-auto">
