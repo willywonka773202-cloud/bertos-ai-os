@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GitCompare, Send, Cpu, Globe, Zap, Trophy, Copy, Check, Loader2, RotateCcw, Bot } from 'lucide-react'
+import { GitCompare, Send, Cpu, Globe, Zap, Trophy, Copy, Check, Loader2, RotateCcw, Bot, Code2 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { readAIStream } from '@/lib/bertos/stream-utils'
 import { useUIStore } from '@/store/bertos/ui'
+import { useRouter } from 'next/navigation'
 
 interface ModelResponse {
   model: string
@@ -51,6 +52,8 @@ function StreamingBars({ color }: { color: string }) {
   )
 }
 
+const COMPARE_PREFILL_KEY = 'bertos-coding-prefill-v1'
+
 export function CompareView() {
   const [query, setQuery] = useState('')
   const [responses, setResponses] = useState<ModelResponse[]>([])
@@ -59,7 +62,16 @@ export function CompareView() {
   const [copiedModel, setCopiedModel] = useState<ModelId | null>(null)
   const [activeTab, setActiveTab] = useState<ModelId>('ollama-pro')
   const abortRefs = useRef<Map<ModelId, AbortController>>(new Map())
-  const { settings } = useUIStore()
+  const { settings, setActiveView } = useUIStore()
+  const router = useRouter()
+
+  const sendToCoding = (model: ModelId) => {
+    const r = responses.find(r => r.model === model)
+    if (!r?.content) return
+    try { localStorage.setItem(COMPARE_PREFILL_KEY, r.content) } catch { /* ignore */ }
+    setActiveView('coding')
+    router.push('/coding')
+  }
 
   const patchResponse = useCallback((model: ModelId, patch: Partial<ModelResponse>) => {
     setResponses(prev => prev.map(r => r.model === model ? { ...r, ...patch } : r))
@@ -290,8 +302,16 @@ export function CompareView() {
                           <button
                             onClick={() => setWinner(isWinner ? null : response.model as ModelId)}
                             className={cn('p-1 rounded hover:bg-white/5 transition-colors', isWinner ? 'text-amber-400' : 'text-zinc-700')}
+                            title="Mark as best answer"
                           >
                             <Trophy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => sendToCoding(response.model as ModelId)}
+                            className="p-1 rounded hover:bg-white/5 transition-colors text-zinc-700 hover:text-emerald-400"
+                            title="Send to Coding Lab"
+                          >
+                            <Code2 className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )}

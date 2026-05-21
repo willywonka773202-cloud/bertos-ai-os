@@ -272,6 +272,32 @@ export function EvolutionLabView() {
     setProposal(null)
     setProposalProvider(null)
     try {
+      // Fetch file tree to include likely-affected files as context
+      let includedFiles: Array<{ path: string; content: string }> = []
+      try {
+        const treeRes = await fetch('/api/local-daemon/files', { cache: 'no-store' })
+        if (treeRes.ok) {
+          const treeData = await treeRes.json()
+          const allPaths: string[] = (treeData.files ?? []).map((f: { path: string }) => f.path)
+          // Identify paths mentioned in evidence or patchPrompt
+          const evidenceText = [selectedItem.patchPrompt, ...selectedItem.evidence].join(' ')
+          const likelyPaths = allPaths
+            .filter(p => evidenceText.includes(p) || evidenceText.includes(p.replace(/^.*\//, '')))
+            .slice(0, 6)
+          const fileResults = await Promise.allSettled(
+            likelyPaths.map(async (path) => {
+              const fr = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+              if (!fr.ok) return null
+              const fd = await fr.json()
+              return typeof fd.content === 'string' ? { path, content: fd.content } : null
+            })
+          )
+          includedFiles = fileResults
+            .filter((r): r is PromiseFulfilledResult<{ path: string; content: string }> => r.status === 'fulfilled' && r.value !== null)
+            .map(r => r.value)
+        }
+      } catch { /* file fetching is best-effort */ }
+
       const res = await fetch('/api/workspace/patch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -281,6 +307,7 @@ export function EvolutionLabView() {
           context: {
             repo: scan?.repo,
             gitStatus: scan?.repo?.status,
+            includedFiles,
             memories: [
               'Never touch Sylistly.',
               'BertOS Evolution Lab can scan and propose patches, but all writes require approval.',

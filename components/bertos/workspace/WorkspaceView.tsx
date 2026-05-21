@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { AIModel } from '@/lib/bertos/types'
+import { GitPanel } from './GitPanel'
 
 interface FileNode {
   name: string
@@ -901,42 +902,7 @@ export function WorkspaceView() {
                   </section>
                 )}
 
-                <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <GitCommit className="w-4 h-4 text-emerald-400" />
-                    <h2 className="text-sm font-semibold text-zinc-200">Git workflow</h2>
-                  </div>
-                  <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
-                    <div className="text-[11px] text-zinc-600">Changed files</div>
-                    {changedFiles.length ? (
-                      <ul className="mt-1 space-y-1 text-xs text-zinc-400">
-                        {changedFiles.slice(0, 12).map(file => <li key={file} className="truncate">{file}</li>)}
-                      </ul>
-                    ) : <p className="mt-1 text-xs text-zinc-600">No repo changes detected.</p>}
-                  </div>
-                  <textarea
-                    value={commitMessage}
-                    onChange={event => setCommitMessage(event.target.value)}
-                    placeholder="Commit message"
-                    className="min-h-20 w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-700"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={generateCommitMessage} disabled={generatingCommit || !changedFiles.length}>
-                      {generatingCommit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clipboard className="w-3.5 h-3.5" />}
-                      Draft message
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={commitChanges} disabled={!commitMessage.trim() || !changedFiles.length || !safe}>
-                      Commit locally
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => toast.message('Push is intentionally disabled in-app until explicit push approval flow is added.')}
-                    >
-                      Push disabled
-                    </Button>
-                  </div>
-                </section>
+                <GitPanel />
               </div>
             </ScrollArea>
           </aside>

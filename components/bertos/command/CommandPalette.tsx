@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
-  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical
+  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical,
+  Home, Terminal, Github,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -26,7 +27,7 @@ export function CommandPalette() {
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings', href: string) => {
+  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings' | 'dashboard' | 'coding' | 'github', href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
@@ -43,12 +44,30 @@ export function CommandPalette() {
       action: () => { createSession(); navigate('chat', '/chat') },
     },
     {
+      id: 'open-dashboard',
+      label: 'Dashboard',
+      description: 'Provider status, system overview, quick actions',
+      icon: <Home className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['dashboard', 'home', 'overview', 'status'],
+      action: () => navigate('dashboard', '/dashboard'),
+    },
+    {
       id: 'open-chat',
       label: 'Go to Chat',
       icon: <MessageSquare className="w-4 h-4" />,
       category: 'Navigate',
       keywords: ['chat', 'go', 'open'],
       action: () => navigate('chat', '/chat'),
+    },
+    {
+      id: 'open-coding',
+      label: 'Coding Lab',
+      description: 'Mission builder, AI patch loop, apply patches',
+      icon: <Terminal className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['coding', 'lab', 'mission', 'patch', 'build'],
+      action: () => navigate('coding', '/coding'),
     },
     {
       id: 'open-compare',
@@ -102,6 +121,15 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['settings', 'config', 'preferences'],
       action: () => navigate('settings', '/settings'),
+    },
+    {
+      id: 'open-github',
+      label: 'GitHub',
+      description: 'Issues, PRs, branches (scaffold)',
+      icon: <Github className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['github', 'git', 'pr', 'issue', 'branch'],
+      action: () => navigate('github', '/github'),
     },
     {
       id: 'keyboard-shortcuts',

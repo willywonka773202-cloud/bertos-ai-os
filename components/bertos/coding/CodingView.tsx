@@ -30,6 +30,7 @@ const TEMPLATES = [
 ]
 
 const MISSION_HISTORY_KEY = 'bertos-coding-history-v1'
+const PREFILL_KEY = 'bertos-coding-prefill-v1'
 
 interface PatchFile {
   path: string
@@ -135,6 +136,14 @@ export function CodingView() {
     try {
       const saved = localStorage.getItem(MISSION_HISTORY_KEY)
       if (saved) setHistory(JSON.parse(saved) as SavedMission[])
+    } catch { /* ignore */ }
+    try {
+      const prefill = localStorage.getItem(PREFILL_KEY)
+      if (prefill) {
+        setPrompt(prefill)
+        localStorage.removeItem(PREFILL_KEY)
+        promptRef.current?.focus()
+      }
     } catch { /* ignore */ }
   }, [])
 
