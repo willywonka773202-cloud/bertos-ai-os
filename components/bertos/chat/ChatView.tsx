@@ -169,6 +169,7 @@ export function ChatView() {
             clientKeys: settings.apiKeys,
             ollamaEndpoint: settings.ollamaEndpoint,
             enableApiProviders: settings.enableApiProviders ?? false,
+            maxTokens: settings.tokenBudget ?? 4096,
           }),
           signal: abortRef.current?.signal,
         })
@@ -273,7 +274,8 @@ export function ChatView() {
 
     try {
       // For 'auto' mode, call the router first to get model + show badge
-      if (selectedModel === 'auto') {
+      // Skip routing if the user has disabled it in Performance settings
+      if (selectedModel === 'auto' && settings.routingEnabled !== false) {
         try {
           const routerRes = await fetch('/api/router', {
             method: 'POST',

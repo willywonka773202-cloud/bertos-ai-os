@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     clientKeys?: ClientKeys
     ollamaEndpoint?: string
     enableApiProviders?: boolean
+    maxTokens?: number
   }
 
   try {
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
     ? routePrompt(conversationMessages[conversationMessages.length - 1]?.content ?? '', 'auto')
     : { primary: modelAlias, reasoning: `Routed to ${modelAlias} as selected.`, confidence: 1, taskType: 'general', strategy: 'single' }
 
+  const maxTokens = Math.min(Math.max(body.maxTokens ?? 4096, 256), 8192)
   const encoder = new TextEncoder()
 
   // Build an SSE ReadableStream
@@ -145,7 +147,7 @@ export async function POST(req: NextRequest) {
             }))
             const apiStream = await client.messages.create({
               model: API_MODEL_IDS['claude-api'],
-              max_tokens: 4096,
+              max_tokens: maxTokens,
               system: systemPrompt,
               messages: apiMessages,
               stream: true,
@@ -175,7 +177,7 @@ export async function POST(req: NextRequest) {
               messages: openaiMessages,
               stream: true,
               stream_options: { include_usage: true },
-              max_tokens: 4096,
+              max_tokens: maxTokens,
             })
             for await (const chunk of apiStream) {
               const text = chunk.choices[0]?.delta?.content
