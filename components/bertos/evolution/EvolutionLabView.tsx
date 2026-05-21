@@ -350,8 +350,10 @@ export function EvolutionLabView() {
         if (!res.ok) throw new Error(data.error || `Could not write ${file.path}`)
       }
       toast.success('Patch applied. Running typecheck/build.')
-      await runCommand('npm run typecheck', 'npm', ['run', 'typecheck'], 180000)
-      await runCommand('npm run build', 'npm', ['run', 'build'], 240000)
+      const tc = await runCommand('npm run typecheck', 'npm', ['run', 'typecheck'], 180000)
+      if (tc?.exitCode !== 0) { toast.error('Typecheck failed — review terminal output.'); return }
+      const build = await runCommand('npm run build', 'npm', ['run', 'build'], 240000)
+      if (build?.exitCode !== 0) { toast.error('Build failed — review terminal output.'); return }
       setProposal(null)
       setSelectedPatchFiles(new Set())
       toast.success('Checks passed — ready to commit.')

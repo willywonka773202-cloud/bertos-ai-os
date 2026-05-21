@@ -313,9 +313,12 @@ export function CodingView() {
         if (!r.ok) throw new Error(d.error || `Could not write ${file.path}`)
       }
       toast.success('Patch applied. Running checks.')
-      await runCommand('npm run typecheck', 'npm', ['run', 'typecheck'])
-      await runCommand('npm run build', 'npm', ['run', 'build'])
-      await runCommand('npm run bertos:safety', 'npm', ['run', 'bertos:safety'])
+      const tc = await runCommand('npm run typecheck', 'npm', ['run', 'typecheck'])
+      if (tc?.exitCode !== 0) { toast.error('Typecheck failed — review the terminal output.'); return }
+      const build = await runCommand('npm run build', 'npm', ['run', 'build'])
+      if (build?.exitCode !== 0) { toast.error('Build failed — review the terminal output.'); return }
+      const safety = await runCommand('npm run bertos:safety', 'npm', ['run', 'bertos:safety'])
+      if (safety?.exitCode !== 0) { toast.error('Safety check failed — review the terminal output.'); return }
       setProposal(null)
       setSelectedPatchFiles(new Set())
       toast.success('Patch applied and checks passed — ready to commit.')
