@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GitCompare, Send, Cpu, Globe, Zap, Trophy, Copy, Check, Loader2, RotateCcw, Bot, Code2 } from 'lucide-react'
+import { GitCompare, Send, Cpu, Globe, Zap, Trophy, Copy, Check, Loader2, RotateCcw, Bot, Code2, Download } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -160,6 +160,8 @@ export function CompareView() {
     setIsRunning(false)
   }, [isRunning, patchResponse])
 
+  const [exportCopied, setExportCopied] = useState(false)
+
   const copy = (model: ModelId) => {
     const r = responses.find(r => r.model === model)
     if (r?.content) {
@@ -167,6 +169,25 @@ export function CompareView() {
       setCopiedModel(model)
       setTimeout(() => setCopiedModel(null), 2000)
     }
+  }
+
+  const exportMarkdown = () => {
+    if (!responses.length) return
+    const lines = [
+      `# BertOS Compare — ${new Date().toLocaleString()}`,
+      '',
+      `**Prompt:** ${query}`,
+      '',
+      ...responses.map(r => [
+        `## ${MODEL_META[r.model as ModelId]?.label ?? r.model}`,
+        '',
+        r.error ? `> ⚠️ ${r.error}` : (r.content || '_No response_'),
+        '',
+      ].join('\n')),
+    ]
+    navigator.clipboard.writeText(lines.join('\n'))
+    setExportCopied(true)
+    setTimeout(() => setExportCopied(false), 2000)
   }
 
   return (
@@ -183,12 +204,22 @@ export function CompareView() {
               <p className="text-[11px] text-zinc-500">Stream multiple AI providers in parallel — Ollama Pro always works, CLI providers require local setup</p>
             </div>
             {responses.length > 0 && !isRunning && (
-              <button
-                onClick={() => { setResponses([]); setQuery('') }}
-                className="ml-auto flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset
-              </button>
+              <div className="ml-auto flex items-center gap-3">
+                <button
+                  onClick={exportMarkdown}
+                  className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                  title="Copy all responses as markdown"
+                >
+                  {exportCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Download className="w-3.5 h-3.5" />}
+                  {exportCopied ? 'Copied!' : 'Export'}
+                </button>
+                <button
+                  onClick={() => { setResponses([]); setQuery('') }}
+                  className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Reset
+                </button>
+              </div>
             )}
           </div>
 

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Cpu, Zap, Globe, ArrowDown } from 'lucide-react'
+import { Sparkles, Cpu, Zap, Globe, ArrowDown, Download, Check } from 'lucide-react'
 import { useChatStore } from '@/store/bertos/chat'
 import { useUIStore } from '@/store/bertos/ui'
 import { useProjectStore } from '@/store/bertos/projects'
@@ -49,6 +49,25 @@ export function ChatView() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [pendingDecision, setPendingDecision] = useState<RouterDecision | null>(null)
+  const [exportCopied, setExportCopied] = useState(false)
+
+  const exportChat = useCallback(() => {
+    const s = getActiveSession()
+    if (!s?.messages.length) return
+    const lines = [
+      `# ${s.title} — ${new Date().toLocaleString()}`,
+      '',
+      ...s.messages.map(m => [
+        `**${m.role === 'user' ? 'You' : `AI (${m.model ?? 'assistant'})`}**`,
+        '',
+        m.content,
+        '',
+      ].join('\n')),
+    ]
+    navigator.clipboard.writeText(lines.join('\n'))
+    setExportCopied(true)
+    setTimeout(() => setExportCopied(false), 2000)
+  }, [getActiveSession])
 
   const session = getActiveSession()
   const messages = session?.messages ?? []
@@ -333,6 +352,17 @@ export function ChatView() {
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto relative" ref={scrollRef}>
+        {/* Export button */}
+        {messages.length > 0 && (
+          <button
+            onClick={exportChat}
+            className="absolute top-3 right-4 z-10 flex items-center gap-1.5 text-[10px] text-zinc-700 hover:text-zinc-400 transition-colors bg-zinc-950/80 backdrop-blur-sm border border-zinc-800/50 rounded-lg px-2 py-1"
+            title="Copy conversation as markdown"
+          >
+            {exportCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Download className="w-3 h-3" />}
+            {exportCopied ? 'Copied' : 'Export'}
+          </button>
+        )}
         <div className="max-w-3xl mx-auto px-4">
           {messages.length === 0 ? (
             <motion.div
