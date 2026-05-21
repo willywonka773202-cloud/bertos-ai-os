@@ -729,9 +729,12 @@ export function SettingsView() {
                       'bertos-coding-history-v1',
                       'bertos-patch-history-v1',
                       'bertos-coding-prefill-v1',
+                      'bertos-compare-prefill-v1',
                       'bertos-evolution-lab-settings-v1',
-                      'bertos-ui-store',
-                      'bertos-chat-store',
+                      'bertos-ui',
+                      'bertos-chat',
+                      'bertos-projects',
+                      'bertos-agents',
                     ].map(k => (
                       <div key={k} className="flex items-center justify-between font-mono text-[11px]">
                         <span className="text-zinc-500">{k}</span>
