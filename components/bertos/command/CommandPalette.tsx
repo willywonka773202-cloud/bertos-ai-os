@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
   Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical,
-  LayoutDashboard, Library, Play, Check, Terminal, FileText, FolderOpen, Layers
+  LayoutDashboard, Library, Play, Check, Terminal, FileText, FolderOpen, Layers,
+  Shield, Clipboard,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -30,24 +31,54 @@ export function CommandPalette() {
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings', href: string) => {
+  const navigate = (view: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings' | 'autopilot', href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
   }
 
   const runCommand = async (command: string) => {
+    const allowed: Record<string, { executable: string; args: string[]; timeoutMs: number }> = {
+      'npm run typecheck': { executable: 'npm', args: ['run', 'typecheck'], timeoutMs: 180000 },
+      'npm run build': { executable: 'npm', args: ['run', 'build'], timeoutMs: 240000 },
+    }
+    const payload = allowed[command]
+    if (!payload) {
+      toast.error(`Command is not allowlisted: ${command}`)
+      return
+    }
+
     setCommandPaletteOpen(false)
     toast.promise(
       fetch('/api/local-daemon/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command }),
+        body: JSON.stringify(payload),
       }).then(r => r.json()),
       {
         loading: `Running: ${command}`,
         success: (data) => data.success ? 'Command completed' : `Failed: ${data.error}`,
         error: 'Command failed',
+      }
+    )
+  }
+
+  const runAutomation = async (label: string, actions: string[]) => {
+    setCommandPaletteOpen(false)
+    toast.promise(
+      fetch('/api/automations/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actions }),
+      }).then(async res => {
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || data.summary || `${label} failed`)
+        return data
+      }),
+      {
+        loading: `Running ${label}...`,
+        success: (data) => data.summary || `${label} completed`,
+        error: (error) => error instanceof Error ? error.message : `${label} failed`,
       }
     )
   }
@@ -111,6 +142,33 @@ export function CommandPalette() {
         toast.success(settings.enableApiProviders ? 'API providers disabled' : 'API providers enabled')
         setCommandPaletteOpen(false)
       },
+    },
+    {
+      id: 'run-provider-health',
+      label: 'Run Provider Health Check',
+      description: 'Check Ollama, daemon, and local CLI provider health',
+      icon: <Cpu className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['autopilot', 'provider', 'health', 'check', 'daemon'],
+      action: () => runAutomation('Provider Health Check', ['check-provider-health']),
+    },
+    {
+      id: 'run-project-build-check',
+      label: 'Run Project Build Check',
+      description: 'Run typecheck and build through Autopilot safety gates',
+      icon: <Shield className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['autopilot', 'build', 'typecheck', 'project', 'check'],
+      action: () => runAutomation('Project Build Check', ['run-typecheck', 'run-build']),
+    },
+    {
+      id: 'run-git-status-snapshot',
+      label: 'Run Git Status Snapshot',
+      description: 'Run git status and git diff --stat safely',
+      icon: <GitCompare className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['autopilot', 'git', 'status', 'diff', 'snapshot'],
+      action: () => runAutomation('Git Status Snapshot', ['git-status', 'git-diff-stat']),
     },
 
     // Navigation
@@ -184,6 +242,24 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['agent', 'task', 'autonomous', 'background'],
       action: () => navigate('agents', '/agents'),
+    },
+    {
+      id: 'open-autopilot',
+      label: 'Autopilot',
+      description: 'Open automation rules, queue, logs, and safety gates',
+      icon: <Cpu className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['autopilot', 'automation', 'queue', 'rules', 'background'],
+      action: () => navigate('autopilot', '/autopilot'),
+    },
+    {
+      id: 'open-automation-queue',
+      label: 'Open Automation Queue',
+      description: 'Review queued, running, failed, and approval-gated runs',
+      icon: <Clipboard className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['autopilot', 'automation', 'queue', 'approval', 'runs'],
+      action: () => navigate('autopilot', '/autopilot'),
     },
     {
       id: 'open-memory',
@@ -396,11 +472,11 @@ export function CommandPalette() {
               {/* Footer */}
               <div className="flex items-center gap-3 px-4 py-2 border-t border-zinc-800 bg-zinc-950/50">
                 <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
-                  <kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[9px]">↑↓</kbd>
+                  <kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[9px]">Up/Down</kbd>
                   <span>Navigate</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
-                  <kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[9px]">↵</kbd>
+                  <kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[9px]">Enter</kbd>
                   <span>Execute</span>
                 </div>
               </div>

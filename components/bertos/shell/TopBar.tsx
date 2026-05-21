@@ -68,6 +68,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
     agents: 'Agent Tasks',
     memory: 'Project Memory',
     settings: 'Settings',
+    autopilot: 'Autopilot',
   }
 
   return (

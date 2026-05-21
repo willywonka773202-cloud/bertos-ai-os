@@ -170,6 +170,78 @@ export interface CLIStatus {
   path?: string
 }
 
+// ─── Autopilot ────────────────────────────────────────────────────────────────
+
+export type AutomationTrigger =
+  | 'manual'
+  | 'app-start'
+  | 'interval'
+  | 'repo-changed'
+  | 'build-failed'
+  | 'provider-offline'
+  | 'daily-review'
+
+export type AutomationAction =
+  | 'check-provider-health'
+  | 'run-typecheck'
+  | 'run-build'
+  | 'run-lint'
+  | 'run-tests'
+  | 'git-status'
+  | 'git-diff-stat'
+  | 'create-agent-plan'
+  | 'create-workspace-debug-task'
+  | 'create-project-health-report'
+
+export type AutomationRisk = 'safe' | 'approval-required' | 'blocked'
+
+export interface AutomationRule {
+  id: string
+  name: string
+  description: string
+  enabled: boolean
+  trigger: AutomationTrigger
+  actions: AutomationAction[]
+  risk: AutomationRisk
+  schedule?: {
+    intervalMinutes?: number
+    timeOfDay?: string
+    nextRunAt?: string
+  }
+  createdAt: string
+  updatedAt: string
+  lastRunAt?: string
+}
+
+export interface AutomationRunAction {
+  id: string
+  action: AutomationAction
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped'
+  startedAt?: string
+  finishedAt?: string
+  durationMs?: number
+  output?: string
+  error?: string
+}
+
+export interface AutomationRun {
+  id: string
+  ruleId?: string
+  title: string
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'blocked' | 'needs-approval'
+  trigger: AutomationTrigger
+  actions: AutomationRunAction[]
+  summary?: string
+  createdAt: string
+  startedAt?: string
+  finishedAt?: string
+  logs: string[]
+  approvalRequired?: boolean
+  risk: AutomationRisk
+}
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
 export interface BertOSSettings {
   theme: 'dark' | 'darker' | 'midnight'
   primaryModel: AIModel
