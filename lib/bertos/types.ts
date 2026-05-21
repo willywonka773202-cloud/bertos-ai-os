@@ -86,6 +86,34 @@ export interface Todo {
   createdAt: number
 }
 
+export type AgentStepType = 'think' | 'plan' | 'read-file' | 'search' | 'patch' | 'command' | 'verify' | 'report'
+export type AgentStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'blocked'
+
+export interface AgentStep {
+  id: string
+  number: number
+  status: AgentStepStatus
+  type: AgentStepType
+  title: string
+  summary?: string
+  output?: string
+  timestamp: number
+  completedAt?: number
+  providerUsed?: string
+}
+
+export interface AgentReport {
+  goal: string
+  completed: string[]
+  filesChanged: string[]
+  commandsRun: string[]
+  passedChecks: string[]
+  failedChecks: string[]
+  risks: string[]
+  nextStep?: string
+  generatedAt: number
+}
+
 export interface AgentTask {
   id: string
   title: string
@@ -98,6 +126,11 @@ export interface AgentTask {
   updatedAt: number
   projectId?: string
   checkpoints: AgentCheckpoint[]
+  steps: AgentStep[]
+  mode?: 'plan' | 'build' | 'debug' | 'review' | 'qa'
+  safeMode?: boolean
+  maxSteps?: number
+  report?: AgentReport
 }
 
 export interface AgentLog {

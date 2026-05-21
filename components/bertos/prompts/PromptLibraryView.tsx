@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Library, Plus, Search, Star, Copy, Edit2, Trash2, Play,
   Code2, Briefcase, GraduationCap, Bot, User, Box,
-  FileText, Hash, TrendingUp, X, Check
+  FileText, Hash, TrendingUp, X, Check, Cpu,
 } from 'lucide-react'
 import { usePromptStore, type PromptCategory, type PromptTemplate } from '@/store/bertos/prompts'
 import { useChatStore } from '@/store/bertos/chat'
@@ -32,7 +32,7 @@ export function PromptLibraryView() {
     toggleFavorite, incrementUsage, duplicatePrompt, searchPrompts
   } = usePromptStore()
   const { createSession, addMessage } = useChatStore()
-  const { setActiveView, selectedModel } = useUIStore()
+  const { setActiveView, selectedModel, setPendingWorkspaceTask, setPendingAgentTask } = useUIStore()
   const router = useRouter()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -88,8 +88,34 @@ export function PromptLibraryView() {
     toast.success(`Running: ${prompt.title}`)
   }
 
+  const resolveContent = (prompt: PromptTemplate) => {
+    let content = prompt.content
+    prompt.variables.forEach(variable => {
+      content = content.replace(new RegExp(`{{${variable}}}`, 'g'), `[${variable}]`)
+    })
+    return content
+  }
+
+  const handleRunInWorkspace = (prompt: PromptTemplate) => {
+    const content = resolveContent(prompt)
+    incrementUsage(prompt.id)
+    setPendingWorkspaceTask(content)
+    setActiveView('workspace')
+    router.push('/workspace')
+    toast.success(`Opening in Workspace: ${prompt.title}`)
+  }
+
+  const handleRunAsAgent = (prompt: PromptTemplate) => {
+    const content = resolveContent(prompt)
+    incrementUsage(prompt.id)
+    setPendingAgentTask({ title: prompt.title, description: content.slice(0, 400) })
+    setActiveView('agents')
+    router.push('/agents')
+    toast.success(`Opening in Agents: ${prompt.title}`)
+  }
+
   const handleCopyPrompt = (prompt: PromptTemplate) => {
-    navigator.clipboard.writeText(prompt.content)
+    void navigator.clipboard.writeText(prompt.content)
     toast.success('Prompt copied to clipboard')
   }
 
@@ -218,6 +244,8 @@ export function PromptLibraryView() {
                     key={prompt.id}
                     prompt={prompt}
                     onRun={() => handleRunPrompt(prompt)}
+                    onRunInWorkspace={() => handleRunInWorkspace(prompt)}
+                    onRunAsAgent={() => handleRunAsAgent(prompt)}
                     onEdit={() => setEditingPrompt(prompt)}
                     onCopy={() => handleCopyPrompt(prompt)}
                     onDuplicate={() => handleDuplicatePrompt(prompt.id)}
@@ -261,6 +289,8 @@ export function PromptLibraryView() {
 interface PromptCardProps {
   prompt: PromptTemplate
   onRun: () => void
+  onRunInWorkspace: () => void
+  onRunAsAgent: () => void
   onEdit: () => void
   onCopy: () => void
   onDuplicate: () => void
@@ -268,7 +298,7 @@ interface PromptCardProps {
   onToggleFavorite: () => void
 }
 
-function PromptCard({ prompt, onRun, onEdit, onCopy, onDuplicate, onDelete, onToggleFavorite }: PromptCardProps) {
+function PromptCard({ prompt, onRun, onRunInWorkspace, onRunAsAgent, onEdit, onCopy, onDuplicate, onDelete, onToggleFavorite }: PromptCardProps) {
   const categoryConfig = CATEGORY_CONFIG[prompt.category]
 
   return (
@@ -320,44 +350,32 @@ function PromptCard({ prompt, onRun, onEdit, onCopy, onDuplicate, onDelete, onTo
         ))}
       </div>
 
+      {/* Primary action row */}
       <div className="flex items-center gap-1.5">
-        <Button size="sm" onClick={onRun} className="flex-1 h-8 text-xs gap-1.5">
+        <Button size="sm" onClick={onRun} className="flex-1 h-8 text-xs gap-1.5" title="Run in Chat">
           <Play className="w-3 h-3" />
-          Run
+          Chat
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onEdit}
-          className="h-8 px-2"
-        >
+        <Button size="sm" variant="outline" onClick={onRunInWorkspace} className="h-8 px-2" title="Run in Workspace">
+          <Code2 className="w-3 h-3" />
+        </Button>
+        <Button size="sm" variant="outline" onClick={onRunAsAgent} className="h-8 px-2" title="Run as Agent">
+          <Cpu className="w-3 h-3" />
+        </Button>
+        <Button size="sm" variant="outline" onClick={onEdit} className="h-8 px-2">
           <Edit2 className="w-3 h-3" />
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onCopy}
-          className="h-8 px-2"
-        >
+        <Button size="sm" variant="outline" onClick={onCopy} className="h-8 px-2">
           <Copy className="w-3 h-3" />
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onDuplicate}
-          className="h-8 px-2 hidden group-hover:flex"
-        >
+        <Button size="sm" variant="outline" onClick={onDuplicate} className="h-8 px-2 hidden group-hover:flex">
           <FileText className="w-3 h-3" />
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onDelete}
-          className="h-8 px-2 hidden group-hover:flex text-red-400 hover:text-red-300"
-        >
+        <Button size="sm" variant="outline" onClick={onDelete} className="h-8 px-2 hidden group-hover:flex text-red-400 hover:text-red-300">
           <Trash2 className="w-3 h-3" />
         </Button>
       </div>
+      <p className="mt-1.5 text-[10px] text-zinc-700">Chat · Workspace · Agent</p>
     </motion.div>
   )
 }

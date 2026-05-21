@@ -1,13 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
-import type { AgentTask, AgentLog, AgentCheckpoint, AIModel } from '@/lib/bertos/types'
+import type { AgentTask, AgentLog, AgentCheckpoint, AgentStep, AgentReport, AIModel } from '@/lib/bertos/types'
 
 interface AgentStore {
   tasks: AgentTask[]
   activeTaskId: string | null
 
-  createTask: (data: { title: string; description: string; model?: AIModel; projectId?: string }) => AgentTask
+  createTask: (data: { title: string; description: string; model?: AIModel; projectId?: string; mode?: AgentTask['mode']; safeMode?: boolean; maxSteps?: number }) => AgentTask
   updateTask: (id: string, updates: Partial<AgentTask>) => void
   deleteTask: (id: string) => void
   setActiveTask: (id: string | null) => void
@@ -16,6 +16,10 @@ interface AgentStore {
   addCheckpoint: (taskId: string, checkpoint: Omit<AgentCheckpoint, 'id' | 'timestamp'>) => void
   setProgress: (taskId: string, progress: number) => void
   setStatus: (taskId: string, status: AgentTask['status']) => void
+
+  addStep: (taskId: string, step: Omit<AgentStep, 'id'>) => AgentStep
+  updateStep: (taskId: string, stepId: string, updates: Partial<AgentStep>) => void
+  setReport: (taskId: string, report: AgentReport) => void
 }
 
 export const useAgentStore = create<AgentStore>()(
@@ -24,7 +28,7 @@ export const useAgentStore = create<AgentStore>()(
       tasks: [],
       activeTaskId: null,
 
-      createTask: ({ title, description, model = 'ollama-pro', projectId }) => {
+      createTask: ({ title, description, model = 'ollama-pro', projectId, mode, safeMode, maxSteps }) => {
         const task: AgentTask = {
           id: uuidv4(),
           title,
@@ -37,6 +41,10 @@ export const useAgentStore = create<AgentStore>()(
           updatedAt: Date.now(),
           projectId,
           checkpoints: [],
+          steps: [],
+          mode,
+          safeMode,
+          maxSteps,
         }
         set(state => ({ tasks: [task, ...state.tasks], activeTaskId: task.id }))
         return task
@@ -90,6 +98,38 @@ export const useAgentStore = create<AgentStore>()(
         set(state => ({
           tasks: state.tasks.map(t =>
             t.id === taskId ? { ...t, status, updatedAt: Date.now() } : t
+          ),
+        })),
+
+      addStep: (taskId, stepData) => {
+        const step: AgentStep = { ...stepData, id: uuidv4() }
+        set(state => ({
+          tasks: state.tasks.map(t =>
+            t.id === taskId
+              ? { ...t, steps: [...(t.steps ?? []), step], updatedAt: Date.now() }
+              : t
+          ),
+        }))
+        return step
+      },
+
+      updateStep: (taskId, stepId, updates) =>
+        set(state => ({
+          tasks: state.tasks.map(t =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  steps: (t.steps ?? []).map(s => s.id === stepId ? { ...s, ...updates } : s),
+                  updatedAt: Date.now(),
+                }
+              : t
+          ),
+        })),
+
+      setReport: (taskId, report) =>
+        set(state => ({
+          tasks: state.tasks.map(t =>
+            t.id === taskId ? { ...t, report, updatedAt: Date.now() } : t
           ),
         })),
     }),

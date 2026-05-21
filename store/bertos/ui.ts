@@ -10,6 +10,8 @@ interface UIStore {
   activeView: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings'
   selectedModel: AIModel
   settings: BertOSSettings
+  pendingWorkspaceTask: string | null
+  pendingAgentTask: { title: string; description: string } | null
 
   setCommandPaletteOpen: (open: boolean) => void
   setRightPanelOpen: (open: boolean) => void
@@ -18,6 +20,8 @@ interface UIStore {
   setActiveView: (view: UIStore['activeView']) => void
   setSelectedModel: (model: AIModel) => void
   updateSettings: (settings: Partial<BertOSSettings>) => void
+  setPendingWorkspaceTask: (task: string | null) => void
+  setPendingAgentTask: (task: { title: string; description: string } | null) => void
 }
 
 const DEFAULT_SETTINGS: BertOSSettings = {
@@ -46,6 +50,8 @@ export const useUIStore = create<UIStore>()(
       activeView: 'chat',
       selectedModel: 'ollama-pro',
       settings: DEFAULT_SETTINGS,
+      pendingWorkspaceTask: null,
+      pendingAgentTask: null,
 
       setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
       setRightPanelOpen: (open) => set({ rightPanelOpen: open }),
@@ -55,6 +61,8 @@ export const useUIStore = create<UIStore>()(
       setSelectedModel: (model) => set({ selectedModel: model }),
       updateSettings: (settings) =>
         set(state => ({ settings: { ...state.settings, ...settings } })),
+      setPendingWorkspaceTask: (task) => set({ pendingWorkspaceTask: task }),
+      setPendingAgentTask: (task) => set({ pendingAgentTask: task }),
     }),
     {
       name: 'bertos-ui',

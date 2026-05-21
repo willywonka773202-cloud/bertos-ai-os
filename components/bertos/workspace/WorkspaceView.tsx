@@ -33,6 +33,7 @@ import {
   summarizePatchReliability,
   type PatchReliabilityProviderMetrics,
 } from '@/lib/bertos/metrics/patch-reliability'
+import { useUIStore } from '@/store/bertos/ui'
 import type { AIModel } from '@/lib/bertos/types'
 
 interface FileNode {
@@ -933,6 +934,7 @@ function DiffBlock({ file }: { file: PatchFile }) {
 }
 
 export function WorkspaceView() {
+  const { pendingWorkspaceTask, setPendingWorkspaceTask } = useUIStore()
   const [status, setStatus] = useState<WorkspaceStatus | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<OpenTab[]>([])
@@ -1179,6 +1181,14 @@ export function WorkspaceView() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   })
+
+  useEffect(() => {
+    if (pendingWorkspaceTask) {
+      setTask(pendingWorkspaceTask)
+      setDetectedFiles(extractFileNamesFromTask(pendingWorkspaceTask))
+      setPendingWorkspaceTask(null)
+    }
+  }, [pendingWorkspaceTask, setPendingWorkspaceTask])
 
   const updateActiveContent = (content: string) => {
     setTabsAndPersist(current => current.map(tab => tab.path === activeFile ? { ...tab, content } : tab))

@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   Activity, Zap, Clock, CheckCircle2, XCircle, AlertCircle,
-  FolderOpen, MessageSquare, Code2, Play, TrendingUp, Server,
-  Sparkles, GitBranch, Terminal, Box
+  FolderOpen, MessageSquare, Code2, Server,
+  Sparkles, GitBranch, Terminal, Box, Bot, Library, Scale,
 } from 'lucide-react'
 import { useProjectStore } from '@/store/bertos/projects'
 import { useChatStore } from '@/store/bertos/chat'
 import { useUIStore } from '@/store/bertos/ui'
+import { useAgentStore } from '@/store/bertos/agents'
+import { usePromptStore } from '@/store/bertos/prompts'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -29,11 +31,15 @@ interface ProviderStatus {
 export function DashboardView() {
   const { projects, activeProjectId, setActiveProject } = useProjectStore()
   const { sessions, createSession } = useChatStore()
-  const { setActiveView, selectedModel } = useUIStore()
+  const { setActiveView, selectedModel, setPendingAgentTask } = useUIStore()
+  const { tasks: agentTasks } = useAgentStore()
+  const { prompts } = usePromptStore()
   const router = useRouter()
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [repoStatus, setRepoStatus] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [runningCmd, setRunningCmd] = useState<string | null>(null)
+  const [cmdResult, setCmdResult] = useState<{ cmd: string; ok: boolean; output: string } | null>(null)
 
   useEffect(() => {
     loadDashboardData()
@@ -66,6 +72,8 @@ export function DashboardView() {
   const recentSessions = sessions.slice(-5).reverse()
   const onlineProviders = providers.filter(p => p.status === 'online')
   const offlineProviders = providers.filter(p => p.status === 'offline')
+  const doneAgentTasks = agentTasks.filter(t => t.status === 'done').length
+  const runningAgentTasks = agentTasks.filter(t => t.status === 'running').length
 
   const handleNewChat = () => {
     createSession(selectedModel)
@@ -77,6 +85,34 @@ export function DashboardView() {
     setActiveProject(projectId)
     setActiveView('workspace')
     router.push('/workspace')
+  }
+
+  const handleStartAgentRun = () => {
+    setPendingAgentTask({ title: 'New Agent Task', description: '' })
+    setActiveView('agents')
+    router.push('/agents')
+  }
+
+  const handleRunCmd = async (cmd: 'typecheck' | 'build') => {
+    setRunningCmd(cmd)
+    setCmdResult(null)
+    try {
+      const res = await fetch('/api/local-daemon/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executable: 'npm', args: ['run', cmd], timeoutMs: 120000 }),
+      })
+      const data = await res.json()
+      setCmdResult({
+        cmd,
+        ok: data.exitCode === 0,
+        output: (data.stdout || '') + (data.stderr || '') || data.error || 'Done',
+      })
+    } catch (e) {
+      setCmdResult({ cmd, ok: false, output: e instanceof Error ? e.message : 'Failed' })
+    } finally {
+      setRunningCmd(null)
+    }
   }
 
   return (
@@ -108,13 +144,27 @@ export function DashboardView() {
               <Server className="w-5 h-5 text-blue-400" />
               System Status
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatusCard
                 label="Providers Online"
                 value={`${onlineProviders.length}/${providers.length}`}
                 icon={<Zap className="w-5 h-5" />}
                 status={onlineProviders.length > 0 ? 'success' : 'error'}
                 subtitle={onlineProviders.length > 0 ? 'System ready' : 'No providers available'}
+              />
+              <StatusCard
+                label="Agent Tasks"
+                value={runningAgentTasks > 0 ? `${runningAgentTasks} running` : `${doneAgentTasks} done`}
+                icon={<Bot className="w-5 h-5" />}
+                status={runningAgentTasks > 0 ? 'warning' : doneAgentTasks > 0 ? 'success' : 'info'}
+                subtitle={`${agentTasks.length} total tasks`}
+              />
+              <StatusCard
+                label="Prompt Library"
+                value={prompts.length.toString()}
+                icon={<Library className="w-5 h-5" />}
+                status="info"
+                subtitle={`${prompts.filter(p => (p.usageCount ?? 0) > 0).length} used`}
               />
               <StatusCard
                 label="Active Projects"
@@ -198,38 +248,69 @@ export function DashboardView() {
               )}
             </TabsContent>
 
-            <TabsContent value="activity" className="space-y-3 mt-4">
-              {recentSessions.length === 0 ? (
+            <TabsContent value="activity" className="space-y-4 mt-4">
+              {agentTasks.length === 0 && recentSessions.length === 0 ? (
                 <div className="p-12 rounded-xl border border-zinc-800/50 bg-zinc-900/20 text-center">
                   <Clock className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
                   <p className="text-zinc-400">No recent activity</p>
                 </div>
               ) : (
-                recentSessions.map((session) => (
-                  <ActivityCard key={session.id} session={session} />
-                ))
+                <>
+                  {agentTasks.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
+                        <Bot className="w-4 h-4" />
+                        Recent Agent Runs
+                      </h3>
+                      <div className="space-y-2">
+                        {agentTasks.slice(-5).reverse().map((task) => (
+                          <AgentActivityCard key={task.id} task={task} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {recentSessions.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" />
+                        Recent Chats
+                      </h3>
+                      <div className="space-y-2">
+                        {recentSessions.map((session) => (
+                          <ActivityCard key={session.id} session={session} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </TabsContent>
 
-            <TabsContent value="actions" className="mt-4">
+            <TabsContent value="actions" className="mt-4 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <ActionCard
                   icon={<MessageSquare className="w-5 h-5" />}
                   label="New Chat"
-                  description="Start a new conversation"
+                  description="Start a new AI conversation"
                   onClick={handleNewChat}
                 />
                 <ActionCard
-                  icon={<Code2 className="w-5 h-5" />}
-                  label="Open Coding"
-                  description="Launch coding workspace"
+                  icon={<Scale className="w-5 h-5" />}
+                  label="Start Council"
+                  description="Run multi-model comparison"
                   onClick={() => {
-                    setActiveView('coding')
-                    router.push('/coding')
+                    setActiveView('compare')
+                    router.push('/compare')
                   }}
                 />
                 <ActionCard
-                  icon={<GitBranch className="w-5 h-5" />}
+                  icon={<Bot className="w-5 h-5" />}
+                  label="Start Agent Run"
+                  description="Launch autonomous agent task"
+                  onClick={handleStartAgentRun}
+                />
+                <ActionCard
+                  icon={<Code2 className="w-5 h-5" />}
                   label="Open Workspace"
                   description="Manage files and patches"
                   onClick={() => {
@@ -238,32 +319,75 @@ export function DashboardView() {
                   }}
                 />
                 <ActionCard
-                  icon={<Activity className="w-5 h-5" />}
-                  label="Run Agent"
-                  description="Start autonomous task"
+                  icon={<Library className="w-5 h-5" />}
+                  label="Prompt Library"
+                  description="Browse and run saved prompts"
                   onClick={() => {
-                    setActiveView('agents')
-                    router.push('/agents')
+                    setActiveView('prompts')
+                    router.push('/prompts')
                   }}
                 />
                 <ActionCard
-                  icon={<Terminal className="w-5 h-5" />}
-                  label="Compare Models"
-                  description="Test multiple AIs"
+                  icon={<GitBranch className="w-5 h-5" />}
+                  label="Open Coding"
+                  description="Launch coding assistant"
                   onClick={() => {
-                    setActiveView('compare')
-                    router.push('/compare')
+                    setActiveView('coding')
+                    router.push('/coding')
                   }}
                 />
-                <ActionCard
-                  icon={<Box className="w-5 h-5" />}
-                  label="Settings"
-                  description="Configure providers"
-                  onClick={() => {
-                    setActiveView('settings')
-                    router.push('/settings')
-                  }}
-                />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
+                  <Terminal className="w-4 h-4" />
+                  Dev Commands
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    disabled={!!runningCmd}
+                    onClick={() => handleRunCmd('typecheck')}
+                    className="p-3 rounded-xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700/50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <CheckCircle2 className="w-4 h-4 text-blue-400" />
+                      <span className="text-sm font-medium text-zinc-200">
+                        {runningCmd === 'typecheck' ? 'Running typecheck…' : 'Run Typecheck'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500">npm run typecheck</p>
+                  </button>
+                  <button
+                    disabled={!!runningCmd}
+                    onClick={() => handleRunCmd('build')}
+                    className="p-3 rounded-xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700/50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Box className="w-4 h-4 text-emerald-400" />
+                      <span className="text-sm font-medium text-zinc-200">
+                        {runningCmd === 'build' ? 'Running build…' : 'Run Build'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500">npm run build</p>
+                  </button>
+                </div>
+                {cmdResult && (
+                  <div className={cn(
+                    'mt-3 p-3 rounded-xl border text-xs font-mono',
+                    cmdResult.ok
+                      ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-300'
+                      : 'bg-red-500/5 border-red-500/20 text-red-300'
+                  )}>
+                    <div className="flex items-center gap-2 mb-2 font-sans">
+                      {cmdResult.ok
+                        ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        : <XCircle className="w-4 h-4 text-red-400" />}
+                      <span className="font-medium">{cmdResult.cmd} {cmdResult.ok ? 'passed' : 'failed'}</span>
+                    </div>
+                    <pre className="whitespace-pre-wrap break-all text-[11px] max-h-40 overflow-auto opacity-80">
+                      {cmdResult.output.slice(0, 2000)}
+                    </pre>
+                  </div>
+                )}
               </div>
             </TabsContent>
           </Tabs>
@@ -413,6 +537,47 @@ function ActivityCard({ session }: ActivityCardProps) {
               <>
                 <span>•</span>
                 <Badge className="text-[10px]">{session.model}</Badge>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface AgentActivityCardProps {
+  task: any
+}
+
+function AgentActivityCard({ task }: AgentActivityCardProps) {
+  const statusColor = {
+    done: 'text-emerald-400',
+    running: 'text-blue-400',
+    failed: 'text-red-400',
+    pending: 'text-zinc-400',
+  }[task.status as string] ?? 'text-zinc-400'
+
+  return (
+    <div className="p-3 rounded-xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 transition-all">
+      <div className="flex items-start gap-3">
+        <div className="w-7 h-7 rounded-lg bg-violet-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <Bot className="w-3.5 h-3.5 text-violet-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-medium text-zinc-200 truncate">{task.title}</h4>
+          <div className="flex items-center gap-2 mt-0.5 text-xs">
+            <span className={statusColor}>{task.status}</span>
+            {task.steps?.length > 0 && (
+              <>
+                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-500">{task.steps.length} steps</span>
+              </>
+            )}
+            {task.createdAt && (
+              <>
+                <span className="text-zinc-600">·</span>
+                <span className="text-zinc-600">{new Date(task.createdAt).toLocaleDateString()}</span>
               </>
             )}
           </div>
