@@ -131,11 +131,11 @@ export function ChatView() {
     }
     setActiveSession(sessionId)
 
-    addMessage(sessionId, { role: 'user', content })
     const currentSession = useChatStore.getState().sessions.find(s => s.id === sessionId)
-    if (!currentSession || currentSession.messages.length === 0) {
+    if (!currentSession || currentSession.title === 'New Chat') {
       updateSessionTitle(sessionId, content.length > 50 ? content.slice(0, 50) + '…' : content)
     }
+    addMessage(sessionId, { role: 'user', content })
 
     // Create the streaming placeholder
     const aiMsg = addMessage(sessionId, { role: 'assistant', content: '', model: selectedModel, streaming: true })

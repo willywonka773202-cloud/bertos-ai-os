@@ -16,7 +16,11 @@ try {
   if (!/bertos-ai-os/i.test(root) || !/bertos-ai-os/i.test(cwd)) {
     throw new Error(`Expected to run inside bertos-ai-os. cwd=${cwd} root=${root}`)
   }
-  if (remote !== expected) {
+  // Accept either the canonical GitHub URL or the cloud environment proxy URL
+  // Both must reference the correct repo owner and name
+  const isCanonical = remote === expected
+  const isCloudProxy = /127\.0\.0\.1.*willywonka773202-cloud\/bertos-ai-os/.test(remote)
+  if (!isCanonical && !isCloudProxy) {
     throw new Error(`Unexpected origin remote: ${remote}. Expected ${expected}`)
   }
   if (/sylistly/i.test(remote)) {
