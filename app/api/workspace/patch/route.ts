@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
   let body: {
     task?: string
     provider?: AIModel
+    forceActiveFile?: boolean
     context?: {
       repo?: unknown
       activeFile?: string
@@ -120,6 +121,7 @@ export async function POST(req: NextRequest) {
   const preferred = body.provider || 'auto'
   const context = body.context ?? {}
 
+  const t0 = Date.now()
   // Assemble context with file serialization
   const ctxSnapshot = assembleContext({
     task: body.task,
@@ -128,7 +130,9 @@ export async function POST(req: NextRequest) {
     additionalFiles: context.includedFiles ?? [],
     maxTotalChars: 80_000,
     maxPerFileChars: 40_000,
+    priorityFilePath: context.activeFile,
   })
+  const assembleMs = Date.now() - t0
 
   const fileSection = serializeContextToPrompt(ctxSnapshot)
 
@@ -161,12 +165,18 @@ export async function POST(req: NextRequest) {
 
   // Debug logging (server-side only)
   console.error('[BertOS Patch] === Payload Debug ===')
+  console.error(`  assembleContext: ${assembleMs}ms`)
   console.error(`  Total prompt chars: ${prompt.length.toLocaleString()}`)
-  console.error(`  Included files: ${ctxSnapshot.debug.includedCount}`)
+  console.error(`  Context total chars: ${ctxSnapshot.totalChars.toLocaleString()} / 80,000 budget`)
+  console.error(`  Included files: ${ctxSnapshot.debug.includedCount} / ${ctxSnapshot.debug.fileCount}`)
   console.error(`  Included paths: ${ctxSnapshot.includedPaths.join(', ') || '(none)'}`)
   console.error(`  Omitted paths: ${ctxSnapshot.omittedPaths.join(', ') || '(none)'}`)
-  console.error(`  Payload preview (first 300):\n  ${prompt.slice(0, 300).replace(/\n/g, '\n  ')}`)
-  console.error(`  File content bodies present: ${ctxSnapshot.debug.includedCount > 0}`)
+  for (const pf of ctxSnapshot.debug.perFile) {
+    const status = pf.included
+      ? `OK  score=${pf.matchScore} chars=${pf.includedChars.toLocaleString()}/${pf.originalChars.toLocaleString()}${pf.chunked ? ' [chunked]' : pf.truncated ? ' [truncated]' : ''}`
+      : `OMIT reason="${pf.omittedReason ?? 'budget'}"`
+    console.error(`    ${pf.path}: ${status}`)
+  }
   if (ctxSnapshot.truncationWarnings.length > 0) {
     console.error(`  TRUNCATION WARNINGS: ${ctxSnapshot.truncationWarnings.join(' | ')}`)
   }
@@ -202,8 +212,11 @@ export async function POST(req: NextRequest) {
         omittedFiles: ctxSnapshot.debug.omittedCount,
         totalChars: ctxSnapshot.totalChars,
         includedPaths: ctxSnapshot.includedPaths,
+        omittedPaths: ctxSnapshot.omittedPaths,
         truncationWarnings: ctxSnapshot.truncationWarnings,
         promptSize: prompt.length,
+        assembleMs,
+        perFile: ctxSnapshot.debug.perFile,
       },
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
