@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { askWithProviderRouter } from '@/lib/bertos/providers/router'
+import { fetchLocalDaemonStatus } from '@/lib/bertos/local-daemon'
 
 export const runtime = 'nodejs'
 
@@ -12,17 +14,15 @@ interface TelegramUpdate {
 }
 
 const COMMAND_RESPONSES: Record<string, string> = {
-  '/status': '🤖 *BertOS Status*\nSend a message from the web UI at /settings to check live provider status.',
-  '/providers': '⚡ *Providers*\nOllama Cloud · Claude Code CLI · Codex CLI · Gemini CLI\nCheck live status at BertOS Settings.',
   '/tasks': '📋 *Tasks*\nOpen BertOS to view active agent tasks and missions.',
   '/evolution': '🧬 *Evolution Lab*\nOpen BertOS Evolution Lab to view improvement backlog.',
   '/help': [
     '*BertOS Telegram Commands:*',
-    '/status — Daemon and repo status',
-    '/providers — Provider status',
+    '/status — Live daemon and repo status',
+    '/providers — Live provider status',
     '/tasks — Agent task list',
     '/evolution — Evolution backlog',
-    '/ask <question> — Ask providers a question',
+    '/ask <question> — Ask the AI a question',
     '/help — This message',
     '',
     '⚠️ File writes, patches, and git push require web approval.',
@@ -64,6 +64,31 @@ export async function POST(req: NextRequest) {
   const text = msg.text?.trim() ?? ''
   const command = text.split(' ')[0]
 
+  if (command === '/status') {
+    const daemon = await fetchLocalDaemonStatus()
+    const lines = [
+      `🤖 *BertOS Status*`,
+      `Daemon: ${daemon.online ? '✅ online' : '❌ offline'}`,
+      daemon.repo ? `Branch: \`${daemon.repo.branch}\`` : '',
+      daemon.repo ? `Remote: ${daemon.repo.safeRepo ? '✅ safe' : '⚠️ blocked'} — ${daemon.repo.remote}` : '',
+      daemon.error ? `Error: ${daemon.error}` : '',
+    ].filter(Boolean).join('\n')
+    await sendReply(botToken, msg.chat.id, lines)
+    return NextResponse.json({ ok: true })
+  }
+
+  if (command === '/providers') {
+    const daemon = await fetchLocalDaemonStatus()
+    const tools = daemon.tools ?? []
+    const lines = [
+      `⚡ *Provider Status*`,
+      `Ollama: ${daemon.online ? '✅' : '❌'} (via daemon)`,
+      ...tools.map(t => `${t.label}: ${t.installed && t.loginStatus === 'available' ? '✅' : '❌'} (${t.loginStatus})`),
+    ]
+    await sendReply(botToken, msg.chat.id, lines.join('\n'))
+    return NextResponse.json({ ok: true })
+  }
+
   if (COMMAND_RESPONSES[command]) {
     await sendReply(botToken, msg.chat.id, COMMAND_RESPONSES[command])
     return NextResponse.json({ ok: true })
@@ -74,7 +99,16 @@ export async function POST(req: NextRequest) {
     if (!question) {
       await sendReply(botToken, msg.chat.id, 'Usage: /ask <your question>')
     } else {
-      await sendReply(botToken, msg.chat.id, `📨 Question received. Open BertOS Chat to see the response.\n\nQuestion: _${question}_`)
+      await sendReply(botToken, msg.chat.id, `📨 _Asking providers..._`)
+      try {
+        const result = await askWithProviderRouter(question, 'auto')
+        const answer = result.ok
+          ? `*Answer* (${result.providerName}):\n\n${result.text.slice(0, 3800)}`
+          : `❌ Provider error: ${result.error}`
+        await sendReply(botToken, msg.chat.id, answer)
+      } catch (err) {
+        await sendReply(botToken, msg.chat.id, `❌ Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      }
     }
     return NextResponse.json({ ok: true })
   }
