@@ -33,10 +33,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (mod && e.key === 'p') { e.preventDefault(); setRightPanelOpen(!rightPanelOpen) }
       if (mod && e.key === 'n') { e.preventDefault(); createSession(); setActiveView('chat'); router.push('/chat') }
       if (mod && e.key === ',') { e.preventDefault(); setActiveView('settings'); router.push('/settings') }
+      if (mod && e.key === '0') { e.preventDefault(); setActiveView('dashboard'); router.push('/dashboard') }
       if (mod && e.key === '1') { e.preventDefault(); setActiveView('chat'); router.push('/chat') }
       if (mod && e.key === '2') { e.preventDefault(); setActiveView('compare'); router.push('/compare') }
       if (mod && e.key === '3') { e.preventDefault(); setActiveView('workspace'); router.push('/workspace') }
       if (mod && e.key === '4') { e.preventDefault(); setActiveView('evolution'); router.push('/evolution') }
+      if (mod && e.key === '5') { e.preventDefault(); setActiveView('coding'); router.push('/coding') }
+      if (mod && e.key === '6') { e.preventDefault(); setActiveView('agents'); router.push('/agents') }
       if (mod && e.key === '?') { e.preventDefault(); setShortcutsOpen(true) }
     }
     window.addEventListener('keydown', handler)

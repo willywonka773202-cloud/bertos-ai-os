@@ -7,7 +7,7 @@ interface UIStore {
   rightPanelOpen: boolean
   rightPanelTab: 'logs' | 'memory' | 'tasks' | 'files' | 'terminal'
   sidebarCollapsed: boolean
-  activeView: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings'
+  activeView: 'chat' | 'compare' | 'workspace' | 'coding' | 'evolution' | 'agents' | 'memory' | 'settings' | 'dashboard' | 'github'
   selectedModel: AIModel
   settings: BertOSSettings
 

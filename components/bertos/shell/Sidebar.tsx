@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, FlaskConical,
   Plus, ChevronLeft, ChevronRight, Hash, Zap, Command, Trash2,
+  Terminal, Home, Github,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -14,12 +15,15 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useRouter } from 'next/navigation'
 
 const NAV_ITEMS = [
+  { id: 'dashboard', icon: Home,          label: 'Dashboard', href: '/dashboard' },
   { id: 'chat',      icon: MessageSquare, label: 'Chat',      href: '/chat'      },
-  { id: 'compare',   icon: GitCompare,    label: 'Compare',   href: '/compare'   },
+  { id: 'coding',    icon: Terminal,      label: 'Coding',    href: '/coding'    },
   { id: 'workspace', icon: Code2,         label: 'Workspace', href: '/workspace' },
+  { id: 'compare',   icon: GitCompare,    label: 'Compare',   href: '/compare'   },
   { id: 'evolution', icon: FlaskConical,  label: 'Evolution', href: '/evolution' },
   { id: 'agents',    icon: Bot,           label: 'Agents',    href: '/agents'    },
   { id: 'memory',    icon: Brain,         label: 'Memory',    href: '/memory'    },
+  { id: 'github',    icon: Github,        label: 'GitHub',    href: '/github'    },
 ] as const
 
 interface SidebarProps {

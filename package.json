@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "bertos": "node cli/bertos.mjs",
     "bertos:daemon": "node scripts/bertos-daemon.mjs",
-    "bertos:safety": "node scripts/assert-bertos-repo.mjs"
+    "bertos:safety": "node scripts/assert-bertos-repo.mjs",
+    "smoke": "node scripts/test-patch-payload.mjs",
+    "validate": "npm run typecheck && npm run build && npm run bertos:safety"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",

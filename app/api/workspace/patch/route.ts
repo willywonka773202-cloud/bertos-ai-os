@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { askWithProviderRouter } from '@/lib/bertos/providers/router'
+import { assembleContext, serializeContextToPrompt, assertContextSerialization } from '@/lib/bertos/context-engine'
 import type { AIModel } from '@/lib/bertos/types'
 
 export const runtime = 'nodejs'
@@ -33,14 +34,8 @@ function extractJsonObject(text: string): string | null {
 
   for (let i = start; i < source.length; i += 1) {
     const char = source[i]
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (char === '\\') {
-      escaped = true
-      continue
-    }
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
     if (char === '"') inString = !inString
     if (inString) continue
     if (char === '{') depth += 1
@@ -69,7 +64,7 @@ function normalizeProposal(value: unknown): PatchProposal {
     provider: typeof raw.provider === 'string' ? raw.provider : undefined,
     files,
     commandsToRun: Array.isArray(raw.commandsToRun)
-      ? raw.commandsToRun.filter(command => typeof command === 'string').slice(0, 6)
+      ? raw.commandsToRun.filter(c => typeof c === 'string').slice(0, 6)
       : ['npm run typecheck', 'npm run build'],
     riskLevel: raw.riskLevel === 'high' || raw.riskLevel === 'medium' || raw.riskLevel === 'low'
       ? raw.riskLevel
@@ -81,12 +76,15 @@ async function parseOrRepair(rawText: string, preferred: AIModel): Promise<Patch
   const json = extractJsonObject(rawText)
   if (json) return normalizeProposal(JSON.parse(json))
 
-  const repair = await askWithProviderRouter([
-    'Repair the following response into ONLY valid JSON for this TypeScript shape:',
-    '{ "summary": string, "files": [{ "path": string, "operation": "modify"|"create"|"delete", "before"?: string, "after"?: string }], "commandsToRun": string[], "riskLevel": "low"|"medium"|"high" }',
-    'Do not add markdown. Do not invent files. If no valid patch exists, return files: [].',
-    rawText,
-  ].join('\n\n'), preferred)
+  const repair = await askWithProviderRouter(
+    [
+      'Repair the following response into ONLY valid JSON for this TypeScript shape:',
+      '{ "summary": string, "files": [{ "path": string, "operation": "modify"|"create"|"delete", "before"?: string, "after"?: string }], "commandsToRun": string[], "riskLevel": "low"|"medium"|"high" }',
+      'Do not add markdown. Do not invent files. If no valid patch exists, return files: [].',
+      rawText,
+    ].join('\n\n'),
+    preferred
+  )
 
   const repairedJson = extractJsonObject(repair.text)
   if (!repairedJson) throw new Error('AI did not return valid patch JSON.')
@@ -101,6 +99,7 @@ export async function POST(req: NextRequest) {
       repo?: unknown
       activeFile?: string
       activeContent?: string
+      includedFiles?: Array<{ path: string; content: string }>
       fileTree?: string[]
       gitStatus?: string
       terminalOutput?: string
@@ -120,6 +119,28 @@ export async function POST(req: NextRequest) {
 
   const preferred = body.provider || 'auto'
   const context = body.context ?? {}
+
+  // Assemble context with file serialization
+  const ctxSnapshot = assembleContext({
+    task: body.task,
+    activeFile: context.activeFile,
+    activeContent: context.activeContent,
+    additionalFiles: context.includedFiles ?? [],
+    maxTotalChars: 80_000,
+    maxPerFileChars: 40_000,
+  })
+
+  const fileSection = serializeContextToPrompt(ctxSnapshot)
+
+  // Assertion: verify all included files made it into the serialized output
+  try {
+    assertContextSerialization(ctxSnapshot, fileSection)
+  } catch (assertErr) {
+    const msg = assertErr instanceof Error ? assertErr.message : String(assertErr)
+    console.error(`[BertOS Patch] ASSERTION FAILED: ${msg}`)
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 })
+  }
+
   const prompt = [
     'You are BertOS Workspace Patch Agent working inside the standalone bertos-ai-os repo.',
     'Hard rules: never touch Sylistly, never edit outside repo, never expose secrets, never fake command output.',
@@ -135,10 +156,23 @@ export async function POST(req: NextRequest) {
       recentTerminalOutput: context.terminalOutput?.slice(-8000),
       memories: context.memories,
     }, null, 2)}`,
-    context.activeFile && typeof context.activeContent === 'string'
-      ? `Active file ${context.activeFile}:\n\`\`\`\n${context.activeContent.slice(0, 45000)}\n\`\`\``
-      : 'No active file content is open.',
+    fileSection,
   ].join('\n\n')
+
+  // Debug logging (server-side only)
+  console.error('[BertOS Patch] === Payload Debug ===')
+  console.error(`  Total prompt chars: ${prompt.length.toLocaleString()}`)
+  console.error(`  Included files: ${ctxSnapshot.debug.includedCount}`)
+  console.error(`  Included paths: ${ctxSnapshot.includedPaths.join(', ') || '(none)'}`)
+  console.error(`  Omitted paths: ${ctxSnapshot.omittedPaths.join(', ') || '(none)'}`)
+  console.error(`  Payload preview (first 300):\n  ${prompt.slice(0, 300).replace(/\n/g, '\n  ')}`)
+  console.error(`  File content bodies present: ${ctxSnapshot.debug.includedCount > 0}`)
+  if (ctxSnapshot.truncationWarnings.length > 0) {
+    console.error(`  TRUNCATION WARNINGS: ${ctxSnapshot.truncationWarnings.join(' | ')}`)
+  }
+  if (prompt.length > 100_000) {
+    console.error(`  WARNING: Prompt is very large (${prompt.length.toLocaleString()} chars) — may exceed provider context window`)
+  }
 
   try {
     const result = await askWithProviderRouter(prompt, preferred)
@@ -163,6 +197,14 @@ export async function POST(req: NextRequest) {
         latencyMs: result.latencyMs,
       },
       raw: result.text,
+      contextDebug: {
+        includedFiles: ctxSnapshot.debug.includedCount,
+        omittedFiles: ctxSnapshot.debug.omittedCount,
+        totalChars: ctxSnapshot.totalChars,
+        includedPaths: ctxSnapshot.includedPaths,
+        truncationWarnings: ctxSnapshot.truncationWarnings,
+        promptSize: prompt.length,
+      },
     }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     return NextResponse.json({

@@ -1,15 +1,15 @@
 'use client'
-import { MessageSquare, Code2, FlaskConical, Bot, Settings } from 'lucide-react'
+import { MessageSquare, Code2, FlaskConical, Bot, Settings, Terminal } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useRouter } from 'next/navigation'
 
 const ITEMS = [
-  { id: 'chat',      icon: MessageSquare, label: 'Chat',     href: '/chat'      },
-  { id: 'workspace', icon: Code2,         label: 'Code',     href: '/workspace' },
-  { id: 'evolution', icon: FlaskConical,  label: 'Evolve',   href: '/evolution' },
-  { id: 'agents',    icon: Bot,           label: 'Agents',   href: '/agents'    },
-  { id: 'settings',  icon: Settings,      label: 'Settings', href: '/settings'  },
+  { id: 'chat',      icon: MessageSquare, label: 'Chat',    href: '/chat'      },
+  { id: 'coding',    icon: Terminal,      label: 'Coding',  href: '/coding'    },
+  { id: 'workspace', icon: Code2,         label: 'Code',    href: '/workspace' },
+  { id: 'evolution', icon: FlaskConical,  label: 'Evolve',  href: '/evolution' },
+  { id: 'agents',    icon: Bot,           label: 'Agents',  href: '/agents'    },
 ] as const
 
 export function BottomNav() {

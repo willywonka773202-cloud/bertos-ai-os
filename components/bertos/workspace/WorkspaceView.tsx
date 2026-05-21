@@ -536,6 +536,10 @@ export function WorkspaceView() {
             repo: status?.repo,
             activeFile,
             activeContent: activeTab?.content,
+            includedFiles: tabs
+              .filter(tab => typeof tab.content === 'string' && tab.content.length > 0)
+              .slice(0, 8)
+              .map(tab => ({ path: tab.path, content: tab.content })),
             fileTree: flatFiles.map(file => file.path),
             gitStatus: status?.repo?.status,
             terminalOutput: terminalEntries.slice(-5).map(entry => [
