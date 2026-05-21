@@ -731,6 +731,8 @@ export function SettingsView() {
                       'bertos-coding-prefill-v1',
                       'bertos-compare-prefill-v1',
                       'bertos-evolution-lab-settings-v1',
+                      'bertos-evolution-lab-last-scan-v1',
+                      'bertos-onboarded',
                       'bertos-ui',
                       'bertos-chat',
                       'bertos-projects',
