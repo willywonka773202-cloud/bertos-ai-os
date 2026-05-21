@@ -351,7 +351,10 @@ export function ChatView() {
       setPendingDecision(null)
     }
   }, [
-    activeSessionId, selectedModel, settings.apiKeys,
+    activeSessionId, selectedModel,
+    settings.apiKeys, settings.memoryEnabled, settings.streamingEnabled,
+    settings.routingEnabled, settings.tokenBudget, settings.ollamaEndpoint,
+    settings.enableApiProviders,
     addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage, setStreaming,
     createSession, updateSessionTitle, getActiveProject, setActiveSession, setActiveView, setSelectedModel,
   ])
