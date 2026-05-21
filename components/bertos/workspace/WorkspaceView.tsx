@@ -238,6 +238,7 @@ const MAX_PATCH_TOTAL_BYTES = 700_000
 const SAFE_COMMANDS = [
   { label: 'git status', executable: 'git', args: ['status', '--short'] },
   { label: 'git diff', executable: 'git', args: ['diff'] },
+  { label: 'git diff --stat', executable: 'git', args: ['diff', '--stat'] },
   { label: 'git log', executable: 'git', args: ['log', '--oneline', '-5'] },
   { label: 'typecheck', executable: 'npm', args: ['run', 'typecheck'], timeoutMs: 180000 },
   { label: 'build', executable: 'npm', args: ['run', 'build'], timeoutMs: 240000 },
@@ -250,6 +251,7 @@ const CUSTOM_COMMANDS = new Map<string, { executable: string; args: string[]; ti
   ['git status', { executable: 'git', args: ['status', '--short'] }],
   ['git status --short', { executable: 'git', args: ['status', '--short'] }],
   ['git diff', { executable: 'git', args: ['diff'] }],
+  ['git diff --stat', { executable: 'git', args: ['diff', '--stat'] }],
   ['git log --oneline -5', { executable: 'git', args: ['log', '--oneline', '-5'] }],
   ['npm run typecheck', { executable: 'npm', args: ['run', 'typecheck'], timeoutMs: 180000 }],
   ['npm run build', { executable: 'npm', args: ['run', 'build'], timeoutMs: 240000 }],
@@ -280,7 +282,16 @@ const FILE_ALIASES: Record<string, string[]> = {
   'provider payload': ['lib/bertos/patch/provider-payload.ts'],
   'patch schema': ['lib/bertos/patch/schema.ts'],
   'daemon': ['scripts/bertos-daemon.mjs'],
+  'local daemon': ['scripts/bertos-daemon.mjs', 'lib/bertos/local-daemon.ts'],
   'bertos daemon': ['scripts/bertos-daemon.mjs'],
+  'command palette': ['components/bertos/command/CommandPalette.tsx'],
+  'commandpalette': ['components/bertos/command/CommandPalette.tsx'],
+  'dashboard': ['components/bertos/dashboard/DashboardView.tsx', 'app/(bertos)/dashboard/page.tsx'],
+  'dashboardview': ['components/bertos/dashboard/DashboardView.tsx'],
+  'prompt library': ['components/bertos/prompts/PromptLibraryView.tsx', 'app/(bertos)/prompts/page.tsx'],
+  'promptlibrary': ['components/bertos/prompts/PromptLibraryView.tsx'],
+  'provider status': ['components/bertos/shell/ProviderStatusIndicator.tsx', 'app/api/providers/status/route.ts'],
+  'run route': ['app/api/local-daemon/run/route.ts'],
   'top bar': ['components/bertos/shell/TopBar.tsx'],
   'topbar': ['components/bertos/shell/TopBar.tsx'],
   'sidebar': ['components/bertos/shell/Sidebar.tsx'],
@@ -878,10 +889,29 @@ function Editor({
 
 function DiffBlock({ file }: { file: PatchFile }) {
   const diff = simpleDiff(file.before ?? '', file.after ?? '')
+  const diffText = [
+    ...diff.before.map(line => `- ${line}`),
+    ...diff.after.map(line => `+ ${line}`),
+  ].join('\n')
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950">
-      <div className="border-b border-zinc-800 px-3 py-2 font-mono text-[11px] text-zinc-400">
-        {operationLabel(file.operation)} · {file.path} from line {diff.startLine}
+      <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2 font-mono text-[11px] text-zinc-400">
+        <span className="min-w-0 flex-1 truncate">{operationLabel(file.operation)} · {file.path} from line {diff.startLine}</span>
+        {(diff.before.length > 0 || diff.after.length > 0) && (
+          <>
+            <span className="shrink-0 text-emerald-400">+{diff.after.length}</span>
+            <span className="shrink-0 text-red-400">-{diff.before.length}</span>
+          </>
+        )}
+        <button
+          onClick={() => {
+            void navigator.clipboard.writeText(diffText || file.after || file.before || '')
+            toast.success('Diff copied.')
+          }}
+          className="shrink-0 rounded px-1 py-0.5 text-[10px] text-zinc-600 hover:text-zinc-300"
+        >
+          Copy
+        </button>
       </div>
       <div className="max-h-64 overflow-auto font-mono text-[11px] leading-5">
         {diff.before.length === 0 && diff.after.length === 0 ? (
@@ -2028,6 +2058,15 @@ export function WorkspaceView() {
                       <div className="mt-1 text-[10px] text-zinc-600">These paths will be explicitly included in context.</div>
                     </div>
                   )}
+                  {patchDebug?.context && (
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-zinc-800 bg-zinc-900/30 px-2.5 py-1.5 text-[11px] text-zinc-500">
+                      <span>Context: <span className="text-zinc-300">{patchDebug.context.filesIncluded.length} file(s)</span></span>
+                      <span>{(patchDebug.context.totalContextChars ?? 0).toLocaleString()} chars</span>
+                      <span className={patchDebug.activeFileIncluded ? 'text-emerald-400' : 'text-zinc-600'}>
+                        {patchDebug.activeFileIncluded ? 'active file included' : 'active file not in context'}
+                      </span>
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center gap-2">
                     <select
                       value={provider}
@@ -2083,6 +2122,30 @@ export function WorkspaceView() {
                   {(patchDebug || patchError) && (
                     <details className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950/80 p-2">
                       <summary className="cursor-pointer text-xs text-zinc-400">Raw Output / Parse Debug</summary>
+                      <div className="mt-2 flex flex-wrap gap-2 border-b border-zinc-800 pb-2">
+                        {patchDebug?.raw && (
+                          <button
+                            onClick={() => {
+                              void navigator.clipboard.writeText(patchDebug.raw)
+                              toast.success('Raw response copied.')
+                            }}
+                            className="rounded border border-zinc-800 px-2 py-0.5 text-[10px] text-zinc-500 hover:text-zinc-200"
+                          >
+                            Copy response
+                          </button>
+                        )}
+                        {patchDebug && (
+                          <button
+                            onClick={() => {
+                              void navigator.clipboard.writeText(JSON.stringify(patchDebug, null, 2))
+                              toast.success('Debug JSON copied.')
+                            }}
+                            className="rounded border border-zinc-800 px-2 py-0.5 text-[10px] text-zinc-500 hover:text-zinc-200"
+                          >
+                            Copy debug JSON
+                          </button>
+                        )}
+                      </div>
                       <div className="mt-2 space-y-3 text-[11px] text-zinc-500">
                         {patchRouteDebug && (
                           <div className="rounded border border-zinc-800 p-2">
@@ -2250,7 +2313,31 @@ export function WorkspaceView() {
                     <p className="mb-3 text-xs leading-relaxed text-zinc-500">{proposal.summary}</p>
                     <div className="space-y-3">
                       {proposal.files.length === 0 ? (
-                        <div className="rounded-lg border border-zinc-800 p-3 text-xs text-zinc-500">No files proposed. The model needs more context or the task is not patchable yet.</div>
+                        <div className="space-y-2">
+                          <div className="rounded-lg border border-zinc-800 p-3 text-xs text-zinc-500">
+                            No applyable patch was found. The provider responded but did not return file changes.
+                            {patchDebug?.raw ? ' The raw response is shown below — it may contain a text explanation.' : ' Try opening the target file and running Generate patch again.'}
+                          </div>
+                          {patchDebug?.raw && (
+                            <div className="overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900/60">
+                              <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5">
+                                <span className="text-[11px] text-zinc-400">Provider response</span>
+                                <button
+                                  onClick={() => {
+                                    void navigator.clipboard.writeText(patchDebug.raw)
+                                    toast.success('Response copied.')
+                                  }}
+                                  className="text-[10px] text-zinc-600 hover:text-zinc-300"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                              <pre className="max-h-72 overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px] text-zinc-400">
+                                {patchDebug.raw}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
                       ) : proposal.files.map(file => (
                         <div key={file.path} className="space-y-2">
                           <label className="flex items-center gap-2 text-xs text-zinc-300">
