@@ -285,6 +285,8 @@ export function WorkspaceView() {
   const [fileSearch, setFileSearch] = useState('')
   const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>([])
   const [terminalInput, setTerminalInput] = useState('')
+  const [cmdHistory, setCmdHistory] = useState<string[]>([])
+  const [historyPos, setHistoryPos] = useState(-1)
   const [loading, setLoading] = useState(false)
   const [task, setTask] = useState('')
   const [provider, setProvider] = useState<AIModel>('auto')
@@ -514,8 +516,31 @@ export function WorkspaceView() {
       toast.error('Command is not allowlisted. Use the safe command buttons or an exact allowed command.')
       return
     }
+    setCmdHistory(prev => [normalized, ...prev.filter(c => c !== normalized)].slice(0, 50))
+    setHistoryPos(-1)
     setTerminalInput('')
     await runCommand({ label: normalized, ...command })
+  }
+
+  const handleTerminalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') { void runCustomCommand(); return }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHistoryPos(prev => {
+        const next = Math.min(prev + 1, cmdHistory.length - 1)
+        if (cmdHistory[next]) setTerminalInput(cmdHistory[next])
+        return next
+      })
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHistoryPos(prev => {
+        const next = prev - 1
+        if (next < 0) { setTerminalInput(''); return -1 }
+        if (cmdHistory[next]) setTerminalInput(cmdHistory[next])
+        return next
+      })
+    }
   }
 
   const generatePatch = async () => {
@@ -781,7 +806,7 @@ export function WorkspaceView() {
                 <input
                   value={terminalInput}
                   onChange={event => setTerminalInput(event.target.value)}
-                  onKeyDown={event => { if (event.key === 'Enter') void runCustomCommand() }}
+                  onKeyDown={handleTerminalKeyDown}
                   placeholder="Custom safe command, e.g. npm run typecheck"
                   className="flex-1 bg-transparent px-3 py-2 font-mono text-xs text-zinc-300 outline-none placeholder:text-zinc-700"
                 />

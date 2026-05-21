@@ -1,6 +1,6 @@
 'use client'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Terminal, Brain, ListTodo, FolderOpen, Activity, CheckCircle2, Circle, Plus, Cpu, Globe, Zap } from 'lucide-react'
+import { X, Terminal, Brain, ListTodo, FolderOpen, Activity, CheckCircle2, Circle, Plus, Cpu, Globe, Zap, GitBranch } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useProjectStore } from '@/store/bertos/projects'
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useEffect, useState } from 'react'
+import { GitPanel } from '@/components/bertos/workspace/GitPanel'
 
 interface LocalPanelTool {
   id: 'claude-code' | 'codex-cli' | 'gemini-cli'
@@ -79,20 +80,23 @@ export function RightPanel() {
 
       <Tabs value={rightPanelTab} onValueChange={(v) => setRightPanelTab(v as typeof rightPanelTab)} className="flex flex-col flex-1 min-h-0">
         <div className="px-2 pt-2">
-          <TabsList className="w-full grid grid-cols-3 h-auto p-0.5">
-            <TabsTrigger value="memory" className="text-[10px] py-1">
-              <Brain className="w-3 h-3 mr-1" />Memory
+          <TabsList className="w-full grid grid-cols-4 h-auto p-0.5">
+            <TabsTrigger value="memory" className="text-[9px] py-1 px-1">
+              <Brain className="w-3 h-3 mr-0.5" />Mem
             </TabsTrigger>
-            <TabsTrigger value="tasks" className="text-[10px] py-1">
-              <Activity className="w-3 h-3 mr-1" />Tasks
+            <TabsTrigger value="tasks" className="text-[9px] py-1 px-1">
+              <Activity className="w-3 h-3 mr-0.5" />Tasks
               {activeTasks.length > 0 && (
-                <span className="ml-1 bg-violet-500 text-white text-[9px] rounded-full px-1 min-w-4 text-center">
+                <span className="ml-0.5 bg-violet-500 text-white text-[8px] rounded-full px-1 min-w-3 text-center">
                   {activeTasks.length}
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="files" className="text-[10px] py-1">
-              <FolderOpen className="w-3 h-3 mr-1" />Files
+            <TabsTrigger value="files" className="text-[9px] py-1 px-1">
+              <FolderOpen className="w-3 h-3 mr-0.5" />Files
+            </TabsTrigger>
+            <TabsTrigger value="git" className="text-[9px] py-1 px-1">
+              <GitBranch className="w-3 h-3 mr-0.5" />Git
             </TabsTrigger>
           </TabsList>
         </div>
@@ -272,6 +276,10 @@ export function RightPanel() {
                 ))}
               </div>
             )}
+          </TabsContent>
+          {/* Git tab */}
+          <TabsContent value="git" className="m-0 flex-1 min-h-0">
+            <GitPanel />
           </TabsContent>
         </ScrollArea>
       </Tabs>

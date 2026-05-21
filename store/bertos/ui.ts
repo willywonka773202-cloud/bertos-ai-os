@@ -5,7 +5,7 @@ import type { AIModel, BertOSSettings } from '@/lib/bertos/types'
 interface UIStore {
   commandPaletteOpen: boolean
   rightPanelOpen: boolean
-  rightPanelTab: 'logs' | 'memory' | 'tasks' | 'files' | 'terminal'
+  rightPanelTab: 'logs' | 'memory' | 'tasks' | 'files' | 'terminal' | 'git'
   sidebarCollapsed: boolean
   activeView: 'chat' | 'compare' | 'workspace' | 'coding' | 'evolution' | 'agents' | 'memory' | 'settings' | 'dashboard' | 'github'
   selectedModel: AIModel

@@ -39,7 +39,7 @@ function SkeletonMessage() {
 export function ChatView() {
   const {
     sessions, activeSessionId, isStreaming,
-    createSession, addMessage, appendToMessage, updateMessage,
+    createSession, addMessage, appendToMessage, updateMessage, deleteMessage,
     setStreaming, updateSessionTitle, getActiveSession, setActiveSession,
   } = useChatStore()
   const { selectedModel, settings } = useUIStore()
@@ -290,9 +290,21 @@ export function ChatView() {
     }
   }, [
     activeSessionId, selectedModel, settings.apiKeys,
-    addMessage, appendToMessage, updateMessage, setStreaming,
+    addMessage, appendToMessage, updateMessage, deleteMessage, setStreaming,
     createSession, updateSessionTitle, getActiveProject, setActiveSession,
   ])
+
+  const makeRetry = useCallback((failedMsgId: string) => () => {
+    const s = getActiveSession()
+    if (!s) return
+    const idx = s.messages.findIndex(m => m.id === failedMsgId)
+    const userMsg = idx > 0
+      ? [...s.messages].slice(0, idx).reverse().find(m => m.role === 'user')
+      : undefined
+    if (!userMsg) return
+    deleteMessage(s.id, failedMsgId)
+    void sendMessage(userMsg.content)
+  }, [getActiveSession, deleteMessage, sendMessage])
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort()
@@ -374,7 +386,11 @@ export function ChatView() {
                       <RouterBadge decision={msg.routerDecision} />
                     )}
                     <div className="py-2">
-                      <MessageBubble message={msg} isStreaming={isStreaming && !!msg.streaming} />
+                      <MessageBubble
+                        message={msg}
+                        isStreaming={isStreaming && !!msg.streaming}
+                        onRetry={msg.role === 'assistant' && msg.content.startsWith('**Error:**') ? makeRetry(msg.id) : undefined}
+                      />
                     </div>
                   </div>
                 ))}

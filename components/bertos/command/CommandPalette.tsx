@@ -186,6 +186,15 @@ export function CommandPalette() {
       action: () => { setSelectedModel('auto'); setCommandPaletteOpen(false) },
     },
     {
+      id: 'use-team',
+      label: 'Switch to Team Mode',
+      description: 'Gemini plan → Claude review → Codex implement → Ollama summarize',
+      icon: <Sparkles className="w-4 h-4 text-purple-400" />,
+      category: 'Model',
+      keywords: ['team', 'pipeline', 'multi', 'chain', 'gemini', 'claude', 'codex'],
+      action: () => { setSelectedModel('team' as Parameters<typeof setSelectedModel>[0]); setCommandPaletteOpen(false) },
+    },
+    {
       id: 'clear-chat',
       label: 'Clear Current Chat',
       description: 'Remove all messages in this session',

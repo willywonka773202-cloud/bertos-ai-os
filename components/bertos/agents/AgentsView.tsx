@@ -14,8 +14,9 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 const TASK_TEMPLATES = [
-  { title: 'Refactor Frontend',       description: 'Analyze and modernize all React components, extract reusable logic, improve TypeScript types', model: 'ollama-pro' as AIModel,  estimatedTime: '~8 min' },
-  { title: 'Fix TypeScript Errors',   description: 'Scan codebase for type errors and fix them systematically',                                     model: 'ollama-pro' as AIModel,  estimatedTime: '~3 min' },
+  { title: 'BertOS Self-Improve',     description: 'Run full BertOS scan, propose highest-priority improvements, patch + typecheck + build',          model: 'auto' as AIModel,        estimatedTime: '~12 min' },
+  { title: 'Refactor Frontend',       description: 'Analyze and modernize all React components, extract reusable logic, improve TypeScript types',    model: 'ollama-pro' as AIModel,  estimatedTime: '~8 min' },
+  { title: 'Fix TypeScript Errors',   description: 'Scan codebase for type errors and fix them systematically',                                       model: 'ollama-pro' as AIModel,  estimatedTime: '~3 min' },
   { title: 'Generate Documentation',  description: 'Write comprehensive JSDoc comments for all exported functions',                                   model: 'claude-code' as AIModel, estimatedTime: '~5 min' },
   { title: 'Research Architecture',   description: 'Research best practices for the current tech stack and write recommendations',                     model: 'gemini-cli' as AIModel,  estimatedTime: '~4 min' },
   { title: 'Improve UI Components',   description: 'Review all UI components and suggest accessibility and UX improvements',                           model: 'claude-code' as AIModel, estimatedTime: '~6 min' },

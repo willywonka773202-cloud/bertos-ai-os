@@ -12,11 +12,12 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 type ModelOption = { value: AIModel; label: string; description: string; icon: React.ReactNode; color: string }
 
 const BASE_SUBSCRIPTION_MODELS: ModelOption[] = [
-  { value: 'auto',        label: 'Auto',        description: 'Smart routing · Subscription only',          icon: <Sparkles className="w-3.5 h-3.5" />, color: '#F59E0B' },
-  { value: 'ollama-pro',  label: 'Ollama Pro',  description: 'Ollama · gpt-oss:120b-cloud · Default',      icon: <Bot className="w-3.5 h-3.5" />,      color: '#F97316' },
-  { value: 'claude-code', label: 'Claude Code', description: 'Anthropic · Claude Code CLI',                icon: <Cpu className="w-3.5 h-3.5" />,      color: '#8B5CF6' },
-  { value: 'gemini-cli',  label: 'Gemini CLI',  description: 'Google · Gemini CLI',                        icon: <Globe className="w-3.5 h-3.5" />,    color: '#3B82F6' },
-  { value: 'codex-cli',   label: 'Codex CLI',   description: 'OpenAI · Codex CLI',                         icon: <Zap className="w-3.5 h-3.5" />,      color: '#10B981' },
+  { value: 'auto',                    label: 'Auto',        description: 'Smart routing · Subscription only',          icon: <Sparkles className="w-3.5 h-3.5" />, color: '#F59E0B' },
+  { value: 'team' as AIModel,         label: 'Team Mode',   description: 'Gemini plan → Claude review → Codex build',  icon: <Sparkles className="w-3.5 h-3.5" />, color: '#A855F7' },
+  { value: 'ollama-pro',              label: 'Ollama Pro',  description: 'Ollama · gpt-oss:120b-cloud · Default',      icon: <Bot className="w-3.5 h-3.5" />,      color: '#F97316' },
+  { value: 'claude-code',             label: 'Claude Code', description: 'Anthropic · Claude Code CLI',                icon: <Cpu className="w-3.5 h-3.5" />,      color: '#8B5CF6' },
+  { value: 'gemini-cli',              label: 'Gemini CLI',  description: 'Google · Gemini CLI',                        icon: <Globe className="w-3.5 h-3.5" />,    color: '#3B82F6' },
+  { value: 'codex-cli',               label: 'Codex CLI',   description: 'OpenAI · Codex CLI',                         icon: <Zap className="w-3.5 h-3.5" />,      color: '#10B981' },
 ]
 
 const LOCAL_MODELS: ModelOption[] = [
@@ -60,9 +61,13 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
     chat: 'Chat',
     compare: 'Multi-AI Compare',
     workspace: 'Coding Workspace',
+    coding: 'Coding Lab',
+    evolution: 'Evolution Lab',
     agents: 'Agent Tasks',
     memory: 'Project Memory',
     settings: 'Settings',
+    dashboard: 'Dashboard',
+    github: 'GitHub',
   }
 
   return (

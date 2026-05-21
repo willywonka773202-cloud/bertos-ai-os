@@ -2,7 +2,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import { Copy, Check, Cpu, Globe, Zap, Sparkles, User, ChevronDown, ChevronUp, Info, Bot } from 'lucide-react'
+import { Copy, Check, Cpu, Globe, Zap, Sparkles, User, ChevronDown, ChevronUp, Info, Bot, RotateCcw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/bertos/cn'
@@ -13,6 +13,7 @@ import { getModelColor, getModelLabel } from '@/lib/bertos/router'
 interface MessageBubbleProps {
   message: Message
   isStreaming?: boolean
+  onRetry?: () => void
 }
 
 const MODEL_ICONS: Record<string, React.ReactNode> = {
@@ -62,7 +63,8 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   )
 }
 
-export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming, onRetry }: MessageBubbleProps) {
+  const isError = !message.role.includes('user') && message.content.startsWith('**Error:**')
   const isUser = message.role === 'user'
   const [routerOpen, setRouterOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -249,6 +251,14 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
         {/* Actions */}
         {!isUser && !isStreaming && (
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isError && onRetry && (
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1.5 text-[10px] text-amber-500 hover:text-amber-400 transition-colors"
+              >
+                <RotateCcw className="w-3 h-3" /> Retry
+              </button>
+            )}
             <button
               onClick={copy}
               className="flex items-center gap-1.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
