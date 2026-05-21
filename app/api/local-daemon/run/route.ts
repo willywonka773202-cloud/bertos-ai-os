@@ -4,15 +4,22 @@ import { runLocalDaemonCommand } from '@/lib/bertos/local-daemon'
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
-  let body: { executable?: string; args?: string[]; cwd?: string; timeoutMs?: number }
+  let body: { executable?: string; args?: string[]; command?: string; cwd?: string; timeoutMs?: number }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ ok: false, error: 'Invalid JSON body.' }, { status: 400 })
   }
 
+  // Accept either { command: 'git log -20' } or { executable: 'git', args: [...] }
+  if (!body.executable && body.command) {
+    const parts = body.command.trim().split(/\s+/)
+    body.executable = parts[0]
+    body.args = parts.slice(1)
+  }
+
   if (!body.executable) {
-    return NextResponse.json({ ok: false, error: 'executable is required.' }, { status: 400 })
+    return NextResponse.json({ ok: false, error: 'executable or command is required.' }, { status: 400 })
   }
 
   try {
