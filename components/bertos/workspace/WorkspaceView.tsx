@@ -819,11 +819,20 @@ export function WorkspaceView() {
                   {terminalEntries.length === 0 ? (
                     <div className="text-zinc-600">Run a safe command. Output is never faked.</div>
                   ) : terminalEntries.map(entry => (
-                    <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                    <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 group">
                       <div className="mb-2 flex items-center gap-2 text-zinc-500">
                         {entry.running ? <Loader2 className="w-3 h-3 animate-spin" /> : <PanelBottom className="w-3 h-3" />}
                         <span>$ {entry.label}</span>
                         <span className="ml-auto">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                        {!entry.running && entry.stdout && (
+                          <button
+                            onClick={() => navigator.clipboard.writeText(entry.stdout)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-400"
+                            title="Copy output"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        )}
                         {entry.exitCode !== undefined && <Badge variant={entry.exitCode === 0 ? 'success' : 'error'} className="text-[10px]">exit {entry.exitCode}</Badge>}
                       </div>
                       <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-zinc-400">{entry.stdout}</pre>

@@ -19,6 +19,7 @@ interface InputBarProps {
 
 const MODEL_HINTS: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   auto:             { icon: <Sparkles className="w-3.5 h-3.5" />, color: '#F59E0B', label: 'Auto'            },
+  team:             { icon: <Sparkles className="w-3.5 h-3.5" />, color: '#A855F7', label: 'Team Mode'       },
   // Subscription providers
   'ollama-pro':     { icon: <Bot      className="w-3.5 h-3.5" />, color: '#F97316', label: 'Ollama Pro'      },
   'claude-code':    { icon: <Cpu      className="w-3.5 h-3.5" />, color: '#8B5CF6', label: 'Claude Code'     },

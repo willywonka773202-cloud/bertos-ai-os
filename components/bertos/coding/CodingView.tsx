@@ -31,6 +31,7 @@ const TEMPLATES = [
 
 const MISSION_HISTORY_KEY = 'bertos-coding-history-v1'
 const PREFILL_KEY = 'bertos-coding-prefill-v1'
+const PATCH_HISTORY_KEY = 'bertos-patch-history-v1'
 
 interface PatchFile {
   path: string
@@ -82,6 +83,15 @@ interface SavedMission {
   savedAt: number
 }
 
+interface PatchHistoryEntry {
+  id: string
+  summary: string
+  providerName: string
+  fileCount: number
+  savedAt: number
+  proposal: PatchProposal
+}
+
 function simpleDiff(before = '', after = '') {
   const a = before.split(/\r?\n/)
   const b = after.split(/\r?\n/)
@@ -130,12 +140,17 @@ export function CodingView() {
   const [missionOpen, setMissionOpen] = useState(true)
   const [debugOpen, setDebugOpen] = useState(false)
   const [history, setHistory] = useState<SavedMission[]>([])
+  const [patchHistory, setPatchHistory] = useState<PatchHistoryEntry[]>([])
   const promptRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(MISSION_HISTORY_KEY)
       if (saved) setHistory(JSON.parse(saved) as SavedMission[])
+    } catch { /* ignore */ }
+    try {
+      const ph = localStorage.getItem(PATCH_HISTORY_KEY)
+      if (ph) setPatchHistory(JSON.parse(ph) as PatchHistoryEntry[])
     } catch { /* ignore */ }
     try {
       const prefill = localStorage.getItem(PREFILL_KEY)
@@ -235,7 +250,7 @@ export function CodingView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           task: mission.goal,
-          provider: mission.provider === 'team' ? 'auto' : (mission.provider as AIModel),
+          provider: mission.provider as AIModel,
           context: {
             activeFile: includedFiles[0]?.path,
             activeContent: includedFiles[0]?.content,
@@ -252,16 +267,29 @@ export function CodingView() {
 
       const data = await res.json()
       if (!res.ok || !data.ok || !data.proposal) throw new Error(data.error || 'Mission run failed.')
-      setProposal(data.proposal as PatchProposal)
+      const proposal = data.proposal as PatchProposal
+      setProposal(proposal)
       setProposalMeta(data.provider as ProviderMeta)
       setCtxDebug(data.contextDebug as ContextDebug)
       setRawOutput(typeof data.raw === 'string' ? data.raw : '')
       setSelectedPatchFiles(new Set(
-        (data.proposal.files as PatchFile[])
-          .filter(f => f.operation !== 'delete')
-          .map(f => f.path)
+        (proposal.files).filter(f => f.operation !== 'delete').map(f => f.path)
       ))
-      toast.success(`Patch proposed by ${(data.provider as ProviderMeta)?.providerName ?? 'provider'}`)
+      const providerName = (data.provider as ProviderMeta)?.providerName ?? 'provider'
+      const historyEntry: PatchHistoryEntry = {
+        id: `${Date.now()}`,
+        summary: proposal.summary,
+        providerName,
+        fileCount: proposal.files.length,
+        savedAt: Date.now(),
+        proposal,
+      }
+      setPatchHistory(prev => {
+        const next = [historyEntry, ...prev].slice(0, 10)
+        try { localStorage.setItem(PATCH_HISTORY_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+        return next
+      })
+      toast.success(`Patch proposed by ${providerName}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Mission run failed.')
     } finally {
@@ -526,13 +554,22 @@ export function CodingView() {
                 </div>
                 <div className="p-2 space-y-2">
                   {terminalEntries.map(entry => (
-                    <div key={entry.id} className="rounded-lg border border-zinc-800/50 bg-zinc-900/40 p-2 font-mono text-[11px]">
+                    <div key={entry.id} className="group rounded-lg border border-zinc-800/50 bg-zinc-900/40 p-2 font-mono text-[11px]">
                       <div className="flex items-center gap-2 mb-1 text-zinc-500">
                         {entry.running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Terminal className="w-3 h-3" />}
                         <span>$ {entry.label}</span>
-                        {entry.exitCode !== undefined && (
-                          <Badge variant={entry.exitCode === 0 ? 'success' : 'error'} className="ml-auto text-[9px]">exit {entry.exitCode}</Badge>
-                        )}
+                        <div className="ml-auto flex items-center gap-1.5">
+                          {entry.exitCode !== undefined && (
+                            <Badge variant={entry.exitCode === 0 ? 'success' : 'error'} className="text-[9px]">exit {entry.exitCode}</Badge>
+                          )}
+                          <button
+                            onClick={() => navigator.clipboard.writeText(entry.stdout)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/10 text-zinc-600 hover:text-zinc-300"
+                            title="Copy output"
+                          >
+                            <Clipboard className="w-3 h-3" />
+                          </button>
+                        </div>
                       </div>
                       <pre className="max-h-48 overflow-auto whitespace-pre-wrap text-zinc-400">{entry.stdout}</pre>
                       {entry.stderr && <pre className="mt-1 whitespace-pre-wrap text-amber-300">{entry.stderr}</pre>}
@@ -560,7 +597,34 @@ export function CodingView() {
 
         <ScrollArea className="flex-1">
           <div className="p-3 space-y-3">
-            {!proposal && (
+            {!proposal && patchHistory.length > 0 && (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden">
+                <div className="flex items-center px-3 py-2 border-b border-zinc-800/50">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">Previous patches</span>
+                  <span className="ml-auto text-[10px] text-zinc-700">{patchHistory.length}</span>
+                </div>
+                {patchHistory.slice(0, 5).map(h => (
+                  <button
+                    key={h.id}
+                    onClick={() => {
+                      setProposal(h.proposal)
+                      setSelectedPatchFiles(new Set(h.proposal.files.filter(f => f.operation !== 'delete').map(f => f.path)))
+                    }}
+                    className="w-full text-left px-3 py-2 border-b border-zinc-800/30 last:border-b-0 hover:bg-white/5 transition-colors"
+                  >
+                    <p className="text-xs text-zinc-400 truncate">{h.summary}</p>
+                    <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-600">
+                      <span>{h.providerName}</span>
+                      <span>·</span>
+                      <span>{h.fileCount} file{h.fileCount !== 1 ? 's' : ''}</span>
+                      <span className="ml-auto">{new Date(h.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {!proposal && patchHistory.length === 0 && (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-center">
                 <Sparkles className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
                 <p className="text-xs text-zinc-600">Build and run a mission to see the patch proposal here.</p>
