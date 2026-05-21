@@ -1,9 +1,10 @@
 'use client'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, Cpu, Globe, Sparkles, ChevronDown, PanelRight, PanelRightClose, Command, Bot, Menu } from 'lucide-react'
+import { Zap, Cpu, Globe, Sparkles, ChevronDown, PanelRight, PanelRightClose, Command, Bot, Menu, Server } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
+import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import type { AIModel } from '@/lib/bertos/types'
 import { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
@@ -36,6 +37,8 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const { isStreaming } = useChatStore()
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [subscriptionModels, setSubscriptionModels] = useState<ModelOption[]>(BASE_SUBSCRIPTION_MODELS)
+  const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
+  const daemonOnline = Boolean(daemonHealth?.daemonOnline)
 
   // Fetch deployment mode once on mount to update ollama-pro description
   useEffect(() => {
@@ -127,6 +130,29 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <div className="hidden md:block">
         <ProviderStatusIndicator />
       </div>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={() => void refreshDaemonHealth()}
+            className={cn(
+              'hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-xs',
+              daemonOnline
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+            )}
+          >
+            <span className={cn('h-1.5 w-1.5 rounded-full', daemonOnline ? 'bg-emerald-400' : 'bg-amber-400', daemonLoading && 'animate-pulse')} />
+            <Server className="h-3.5 w-3.5" />
+            <span>{daemonOnline ? 'Daemon' : 'Daemon offline'}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {daemonOnline
+            ? `Local daemon online${daemonHealth?.workspaceRoot ? `: ${daemonHealth.workspaceRoot}` : ''}`
+            : 'Local coding features need npm run bertos:daemon'}
+        </TooltipContent>
+      </Tooltip>
 
       {/* Model selector */}
       <div className="relative">

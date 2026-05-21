@@ -12,6 +12,8 @@ import { useUIStore } from '@/store/bertos/ui'
 import { useAgentStore } from '@/store/bertos/agents'
 import { usePromptStore } from '@/store/bertos/prompts'
 import { useAutomationStore } from '@/store/bertos/automations'
+import { useDaemonHealth } from '@/hooks/useDaemonHealth'
+import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -37,6 +39,7 @@ export function DashboardView() {
   const { tasks: agentTasks } = useAgentStore()
   const { prompts } = usePromptStore()
   const { rules: automationRules, runs: automationRuns } = useAutomationStore()
+  const { health: daemonHealth, loading: daemonHealthLoading, refresh: refreshDaemonHealth } = useDaemonHealth()
   const router = useRouter()
   const [providers, setProviders] = useState<ProviderStatus[]>([])
   const [repoStatus, setRepoStatus] = useState<any>(null)
@@ -81,6 +84,7 @@ export function DashboardView() {
   const automationNeedsApproval = automationRuns.filter(run => run.status === 'needs-approval').length
   const automationRunning = automationRuns.filter(run => run.status === 'running').length
   const recentAutomationRuns = automationRuns.slice(0, 5)
+  const daemonOnline = Boolean(daemonHealth?.daemonOnline)
 
   const handleNewChat = () => {
     createSession(selectedModel)
@@ -101,6 +105,14 @@ export function DashboardView() {
   }
 
   const handleRunCmd = async (cmd: 'typecheck' | 'build') => {
+    if (!daemonOnline) {
+      setCmdResult({
+        cmd,
+        ok: false,
+        output: 'Local daemon is offline. Start it with npm run bertos:daemon from C:\\Users\\owner\\bertos-ai-os.',
+      })
+      return
+    }
     setRunningCmd(cmd)
     setCmdResult(null)
     try {
@@ -145,6 +157,8 @@ export function DashboardView() {
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-6">
+          <DaemonHealthBanner health={daemonHealth} loading={daemonHealthLoading} onRefresh={refreshDaemonHealth} />
+
           {/* System Status */}
           <section>
             <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
@@ -196,10 +210,17 @@ export function DashboardView() {
               />
               <StatusCard
                 label="Repo Status"
-                value={repoStatus?.inRepo ? 'Detected' : 'No Repo'}
+                value={daemonHealth?.repoDetected ? 'Detected' : 'No Repo'}
                 icon={<GitBranch className="w-5 h-5" />}
-                status={repoStatus?.inRepo ? 'success' : 'warning'}
-                subtitle={repoStatus?.branch || 'Not in git repo'}
+                status={daemonHealth?.repoDetected ? 'success' : 'warning'}
+                subtitle={repoStatus?.repo?.branch || daemonHealth?.workspaceRoot || 'Daemon required'}
+              />
+              <StatusCard
+                label="Local Daemon"
+                value={daemonOnline ? 'Online' : 'Offline'}
+                icon={<Server className="w-5 h-5" />}
+                status={daemonOnline ? 'success' : 'warning'}
+                subtitle={daemonOnline ? 'Workspace bridge ready' : 'Copy start command above'}
               />
             </div>
           </section>
@@ -373,6 +394,11 @@ export function DashboardView() {
                   }}
                 />
               </div>
+              {!daemonOnline && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-100/70">
+                  Project health checks are available after the local daemon is running. Use the banner above to copy the start command.
+                </div>
+              )}
               <div>
                 <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
                   <Terminal className="w-4 h-4" />
@@ -380,7 +406,7 @@ export function DashboardView() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <button
-                    disabled={!!runningCmd}
+                    disabled={!!runningCmd || !daemonOnline}
                     onClick={() => handleRunCmd('typecheck')}
                     className="p-3 rounded-xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700/50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -393,7 +419,7 @@ export function DashboardView() {
                     <p className="text-xs text-zinc-500">npm run typecheck</p>
                   </button>
                   <button
-                    disabled={!!runningCmd}
+                    disabled={!!runningCmd || !daemonOnline}
                     onClick={() => handleRunCmd('build')}
                     className="p-3 rounded-xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700/50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
                   >

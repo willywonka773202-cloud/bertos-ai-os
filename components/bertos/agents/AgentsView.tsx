@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
+import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -191,7 +193,7 @@ function AgentReportCard({ task }: { task: AgentTask }) {
   )
 }
 
-function TaskCard({ task }: { task: AgentTask }) {
+function TaskCard({ task, daemonOnline }: { task: AgentTask; daemonOnline: boolean }) {
   const { deleteTask, setStatus, addLog, setProgress, addStep, updateStep, setReport } = useAgentStore()
   const [expanded, setExpanded] = useState(false)
   const meta = MODEL_META[task.model] ?? MODEL_META['ollama-pro']
@@ -199,6 +201,10 @@ function TaskCard({ task }: { task: AgentTask }) {
   const steps = task.steps ?? []
 
   const simulate = async () => {
+    if (!daemonOnline) {
+      toast.error('Agent runs require the local daemon. Start npm run bertos:daemon and retry.')
+      return
+    }
     setStatus(task.id, 'running')
     setProgress(task.id, 10)
 
@@ -352,7 +358,7 @@ function TaskCard({ task }: { task: AgentTask }) {
             <span className="hidden sm:inline">{status.label}</span>
           </span>
           {task.status === 'pending' && (
-            <Button size="sm" onClick={simulate}>
+            <Button size="sm" onClick={simulate} disabled={!daemonOnline} title={!daemonOnline ? 'Start npm run bertos:daemon to run agent tasks.' : 'Run agent task'}>
               <Play className="w-3 h-3" />Run
             </Button>
           )}
@@ -429,6 +435,7 @@ function TaskCard({ task }: { task: AgentTask }) {
 export function AgentsView() {
   const { tasks, createTask } = useAgentStore()
   const { pendingAgentTask, setPendingAgentTask } = useUIStore()
+  const { health: daemonHealth, loading: daemonHealthLoading, refresh: refreshDaemonHealth } = useDaemonHealth()
   const [showTemplates, setShowTemplates] = useState(false)
   const [customTitle, setCustomTitle] = useState('')
   const [customDesc, setCustomDesc] = useState('')
@@ -459,11 +466,19 @@ export function AgentsView() {
 
   const running = tasks.filter(t => t.status === 'running').length
   const done    = tasks.filter(t => t.status === 'done').length
+  const daemonOnline = Boolean(daemonHealth?.daemonOnline)
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
         <div className="max-w-3xl mx-auto">
+          <DaemonHealthBanner
+            health={daemonHealth}
+            loading={daemonHealthLoading}
+            onRefresh={refreshDaemonHealth}
+            compact={daemonOnline}
+            className="mb-4"
+          />
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
@@ -580,7 +595,7 @@ export function AgentsView() {
           ) : (
             <AnimatePresence initial={false}>
               {tasks.map(task => (
-                <TaskCard key={task.id} task={task} />
+                <TaskCard key={task.id} task={task} daemonOnline={daemonOnline} />
               ))}
             </AnimatePresence>
           )}

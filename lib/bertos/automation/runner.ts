@@ -37,6 +37,16 @@ const APPROVAL_ONLY_ACTIONS = new Set<AutomationAction>([
   'create-workspace-debug-task',
 ])
 
+const DAEMON_DEPENDENT_ACTIONS = new Set<AutomationAction>([
+  'run-typecheck',
+  'run-build',
+  'run-lint',
+  'run-tests',
+  'git-status',
+  'git-diff-stat',
+  'create-project-health-report',
+])
+
 async function readPackageScripts() {
   try {
     const packageJsonPath = path.join(process.cwd(), 'package.json')
@@ -53,6 +63,10 @@ export function isAutomationActionSafe(action: AutomationAction) {
 
 export function isAutomationActionApprovalOnly(action: AutomationAction) {
   return APPROVAL_ONLY_ACTIONS.has(action)
+}
+
+export function isAutomationActionDaemonDependent(action: AutomationAction) {
+  return DAEMON_DEPENDENT_ACTIONS.has(action)
 }
 
 async function runCommandAction(action: AutomationAction, executable: string, args: string[], timeoutMs = 120000): Promise<AutomationActionResult> {
@@ -124,6 +138,7 @@ export async function executeAutomationActions(actions: AutomationAction[]): Pro
   const logs: string[] = []
   const results: AutomationActionResult[] = []
   const scripts = await readPackageScripts()
+  const daemon = await fetchLocalDaemonStatus(5000)
 
   for (const action of actions) {
     if (!SAFE_ACTIONS.has(action)) {
@@ -135,6 +150,18 @@ export async function executeAutomationActions(actions: AutomationAction[]): Pro
         durationMs: 0,
       })
       logs.push(`${action}: skipped (${approval ? 'approval required' : 'blocked'})`)
+      continue
+    }
+
+    if (DAEMON_DEPENDENT_ACTIONS.has(action) && !daemon.online) {
+      const error = 'Skipped because local daemon is offline. Start with npm run bertos:daemon.'
+      results.push({
+        action,
+        status: 'skipped',
+        error,
+        durationMs: 0,
+      })
+      logs.push(`${action}: skipped (daemon offline)`)
       continue
     }
 

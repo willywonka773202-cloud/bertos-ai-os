@@ -20,8 +20,10 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
 import { cn } from '@/lib/bertos/cn'
 import { executeRun } from '@/lib/bertos/autopilot'
+import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import { useAgentStore } from '@/store/bertos/agents'
 import { useAutomationStore } from '@/store/bertos/automations'
 import { useUIStore } from '@/store/bertos/ui'
@@ -50,6 +52,16 @@ const ACTION_LABELS: Record<AutomationAction, string> = {
   'create-workspace-debug-task': 'Create workspace debug task',
   'create-project-health-report': 'Project health report',
 }
+
+const DAEMON_DEPENDENT_ACTIONS = new Set<AutomationAction>([
+  'run-typecheck',
+  'run-build',
+  'run-lint',
+  'run-tests',
+  'git-status',
+  'git-diff-stat',
+  'create-project-health-report',
+])
 
 function riskVariant(risk: AutomationRisk) {
   if (risk === 'safe') return 'success'
@@ -213,6 +225,7 @@ export function AutopilotView() {
   const router = useRouter()
   const [tab, setTab] = useState<AutopilotTab>('overview')
   const [activeRunIds, setActiveRunIds] = useState<Set<string>>(new Set())
+  const { health, loading: healthLoading, refresh: refreshHealth } = useDaemonHealth()
 
   const stats = useMemo(() => ({
     enabledRules: rules.filter(rule => rule.enabled).length,
@@ -222,6 +235,8 @@ export function AutopilotView() {
     needsApproval: runs.filter(run => run.status === 'needs-approval').length,
     failed: runs.filter(run => run.status === 'failed' || run.status === 'blocked').length,
   }), [rules, runs, activeRunIds])
+
+  const daemonOnline = Boolean(health?.daemonOnline)
 
   const markRuleLastRun = useCallback((ruleId: string) => {
     updateRule(ruleId, { lastRunAt: new Date().toISOString() })
@@ -260,13 +275,33 @@ export function AutopilotView() {
       actions: rule.actions,
       risk: rule.risk,
     })
+    const needsDaemon = rule.actions.some(action => DAEMON_DEPENDENT_ACTIONS.has(action))
+    if (needsDaemon && !daemonOnline) {
+      const message = 'Skipped because local daemon is offline. Start with npm run bertos:daemon.'
+      updateRun(run.id, {
+        status: 'blocked',
+        finishedAt: new Date().toISOString(),
+        summary: message,
+      })
+      for (const action of run.actions) {
+        updateRunAction(run.id, action.id, {
+          status: DAEMON_DEPENDENT_ACTIONS.has(action.action) ? 'skipped' : 'pending',
+          error: DAEMON_DEPENDENT_ACTIONS.has(action.action) ? message : undefined,
+          finishedAt: new Date().toISOString(),
+        })
+      }
+      appendRunLog(run.id, message)
+      toast.warning(message)
+      setTab('queue')
+      return
+    }
     if (rule.risk === 'approval-required') {
       toast.warning('Run queued and waiting for approval.')
       setTab('queue')
       return
     }
     void startRun(run)
-  }, [queueRun, startRun])
+  }, [appendRunLog, daemonOnline, queueRun, startRun, updateRun, updateRunAction])
 
   const approveRun = useCallback((run: AutomationRun) => {
     updateRun(run.id, { status: 'queued', approvalRequired: false })
@@ -328,10 +363,13 @@ export function AutopilotView() {
 
       <ScrollArea className="flex-1">
         <main className="mx-auto max-w-5xl space-y-4 p-6">
+          <DaemonHealthBanner health={health} loading={healthLoading} onRefresh={refreshHealth} />
+
           {tab === 'overview' && (
             <>
               <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
                 {[
+                  ['Daemon', daemonOnline ? 'Online' : 'Offline', daemonOnline ? 'success' : 'warning'],
                   ['Enabled rules', stats.enabledRules, 'success'],
                   ['Queued', stats.queued, 'default'],
                   ['Running', stats.running, 'warning'],
