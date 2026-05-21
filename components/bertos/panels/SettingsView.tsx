@@ -770,20 +770,20 @@ export function SettingsView() {
                   </div>
                 ))}
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                  <p className="text-sm text-zinc-200 mb-1">Token budget</p>
-                  <p className="text-xs text-zinc-600 mb-3">Max tokens to include in context assembly per request.</p>
+                  <p className="text-sm text-zinc-200 mb-1">Max response tokens</p>
+                  <p className="text-xs text-zinc-600 mb-3">Maximum output length for API provider responses (Claude, OpenAI, Gemini).</p>
                   <div className="flex items-center gap-3">
                     <input
                       type="range"
-                      min={16000}
-                      max={200000}
-                      step={4000}
-                      value={settings.tokenBudget ?? 100000}
+                      min={256}
+                      max={16384}
+                      step={256}
+                      value={settings.tokenBudget ?? 4096}
                       onChange={e => updateSettings({ tokenBudget: Number(e.target.value) })}
                       className="flex-1 accent-violet-500"
                     />
                     <span className="text-xs font-mono text-zinc-400 w-20 text-right">
-                      {((settings.tokenBudget ?? 100000) / 1000).toFixed(0)}k tokens
+                      {(settings.tokenBudget ?? 4096).toLocaleString()} tok
                     </span>
                   </div>
                 </div>

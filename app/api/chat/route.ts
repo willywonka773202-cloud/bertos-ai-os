@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
     ? routePrompt(conversationMessages[conversationMessages.length - 1]?.content ?? '', 'auto')
     : { primary: modelAlias, reasoning: `Routed to ${modelAlias} as selected.`, confidence: 1, taskType: 'general', strategy: 'single' }
 
-  const maxTokens = Math.min(Math.max(body.maxTokens ?? 4096, 256), 8192)
+  const maxTokens = Math.min(Math.max(body.maxTokens ?? 4096, 256), 16384)
   const encoder = new TextEncoder()
 
   // Build an SSE ReadableStream
