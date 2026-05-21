@@ -304,19 +304,27 @@ export function MessageBubble({ message, isStreaming, onRetry, onEdit }: Message
               {copied ? 'Copied' : 'Copy'}
             </button>
             {message.metadata?.tokens && (
-              <span className="text-[10px] text-zinc-700">{message.metadata.tokens} tokens</span>
+              <span className="text-[10px] text-zinc-700">
+                {message.metadata.tokens >= 1000
+                  ? `${(message.metadata.tokens / 1000).toFixed(1)}k tok`
+                  : `${message.metadata.tokens} tok`}
+              </span>
             )}
             {message.metadata?.latency && (
-              <span className="text-[10px] text-zinc-700">{message.metadata.latency}ms</span>
+              <span className="text-[10px] text-zinc-700">
+                {message.metadata.latency >= 1000
+                  ? `${(message.metadata.latency / 1000).toFixed(1)}s`
+                  : `${message.metadata.latency}ms`}
+              </span>
             )}
-            {message.metadata?.providerSource && (
-              <span className="text-[10px] text-zinc-700">source: {message.metadata.providerSource}</span>
+            {message.metadata?.providerSource === 'daemon' && (
+              <span className="text-[10px] text-zinc-700">via daemon</span>
             )}
             {message.metadata?.modelOrTool && (
-              <span className="text-[10px] text-zinc-700 truncate max-w-48">tool: {message.metadata.modelOrTool}</span>
+              <span className="text-[10px] text-zinc-700 truncate max-w-48 font-mono">{message.metadata.modelOrTool}</span>
             )}
             {message.metadata?.fallbackUsed && (
-              <span className="text-[10px] text-amber-500">fallback: {message.metadata.fallbackUsed}</span>
+              <span className="text-[10px] text-amber-500">↳ fallback: {message.metadata.fallbackUsed}</span>
             )}
             <span className="text-[10px] text-zinc-800 ml-auto">
               {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

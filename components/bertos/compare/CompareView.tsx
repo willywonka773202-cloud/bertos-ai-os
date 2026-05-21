@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { GitCompare, Send, Cpu, Globe, Zap, Trophy, Copy, Check, Loader2, RotateCcw, Bot, Code2, Download } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
@@ -54,6 +54,7 @@ function StreamingBars({ color }: { color: string }) {
 }
 
 const COMPARE_PREFILL_KEY = 'bertos-coding-prefill-v1'
+const COMPARE_QUERY_PREFILL_KEY = 'bertos-compare-prefill-v1'
 
 export function CompareView() {
   const [query, setQuery] = useState('')
@@ -65,6 +66,16 @@ export function CompareView() {
   const abortRefs = useRef<Map<ModelId, AbortController>>(new Map())
   const { settings, setActiveView } = useUIStore()
   const router = useRouter()
+
+  useEffect(() => {
+    try {
+      const prefill = localStorage.getItem(COMPARE_QUERY_PREFILL_KEY)
+      if (prefill) {
+        setQuery(prefill)
+        localStorage.removeItem(COMPARE_QUERY_PREFILL_KEY)
+      }
+    } catch { /* ignore */ }
+  }, [])
 
   const sendToCoding = (model: ModelId) => {
     const r = responses.find(r => r.model === model)

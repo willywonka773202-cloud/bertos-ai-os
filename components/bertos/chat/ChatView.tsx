@@ -42,7 +42,7 @@ export function ChatView() {
     createSession, addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage,
     setStreaming, updateSessionTitle, getActiveSession, setActiveSession,
   } = useChatStore()
-  const { selectedModel, settings } = useUIStore()
+  const { selectedModel, settings, setActiveView, setSelectedModel } = useUIStore()
   const { getActiveProject } = useProjectStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -99,6 +99,30 @@ export function ChatView() {
   }, [])
 
   const sendMessage = useCallback(async (content: string) => {
+    // Handle slash commands
+    const trimmed = content.trim()
+    if (trimmed === '/compare' || trimmed.startsWith('/compare ') || trimmed === '/ask-all' || trimmed.startsWith('/ask-all ')) {
+      const query = trimmed.replace(/^\/(compare|ask-all)\s*/, '').trim()
+      if (query) localStorage.setItem('bertos-compare-prefill-v1', query)
+      setActiveView('compare')
+      return
+    }
+    if (trimmed === '/code' || trimmed.startsWith('/code ')) {
+      setSelectedModel('codex-cli' as AIModel)
+      const rest = trimmed.replace(/^\/code\s*/, '').trim()
+      if (!rest) return
+      content = rest
+    } else if (trimmed === '/research' || trimmed.startsWith('/research ')) {
+      setSelectedModel('gemini-cli' as AIModel)
+      const rest = trimmed.replace(/^\/research\s*/, '').trim()
+      if (!rest) return
+      content = rest
+    } else if (trimmed === '/summarize') {
+      content = 'Summarize our conversation so far in a few bullet points.'
+    } else if (trimmed.startsWith('/explain ')) {
+      content = `Explain in detail: ${trimmed.slice(9).trim()}`
+    }
+
     // Ensure active session
     let sessionId = activeSessionId
     if (!sessionId) {
@@ -309,7 +333,7 @@ export function ChatView() {
   }, [
     activeSessionId, selectedModel, settings.apiKeys,
     addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage, setStreaming,
-    createSession, updateSessionTitle, getActiveProject, setActiveSession,
+    createSession, updateSessionTitle, getActiveProject, setActiveSession, setActiveView, setSelectedModel,
   ])
 
   const makeRetry = useCallback((failedMsgId: string) => () => {
