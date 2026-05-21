@@ -15,10 +15,11 @@ import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/bertos/cn'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { rightPanelOpen, setRightPanelOpen, sidebarCollapsed, setSidebarCollapsed,
-          setCommandPaletteOpen, setActiveView } = useUIStore()
+          setCommandPaletteOpen, setActiveView, settings } = useUIStore()
   const { createSession } = useChatStore()
   const { showOnboarding, complete } = useOnboarding()
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -49,7 +50,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="flex h-dvh bg-[#0A0A0B] overflow-hidden text-zinc-100">
+      <div className={cn(
+        'flex h-dvh overflow-hidden text-zinc-100',
+        settings.theme === 'midnight' ? 'bg-[#05050A]' :
+        settings.theme === 'darker'   ? 'bg-zinc-950'  :
+        'bg-[#0A0A0B]',
+      )}>
 
         {/* Desktop sidebar */}
         <div className="hidden md:flex flex-shrink-0 h-full">
