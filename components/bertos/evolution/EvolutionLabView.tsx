@@ -352,6 +352,9 @@ export function EvolutionLabView() {
       toast.success('Patch applied. Running typecheck/build.')
       await runCommand('npm run typecheck', 'npm', ['run', 'typecheck'], 180000)
       await runCommand('npm run build', 'npm', ['run', 'build'], 240000)
+      setProposal(null)
+      setSelectedPatchFiles(new Set())
+      toast.success('Checks passed — ready to commit.')
       await scanBertos(true)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Patch apply failed.')

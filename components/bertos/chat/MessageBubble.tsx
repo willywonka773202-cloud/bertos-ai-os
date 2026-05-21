@@ -318,6 +318,9 @@ export function MessageBubble({ message, isStreaming, onRetry, onEdit }: Message
             {message.metadata?.fallbackUsed && (
               <span className="text-[10px] text-amber-500">fallback: {message.metadata.fallbackUsed}</span>
             )}
+            <span className="text-[10px] text-zinc-800 ml-auto">
+              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
           </div>
         )}
       </div>

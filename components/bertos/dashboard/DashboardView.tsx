@@ -59,8 +59,40 @@ export function DashboardView() {
         fetch('/api/local-daemon/status', { cache: 'no-store' }),
       ])
       if (pRes.status === 'fulfilled' && pRes.value.ok) {
-        const d = await pRes.value.json()
-        setProviders((d.providers ?? []) as ProviderStatus[])
+        const d = await pRes.value.json() as {
+          ollama?: { id: string; provider: string; mode: string; online: boolean; defaultModel: string; error?: string }
+          localDaemon?: { online: boolean; tools?: Array<{ id: string; label: string; installed: boolean; loginStatus: string; error?: string }> }
+          apiProviders?: { enabled: boolean; anthropic: boolean; openai: boolean; gemini: boolean }
+        }
+        const mapped: ProviderStatus[] = []
+        if (d.ollama) {
+          mapped.push({
+            providerId: d.ollama.id ?? 'ollama-pro',
+            providerName: d.ollama.provider ?? 'Ollama Pro',
+            online: d.ollama.online,
+            modelOrTool: d.ollama.defaultModel,
+            source: d.ollama.mode,
+            error: d.ollama.error,
+          })
+        }
+        if (d.localDaemon?.tools) {
+          for (const tool of d.localDaemon.tools) {
+            mapped.push({
+              providerId: tool.id,
+              providerName: tool.label,
+              online: tool.installed && tool.loginStatus === 'available',
+              modelOrTool: tool.id,
+              source: 'daemon',
+              error: tool.error ?? (tool.installed ? (tool.loginStatus !== 'available' ? `login: ${tool.loginStatus}` : undefined) : 'not installed'),
+            })
+          }
+        }
+        if (d.apiProviders?.enabled) {
+          if (d.apiProviders.anthropic) mapped.push({ providerId: 'claude-api', providerName: 'Anthropic API', online: true, modelOrTool: 'claude-sonnet-4-6', source: 'api' })
+          if (d.apiProviders.openai)    mapped.push({ providerId: 'openai-api',  providerName: 'OpenAI API',    online: true, modelOrTool: 'gpt-4o',             source: 'api' })
+          if (d.apiProviders.gemini)    mapped.push({ providerId: 'gemini-api',  providerName: 'Gemini API',    online: true, modelOrTool: 'gemini-2.0-flash',    source: 'api' })
+        }
+        setProviders(mapped)
       }
       if (dRes.status === 'fulfilled' && dRes.value.ok) {
         const d = await dRes.value.json()

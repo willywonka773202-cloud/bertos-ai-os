@@ -603,6 +603,7 @@ export function WorkspaceView() {
     if (!safe) return toast.error('Workspace is not safe.')
     setApplyingPatch(true)
     try {
+      const patchedPaths: string[] = []
       for (const file of proposal.files) {
         if (!selectedPatchFiles.has(file.path)) continue
         if (file.operation === 'delete') {
@@ -616,6 +617,7 @@ export function WorkspaceView() {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || `Could not write ${file.path}`)
+        patchedPaths.push(file.path)
         const existing = tabs.find(tab => tab.path === file.path)
         if (existing) {
           setTabs(current => current.map(tab => tab.path === file.path
@@ -623,8 +625,32 @@ export function WorkspaceView() {
             : tab))
         }
       }
+
+      // Reload open tab contents for any patched files from disk.
+      await Promise.all(patchedPaths.map(async path => {
+        const existing = tabs.find(tab => tab.path === path)
+        if (!existing) return
+        const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        setTabs(current => current.map(tab => tab.path === path
+          ? { ...tab, content: data.content ?? '', savedContent: data.content ?? '' }
+          : tab))
+      }))
+
       toast.success('Approved patch files applied.')
       await refresh()
+
+      // Run typecheck and surface the result as a toast.
+      const typecheckCommand = CUSTOM_COMMANDS.get('npm run typecheck')
+      if (typecheckCommand) {
+        const result = await runCommand({ label: 'npm run typecheck', ...typecheckCommand })
+        if (result?.exitCode === 0) {
+          toast.success('Typecheck passed.')
+        } else {
+          toast.error(`Typecheck failed (exit ${result?.exitCode ?? '?'}).`)
+        }
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Patch apply failed.')
     } finally {
@@ -732,7 +758,7 @@ export function WorkspaceView() {
           <div className="ml-auto flex items-center gap-1.5">
             <Button size="sm" variant="ghost" onClick={copyActivePath} disabled={!activeFile}><Copy className="w-3.5 h-3.5" />Path</Button>
             <Button size="sm" variant="ghost" onClick={reloadActiveFile} disabled={!activeTab}><RotateCcw className="w-3.5 h-3.5" />Revert</Button>
-            <Button size="sm" variant="secondary" onClick={saveActiveFile} disabled={!dirty || !safe}>
+            <Button size="sm" variant="secondary" onClick={saveActiveFile} disabled={!dirty || !safe} title="Save current file (Ctrl+S)">
               <Save className="w-3.5 h-3.5" />{dirty ? 'Save' : 'Saved'}
             </Button>
           </div>

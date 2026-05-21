@@ -315,6 +315,10 @@ export function CodingView() {
       toast.success('Patch applied. Running checks.')
       await runCommand('npm run typecheck', 'npm', ['run', 'typecheck'])
       await runCommand('npm run build', 'npm', ['run', 'build'])
+      await runCommand('npm run bertos:safety', 'npm', ['run', 'bertos:safety'])
+      setProposal(null)
+      setSelectedPatchFiles(new Set())
+      toast.success('Patch applied and checks passed — ready to commit.')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Apply failed.')
     } finally {

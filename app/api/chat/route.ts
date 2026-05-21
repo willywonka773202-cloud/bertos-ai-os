@@ -14,7 +14,7 @@ import { askLocalDaemon, type LocalCliProvider } from '@/lib/bertos/local-daemon
 export const runtime = 'nodejs'
 
 const API_MODEL_IDS: Record<string, string> = {
-  'claude-api':  'claude-opus-4-5',
+  'claude-api':  'claude-sonnet-4-6',
   'openai-api':  'gpt-4o',
   'gemini-api':  'gemini-2.0-flash',
 }
