@@ -8,6 +8,7 @@ import type { AIModel } from '@/lib/bertos/types'
 import { useState, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ProviderStatusIndicator } from './ProviderStatusIndicator'
 
 type ModelOption = { value: AIModel; label: string; description: string; icon: React.ReactNode; color: string }
 
@@ -57,9 +58,13 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const activeModel = allModelOptions.find(m => m.value === selectedModel) ?? allModelOptions[0]
 
   const viewLabels: Record<string, string> = {
+    dashboard: 'Command Center',
     chat: 'Chat',
+    prompts: 'Prompt Library',
     compare: 'Multi-AI Compare',
+    coding: 'Coding Mission Center',
     workspace: 'Coding Workspace',
+    evolution: 'Evolution Lab',
     agents: 'Agent Tasks',
     memory: 'Project Memory',
     settings: 'Settings',
@@ -116,6 +121,11 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         </TooltipTrigger>
         <TooltipContent>Command Palette</TooltipContent>
       </Tooltip>
+
+      {/* Provider status */}
+      <div className="hidden md:block">
+        <ProviderStatusIndicator />
+      </div>
 
       {/* Model selector */}
       <div className="relative">

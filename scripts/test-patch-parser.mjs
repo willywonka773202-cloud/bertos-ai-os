@@ -31,6 +31,7 @@ function loadTsModule(relativePath) {
   mod.require = specifier => {
     if (specifier === './schema') return loadTsModule('lib/bertos/patch/schema.ts')
     if (specifier === './fixtures') return loadTsModule('lib/bertos/patch/fixtures/index.ts')
+    if (specifier === './provider-payload') return loadTsModule('lib/bertos/patch/provider-payload.ts')
     if (specifier === '../types') return {}
     if (specifier === '../router') return {
       routePrompt: () => ({
@@ -71,9 +72,52 @@ function loadTsModule(relativePath) {
 }
 
 const { runPatchParserRegression } = loadTsModule('lib/bertos/patch/parser-regression.ts')
+const { PATCH_COMPILER_INSTRUCTIONS } = loadTsModule('lib/bertos/patch/schema.ts')
+const { buildPatchProviderPayload } = loadTsModule('lib/bertos/patch/provider-payload.ts')
 const { askWithProviderRouter, shouldUseProviderInventoryShortcut } = loadTsModule('lib/bertos/providers/router.ts')
 const results = runPatchParserRegression()
 const failed = results.filter(result => !result.passed)
+const workspaceContent = [
+  'export function WorkspaceView() {',
+  '  async function saveActiveFile() {',
+  '    return "saved"',
+  '  }',
+  '  return <button onClick={saveActiveFile}>Save</button>',
+  '}',
+].join('\n')
+const payloadTest = buildPatchProviderPayload({
+  compilerInstructions: PATCH_COMPILER_INSTRUCTIONS,
+  task: 'Add tooltip to Save button',
+  context: {
+    activeFile: 'components/bertos/workspace/WorkspaceView.tsx',
+    activeContent: workspaceContent,
+    fileTree: ['components/bertos/workspace/WorkspaceView.tsx'],
+    gitStatus: '',
+  },
+  contextPack: {
+    activeFile: 'components/bertos/workspace/WorkspaceView.tsx',
+    searchTerms: ['Save button', 'Save', 'saveActiveFile'],
+    filesIncluded: ['components/bertos/workspace/WorkspaceView.tsx'],
+    filesIncludedFull: ['components/bertos/workspace/WorkspaceView.tsx'],
+    filesIncludedSnippetsOnly: [],
+    totalContextChars: workspaceContent.length,
+    snippetsCount: 1,
+    searchHits: [],
+    packageScripts: { typecheck: 'next typegen && tsc --noEmit', build: 'next build' },
+    componentNames: ['WorkspaceView'],
+    fileContents: [{
+      path: 'components/bertos/workspace/WorkspaceView.tsx',
+      content: workspaceContent,
+      inclusion: 'full',
+      originalChars: workspaceContent.length,
+    }],
+  },
+})
+const payloadPassed = payloadTest.prompt.includes('=== FILE START: components/bertos/workspace/WorkspaceView.tsx ===')
+  && payloadTest.prompt.includes('=== FILE END ===')
+  && payloadTest.prompt.includes('saveActiveFile')
+  && payloadTest.prompt.includes('Save</button>')
+  && payloadTest.serialization.fileBodiesPresent
 const patchPrompt = 'Add a tooltip to the Save button and return a canonical patch.'
 const inventoryBypassed = !shouldUseProviderInventoryShortcut(patchPrompt, {
   purpose: 'patch',
@@ -95,8 +139,16 @@ const routePassed = routeResult.ok
   && routeResult.taskType === 'code_patch'
 
 console.log(JSON.stringify({
-  ok: failed.length === 0 && inventoryBypassed && routePassed,
+  ok: failed.length === 0 && inventoryBypassed && routePassed && payloadPassed,
   parser: results,
+  providerPayload: {
+    payloadPassed,
+    promptChars: payloadTest.serialization.promptChars,
+    includedFileCount: payloadTest.serialization.includedFileCount,
+    includedFilePaths: payloadTest.serialization.includedFilePaths,
+    fileBodiesPresent: payloadTest.serialization.fileBodiesPresent,
+    containsSaveHandler: payloadTest.prompt.includes('saveActiveFile'),
+  },
   router: {
     inventoryBypassed,
     routePassed,
@@ -108,4 +160,4 @@ console.log(JSON.stringify({
     rawLooksLikeInventory: /BertOS verified provider status/i.test(routeResult.text),
   },
 }, null, 2))
-if (failed.length > 0 || !inventoryBypassed || !routePassed) process.exit(1)
+if (failed.length > 0 || !inventoryBypassed || !routePassed || !payloadPassed) process.exit(1)

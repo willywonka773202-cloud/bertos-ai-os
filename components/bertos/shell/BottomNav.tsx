@@ -1,14 +1,14 @@
 'use client'
-import { MessageSquare, Code2, FlaskConical, Bot, Settings } from 'lucide-react'
+import { MessageSquare, Code2, FlaskConical, Zap, Settings, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useRouter } from 'next/navigation'
 
 const ITEMS = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Home',     href: '/dashboard' },
   { id: 'chat',      icon: MessageSquare, label: 'Chat',     href: '/chat'      },
-  { id: 'workspace', icon: Code2,         label: 'Code',     href: '/workspace' },
-  { id: 'evolution', icon: FlaskConical,  label: 'Evolve',   href: '/evolution' },
-  { id: 'agents',    icon: Bot,           label: 'Agents',   href: '/agents'    },
+  { id: 'coding',    icon: Zap,           label: 'Code',     href: '/coding'    },
+  { id: 'workspace', icon: Code2,         label: 'Files',    href: '/workspace' },
   { id: 'settings',  icon: Settings,      label: 'Settings', href: '/settings'  },
 ] as const
 

@@ -44,6 +44,7 @@ const DANGEROUS_PATTERNS = [
   /\.env(\.|$)/i,
 ]
 const IGNORE_DIRS = new Set(['.git', '.next', 'node_modules', 'dist', 'coverage', '.turbo'])
+const SEARCH_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.md', '.mdx', '.css', '.scss', '.html'])
 const PROTECTED_FILE_NAMES = new Set([
   '.env',
   '.env.local',
@@ -446,6 +447,85 @@ async function listFiles(dir = '.', depth = 0, maxDepth = 4) {
   return nodes.sort((a, b) => Number(a.type === 'file') - Number(b.type === 'file') || a.name.localeCompare(b.name))
 }
 
+async function collectSearchFiles(dir = '.', output = [], maxFiles = 1200) {
+  if (output.length >= maxFiles) return output
+  const rel = safeRelativePath(dir)
+  const abs = path.join(REPO_ROOT, rel)
+  const entries = await readdir(abs, { withFileTypes: true })
+  for (const entry of entries) {
+    if (output.length >= maxFiles) break
+    if (IGNORE_DIRS.has(entry.name)) continue
+    const childRel = path.join(rel, entry.name)
+    if (entry.isDirectory()) {
+      await collectSearchFiles(childRel, output, maxFiles)
+    } else if (SEARCH_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+      output.push(childRel)
+    }
+  }
+  return output
+}
+
+function lineSnippet(lines, index, radius = 2) {
+  const start = Math.max(0, index - radius)
+  const end = Math.min(lines.length, index + radius + 1)
+  return lines.slice(start, end).map((line, offset) => ({
+    lineNumber: start + offset + 1,
+    text: line,
+  }))
+}
+
+async function searchRepo({ terms = [], globs = [], maxResults = 40 } = {}) {
+  const normalizedTerms = [...new Set((Array.isArray(terms) ? terms : [])
+    .map(term => String(term || '').trim())
+    .filter(term => term.length >= 2))]
+  const normalizedGlobs = (Array.isArray(globs) ? globs : []).map(glob => String(glob || '').toLowerCase()).filter(Boolean)
+  const files = await collectSearchFiles('.')
+  const results = []
+
+  for (const rel of files) {
+    const normalizedRel = rel.replace(/\\/g, '/')
+    if (normalizedGlobs.length && !normalizedGlobs.some(glob => normalizedRel.toLowerCase().includes(glob.replace(/\*/g, '')))) {
+      continue
+    }
+
+    let content = ''
+    try {
+      content = await readFile(path.join(REPO_ROOT, rel), 'utf8')
+    } catch {
+      continue
+    }
+    const lines = content.split(/\r?\n/)
+    const lowerContent = content.toLowerCase()
+    const lowerPath = normalizedRel.toLowerCase()
+    const matchedTerms = normalizedTerms.filter(term => lowerContent.includes(term.toLowerCase()) || lowerPath.includes(term.toLowerCase()))
+    if (!matchedTerms.length) continue
+    const snippets = []
+    for (const term of matchedTerms.slice(0, 6)) {
+      const lowerTerm = term.toLowerCase()
+      const lineIndex = lines.findIndex(line => line.toLowerCase().includes(lowerTerm))
+      snippets.push({
+        term,
+        lines: lineIndex >= 0 ? lineSnippet(lines, lineIndex) : [],
+      })
+    }
+    results.push({
+      path: normalizedRel,
+      matchedTerms,
+      snippets,
+    })
+  }
+
+  const rankedResults = results
+    .sort((a, b) =>
+      b.matchedTerms.length - a.matchedTerms.length ||
+      b.snippets.reduce((count, snippet) => count + snippet.lines.length, 0) - a.snippets.reduce((count, snippet) => count + snippet.lines.length, 0) ||
+      a.path.localeCompare(b.path)
+    )
+    .slice(0, maxResults)
+
+  return { terms: normalizedTerms, globs: normalizedGlobs, results: rankedResults }
+}
+
 async function statusPayload() {
   return {
     online: true,
@@ -470,6 +550,19 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/repo/status') return json(res, 200, await repoStatus())
     if (req.method === 'GET' && url.pathname === '/repo/files') {
       return json(res, 200, { files: await listFiles(url.searchParams.get('dir') || '.') })
+    }
+    if (url.pathname === '/repo/search') {
+      const body = req.method === 'POST' ? await readJson(req) : {}
+      const terms = req.method === 'POST'
+        ? body.terms
+        : url.searchParams.getAll('term')
+      const globs = req.method === 'POST'
+        ? body.globs
+        : url.searchParams.getAll('glob')
+      const maxResults = req.method === 'POST'
+        ? Number(body.maxResults || 40)
+        : Number(url.searchParams.get('maxResults') || 40)
+      return json(res, 200, await searchRepo({ terms, globs, maxResults: Math.min(Math.max(maxResults, 1), 100) }))
     }
     if (req.method === 'GET' && url.pathname === '/repo/file') {
       const rel = safeRelativePath(url.searchParams.get('path'))

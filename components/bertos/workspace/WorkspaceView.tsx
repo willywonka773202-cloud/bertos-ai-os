@@ -108,6 +108,18 @@ interface CanonicalPatchPayload {
   }
 }
 
+interface PerFileDebug {
+  path: string
+  status: 'included' | 'omitted' | 'chunked' | 'truncated'
+  chars?: number
+  originalChars?: number
+  percentIncluded?: number
+  isActive: boolean
+  isForced: boolean
+  isExplicit: boolean
+  reason?: string
+}
+
 interface PatchParseDebug {
   raw: string
   rawDiagnostics?: {
@@ -127,12 +139,46 @@ interface PatchParseDebug {
     error?: string
     rawPreview: string
   }>
+  context?: {
+    activeFile?: string
+    searchTerms: string[]
+    filesIncluded: string[]
+    filesIncludedFull?: string[]
+    filesIncludedSnippetsOnly?: string[]
+    totalContextChars?: number
+    snippetsCount: number
+    componentNames: string[]
+    searchHits?: Array<{
+      path: string
+      matchedTerms: string[]
+      snippets: Array<{
+        term: string
+        lines: Array<{ lineNumber: number; text: string }>
+      }>
+    }>
+  }
+  serialization?: {
+    promptChars: number
+    includedFileCount: number
+    includedFilePaths: string[]
+    serializedContextPreview: string
+    serializedPayloadPreview: string
+    fileBodiesPresent: boolean
+    truncationWarnings: string[]
+  }
+  perFile?: PerFileDebug[]
+  omittedPaths?: string[]
+  activeFileIncluded?: boolean
 }
 
 interface PatchResponse {
   ok: boolean
   proposal?: PatchProposal
   canonicalPatch?: CanonicalPatchPayload
+  durationMs?: number
+  filesIncluded?: string[]
+  filesOmitted?: string[]
+  activeFileIncluded?: boolean
   provider?: {
     providerId?: string
     providerName?: string
@@ -224,6 +270,57 @@ const MEMORY_FACTS = [
   'Ollama Cloud works for API responses.',
   'Claude Code, Codex CLI, and Gemini CLI are available through the daemon when it is online.',
 ]
+
+const FILE_ALIASES: Record<string, string[]> = {
+  'workspace view': ['components/bertos/workspace/WorkspaceView.tsx'],
+  'workspaceview': ['components/bertos/workspace/WorkspaceView.tsx'],
+  'patch route': ['app/api/workspace/patch/route.ts'],
+  'context engine': ['lib/bertos/context-engine.ts', 'app/api/workspace/patch/route.ts'],
+  'provider router': ['lib/bertos/providers/router.ts', 'lib/bertos/router.ts'],
+  'provider payload': ['lib/bertos/patch/provider-payload.ts'],
+  'patch schema': ['lib/bertos/patch/schema.ts'],
+  'daemon': ['scripts/bertos-daemon.mjs'],
+  'bertos daemon': ['scripts/bertos-daemon.mjs'],
+  'top bar': ['components/bertos/shell/TopBar.tsx'],
+  'topbar': ['components/bertos/shell/TopBar.tsx'],
+  'sidebar': ['components/bertos/shell/Sidebar.tsx'],
+  'bottom nav': ['components/bertos/shell/BottomNav.tsx'],
+  'app shell': ['components/bertos/shell/AppShell.tsx'],
+  'page': ['app/page.tsx'],
+  'agents': ['AGENTS.md'],
+}
+
+function extractFileNamesFromTask(task: string): string[] {
+  const found = new Set<string>()
+
+  // Exact file names: WorkspaceView.tsx, route.ts, etc.
+  const filePatterns = task.matchAll(/\b([\w/-]+\.(?:tsx?|jsx?|mjs|cjs|json|md|css|ya?ml))\b/g)
+  for (const match of filePatterns) {
+    found.add(match[1])
+  }
+
+  // Quoted paths: "components/bertos/workspace/WorkspaceView.tsx"
+  const quotedPaths = task.matchAll(/"([^"]{4,120})"/g)
+  for (const match of quotedPaths) {
+    if (match[1].includes('/') || match[1].includes('.')) found.add(match[1])
+  }
+
+  // Backtick paths: `app/api/workspace/patch/route.ts`
+  const backtickPaths = task.matchAll(/`([^`]{4,120})`/g)
+  for (const match of backtickPaths) {
+    if (match[1].includes('/') || match[1].includes('.')) found.add(match[1])
+  }
+
+  // Alias matching (case-insensitive)
+  const lower = task.toLowerCase()
+  for (const [alias, paths] of Object.entries(FILE_ALIASES)) {
+    if (lower.includes(alias)) {
+      for (const p of paths) found.add(p)
+    }
+  }
+
+  return Array.from(found).slice(0, 8)
+}
 
 const VALIDATION_PROFILES: Record<ValidationProfileId, { label: string; commands: string[]; description: string }> = {
   fast: {
@@ -451,6 +548,16 @@ function normalizeCommandText(commandText: unknown) {
   return typeof commandText === 'string' ? commandText.trim().replace(/\s+/g, ' ') : ''
 }
 
+function deriveClientSearchTerms(task: string) {
+  const terms = [
+    ...Array.from(task.matchAll(/"([^"]{2,80})"/g)).map(match => match[1]),
+    ...task.split(/[^A-Za-z0-9]+/).filter(word => word.length >= 4).slice(0, 16),
+  ]
+  if (/\bsave\b/i.test(task)) terms.push('Save button', 'Save', 'saved', 'Revert', 'Path', 'saveActiveFile', 'Save current file', 'dirty ?')
+  if (/\btooltip\b/i.test(task)) terms.push('title=', 'Tooltip', 'aria-label')
+  return [...new Set(terms)].slice(0, 24)
+}
+
 function createTinyTestProposal(): PatchProposal {
   const stamp = new Date().toISOString()
   return {
@@ -618,6 +725,84 @@ function simpleDiff(before = '', after = '') {
   }
 }
 
+function HealthCheckCard({ status, safe }: { status: WorkspaceStatus | null; safe: boolean }) {
+  const items: Array<{ label: string; ok: boolean; detail?: string }> = [
+    { label: 'Daemon connected', ok: Boolean(status?.online) },
+    { label: 'Repo detected', ok: Boolean(status?.repo?.root) },
+    { label: 'Git repo', ok: Boolean(status?.repo?.branch), detail: status?.repo?.branch },
+    { label: 'Repo safety', ok: Boolean(status?.repo?.safeRepo), detail: status?.repo?.blockedReason },
+    { label: 'Branch', ok: Boolean(status?.repo?.branch), detail: status?.repo?.branch ?? 'unknown' },
+  ]
+  return (
+    <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <CheckCircle2 className="w-4 h-4 text-sky-400" />
+        <h2 className="text-sm font-semibold text-zinc-200">Workspace Health</h2>
+        <Badge variant={safe ? 'success' : 'warning'} className="ml-auto text-[10px]">{safe ? 'ready' : 'offline'}</Badge>
+      </div>
+      <div className="space-y-1">
+        {items.map(item => (
+          <div key={item.label} className="flex items-center gap-2 text-[11px]">
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', item.ok ? 'bg-emerald-400' : 'bg-zinc-600')} />
+            <span className="text-zinc-400">{item.label}</span>
+            {item.detail && <span className="ml-auto truncate text-zinc-600">{item.detail}</span>}
+          </div>
+        ))}
+      </div>
+      {!status?.online && (
+        <p className="mt-2 text-[11px] text-zinc-600">
+          Start the daemon: <code className="text-zinc-500">npm run bertos:daemon</code>
+        </p>
+      )}
+    </section>
+  )
+}
+
+function PerFileDebugTable({ perFile, activeFile, budget }: { perFile: PerFileDebug[]; activeFile: string; budget: number }) {
+  if (!perFile.length) return null
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-zinc-800">
+      <div className="border-b border-zinc-800 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+        Per-file context status
+      </div>
+      <div className="max-h-56 overflow-auto">
+        {perFile.map(f => (
+          <div key={f.path} className="flex items-start gap-2 border-b border-zinc-900 px-3 py-1.5 last:border-0">
+            <span className={cn(
+              'mt-0.5 shrink-0 rounded px-1 py-0.5 text-[9px] font-bold uppercase',
+              f.status === 'included' ? 'bg-emerald-500/20 text-emerald-300' :
+              f.status === 'chunked' ? 'bg-amber-500/20 text-amber-300' :
+              f.status === 'truncated' ? 'bg-orange-500/20 text-orange-300' :
+              'bg-zinc-800 text-zinc-500'
+            )}>
+              {f.status}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="truncate font-mono text-[10px] text-zinc-300">{f.path}</span>
+                {f.isActive && <span className="shrink-0 rounded bg-violet-500/20 px-1 py-0.5 text-[9px] text-violet-300">active</span>}
+                {f.isForced && <span className="shrink-0 rounded bg-blue-500/20 px-1 py-0.5 text-[9px] text-blue-300">forced</span>}
+                {f.isExplicit && <span className="shrink-0 rounded bg-sky-500/20 px-1 py-0.5 text-[9px] text-sky-300">explicit</span>}
+              </div>
+              {f.chars !== undefined && f.originalChars !== undefined && (
+                <div className="mt-0.5 text-[10px] text-zinc-600">
+                  {f.chars.toLocaleString()} / {f.originalChars.toLocaleString()} chars ({f.percentIncluded ?? 100}%)
+                </div>
+              )}
+              {f.reason && <div className="mt-0.5 text-[10px] text-red-400">{f.reason}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {activeFile && !perFile.some(f => f.path === activeFile && f.status !== 'omitted') && (
+        <div className="border-t border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200">
+          Active file not in context. Enable Force Active File to guarantee inclusion.
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FileTree({
   nodes,
   activePath,
@@ -741,6 +926,9 @@ export function WorkspaceView() {
   const [patchChecksRunning, setPatchChecksRunning] = useState(false)
   const [patchCheckResults, setPatchCheckResults] = useState<PatchCheckResult[]>([])
   const [patchApplied, setPatchApplied] = useState(false)
+  const [forceActiveFile, setForceActiveFile] = useState(true)
+  const [detectedFiles, setDetectedFiles] = useState<string[]>([])
+  const [contextSearchRunning, setContextSearchRunning] = useState(false)
   const [patchMetrics, setPatchMetrics] = useState<Record<string, PatchReliabilityProviderMetrics>>({})
   const [selectedPatchFiles, setSelectedPatchFiles] = useState<Set<string>>(new Set())
   const [patchHistory, setPatchHistory] = useState<PatchHistoryEntry[]>([])
@@ -784,6 +972,7 @@ export function WorkspaceView() {
     !patchChecksRunning &&
     allowedSuggestedValidationCommands.length > 0
   )
+  const needsMoreContext = Boolean(patchDebug?.context && patchDebug.context.snippetsCount === 0 && patchDebug.context.filesIncluded.length === 0)
 
   const saveWorkspaceState = useCallback((nextTabs: OpenTab[], nextActiveFile: string) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -1062,6 +1251,27 @@ export function WorkspaceView() {
     setPatchControlError('')
     setPatchCheckResults([])
     setPatchApplied(false)
+
+    // Detect files mentioned in task text and add them to explicit include list
+    const taskMentionedFiles = extractFileNamesFromTask(task)
+    setDetectedFiles(taskMentionedFiles)
+
+    // If forceActiveFile is on but active file isn't open, fetch it first
+    let activeContent = activeTab?.content
+    if (forceActiveFile && activeFile && !activeTab) {
+      try {
+        const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(activeFile)}`, { cache: 'no-store' })
+        const data = await res.json()
+        if (res.ok && typeof data.content === 'string') {
+          activeContent = data.content
+        } else {
+          toast.warning(`Could not fetch active file content for ${activeFile}. Proceeding without it.`)
+        }
+      } catch {
+        toast.warning(`Failed to fetch active file ${activeFile}. Proceeding without it.`)
+      }
+    }
+
     try {
       const res = await fetch('/api/workspace/patch', {
         method: 'POST',
@@ -1069,10 +1279,16 @@ export function WorkspaceView() {
         body: JSON.stringify({
           task,
           provider,
+          forceActiveFile,
+          explicitIncludePaths: taskMentionedFiles,
           context: {
             repo: status?.repo,
             activeFile,
-            activeContent: activeTab?.content,
+            activeContent,
+            openTabs: tabs.map(tab => ({
+              path: tab.path,
+              content: tab.content,
+            })),
             fileTree: flatFiles.map(file => file.path),
             gitStatus: status?.repo?.status,
             terminalOutput: terminalEntries.slice(-5).map(entry => [
@@ -1395,6 +1611,48 @@ export function WorkspaceView() {
     } finally {
       setPatchChecksRunning(false)
     }
+  }
+
+  const searchRepoForPatchContext = async () => {
+    if (!safe) return toast.error('Repo search requires the local daemon.')
+    setContextSearchRunning(true)
+    try {
+      const terms = deriveClientSearchTerms(task)
+      const res = await fetch('/api/local-daemon/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          terms,
+          globs: ['components/', 'app/', 'lib/'],
+          maxResults: 20,
+        }),
+      })
+      const data = await res.json() as {
+        results?: Array<{ path: string; matchedTerms: string[]; snippets: unknown[] }>
+        error?: string
+      }
+      if (!res.ok) throw new Error(data.error || `Search failed with HTTP ${res.status}.`)
+      const results = data.results ?? []
+      setPatchControlError(results.length
+        ? `Search found ${results.length} likely file(s): ${results.slice(0, 5).map(result => result.path).join(', ')}. Generate patch again to include this context.`
+        : 'Search found no relevant files. Open the target file manually, then Generate patch again.')
+      toast.message(results.length ? `Search found ${results.length} likely file(s).` : 'Search found no relevant files.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Repo search failed.'
+      setPatchControlError(message)
+      toast.error(message)
+    } finally {
+      setContextSearchRunning(false)
+    }
+  }
+
+  const useCurrentOpenFilesForContext = () => {
+    if (!tabs.length) {
+      setPatchControlError('No files are currently open. Open the likely component file first.')
+      return toast.message('No files are currently open.')
+    }
+    setPatchControlError(`Next patch generation will include ${tabs.length} open file(s): ${tabs.slice(0, 4).map(tab => tab.path).join(', ')}`)
+    toast.success('Open files will be included on the next patch generation.')
   }
 
   const revertPatchHistoryEntry = async (entry: PatchHistoryEntry) => {
@@ -1750,10 +2008,26 @@ export function WorkspaceView() {
                   </div>
                   <textarea
                     value={task}
-                    onChange={event => setTask(event.target.value)}
-                    placeholder="Describe a repo change. The AI must return structured patch JSON for review."
+                    onChange={event => {
+                      setTask(event.target.value)
+                      setDetectedFiles(extractFileNamesFromTask(event.target.value))
+                    }}
+                    placeholder="Describe a repo change. Mention file names (e.g. WorkspaceView.tsx) and they will be auto-loaded into context."
                     className="min-h-24 w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-700"
                   />
+                  {detectedFiles.length > 0 && (
+                    <div className="mt-2 rounded-lg border border-sky-500/20 bg-sky-500/5 p-2">
+                      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-sky-400">Detected from task</div>
+                      <div className="flex flex-wrap gap-1">
+                        {detectedFiles.map(path => (
+                          <span key={path} className="rounded bg-sky-500/15 px-1.5 py-0.5 font-mono text-[10px] text-sky-300">
+                            {path.split(/[\\/]/).pop()}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="mt-1 text-[10px] text-zinc-600">These paths will be explicitly included in context.</div>
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center gap-2">
                     <select
                       value={provider}
@@ -1766,6 +2040,15 @@ export function WorkspaceView() {
                       <option value="gemini-cli">Gemini</option>
                       <option value="ollama-pro">Ollama</option>
                     </select>
+                    <label className="flex cursor-pointer items-center gap-1.5 text-[11px] text-zinc-400 select-none">
+                      <input
+                        type="checkbox"
+                        checked={forceActiveFile}
+                        onChange={event => setForceActiveFile(event.target.checked)}
+                        className="h-3 w-3 rounded accent-violet-500"
+                      />
+                      Force active file
+                    </label>
                     <Button size="sm" onClick={generatePatch} disabled={!safe || generatingPatch || !task.trim()}>
                       {generatingPatch ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bot className="w-3.5 h-3.5" />}
                       Generate patch
@@ -1809,6 +2092,71 @@ export function WorkspaceView() {
                         {patchDebug?.parseError && (
                           <div className="rounded border border-red-500/20 bg-red-500/5 p-2 text-red-200">
                             Parse error: {patchDebug.parseError}
+                          </div>
+                        )}
+                        {patchDebug?.serialization && (
+                          <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                            <div className="mb-2 flex items-center justify-between text-zinc-400">
+                              <span>Provider payload</span>
+                              <button
+                                onClick={() => {
+                                  void navigator.clipboard.writeText(patchDebug?.serialization?.serializedPayloadPreview ?? '')
+                                  toast.success('Payload preview copied.')
+                                }}
+                                className="text-[10px] text-zinc-600 hover:text-zinc-300"
+                              >
+                                Copy
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                              <div>Prompt chars: <span className="text-zinc-300">{patchDebug.serialization.promptChars.toLocaleString()}</span></div>
+                              <div>Files: <span className="text-zinc-300">{patchDebug.serialization.includedFileCount}</span></div>
+                              <div>Budget: <span className="text-zinc-300">{Math.round(patchDebug.serialization.promptChars / 1400)}%</span></div>
+                              <div>Bodies: <span className="text-zinc-300">{patchDebug.serialization.fileBodiesPresent ? 'yes' : 'no'}</span></div>
+                            </div>
+                            {patchDebug.perFile && (
+                              <PerFileDebugTable perFile={patchDebug.perFile} activeFile={activeFile} budget={140000} />
+                            )}
+                            {patchDebug.serialization.truncationWarnings.length > 0 && (
+                              <div className="mt-2 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-amber-200">
+                                <div className="font-medium">Truncation warnings</div>
+                                {patchDebug.serialization.truncationWarnings.map(warning => (
+                                  <div key={warning} className="mt-1">{warning}</div>
+                                ))}
+                              </div>
+                            )}
+                            <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-black/40 p-2 text-zinc-600">
+                              payload preview:{'\n'}{patchDebug.serialization.serializedPayloadPreview}
+                            </pre>
+                          </div>
+                        )}
+                        {patchDebug?.context && (
+                          <div className="rounded border border-zinc-800 bg-zinc-900/40 p-2">
+                            <div className="mb-2 text-zinc-400">Context summary</div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                              <div>Active file: <span className="text-zinc-300">{patchDebug.context.activeFile ? patchDebug.context.activeFile.split(/[\\/]/).pop() : 'none'}</span></div>
+                              <div>Total chars: <span className="text-zinc-300">{(patchDebug.context.totalContextChars ?? 0).toLocaleString()}</span></div>
+                              <div>Included: <span className="text-zinc-300">{patchDebug.context.filesIncluded.length} files</span></div>
+                              <div>Snippets: <span className="text-zinc-300">{patchDebug.context.snippetsCount}</span></div>
+                            </div>
+                            {patchDebug.context.searchTerms.length > 0 && (
+                              <div className="mt-1 text-zinc-600">Search: {patchDebug.context.searchTerms.slice(0, 8).join(', ')}</div>
+                            )}
+                            {needsMoreContext && (
+                              <div className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 p-2 text-amber-200">
+                                <div className="font-medium">Need more context</div>
+                                <div className="mt-1">BertOS did not find matching files for this patch task.</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <Button size="sm" variant="outline" onClick={() => void searchRepoForPatchContext()} disabled={contextSearchRunning || !safe}>
+                                    {contextSearchRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                                    Search repo
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={useCurrentOpenFilesForContext}>
+                                    Use current open files
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                         {patchDebug?.repairAttempts?.length ? (
@@ -2052,6 +2400,8 @@ export function WorkspaceView() {
                     </Button>
                   </div>
                 </section>
+
+                <HealthCheckCard status={status} safe={safe} />
               </div>
             </ScrollArea>
           </aside>

@@ -6,6 +6,7 @@ BertOS is a standalone AI engineering operating system for coding inside this re
 - `app/`: Next.js App Router pages and API routes.
 - `components/bertos/`: BertOS UI surfaces, including Workspace, chat, settings, agents, and Evolution Lab.
 - `lib/bertos/`: provider routing, runtime config, adapters, and shared types.
+- `lib/bertos/missions.ts`: Coding tab mission compiler and reusable task templates.
 - `scripts/bertos-daemon.mjs`: local Windows-safe daemon for file, terminal, and CLI bridge operations.
 - `cli/bertos.mjs`: local terminal CLI for status, providers, doctor, ask, and daemon.
 
@@ -14,6 +15,7 @@ BertOS is a standalone AI engineering operating system for coding inside this re
 - Start daemon: `npm run bertos:daemon`
 - Inspect providers: `npm run bertos -- providers`
 - Use Workspace for file edits, patch review, safe terminal commands, validation, and local commits.
+- Use Coding for large prompts: compile mission first, then run a provider-routed patch through the existing patch engine.
 
 ## Provider Roles
 - Ollama Pro: cheap classification, summaries, fallback chat.
@@ -33,6 +35,7 @@ BertOS is a standalone AI engineering operating system for coding inside this re
 - Fast: `npm run typecheck`
 - Standard: `npm run typecheck` then `npm run build`
 - Strict: `npm run typecheck`, `npm run build`, `npm run bertos:safety`, then relevant smoke checks.
+- Full: `npm run validate`
 
 ## Done When
 - The scoped request is implemented without parallel duplicate systems.

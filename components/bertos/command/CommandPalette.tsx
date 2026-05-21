@@ -3,12 +3,15 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
-  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical
+  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical,
+  LayoutDashboard, Library, Play, Check, Terminal, FileText, FolderOpen, Layers
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
+import { useProjectStore } from '@/store/bertos/projects'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 
 interface Command {
   id: string
@@ -21,18 +24,36 @@ interface Command {
 }
 
 export function CommandPalette() {
-  const { commandPaletteOpen, setCommandPaletteOpen, setActiveView, setSelectedModel } = useUIStore()
+  const { commandPaletteOpen, setCommandPaletteOpen, setActiveView, setSelectedModel, settings, updateSettings } = useUIStore()
   const { createSession, clearSession, getActiveSession } = useChatStore()
+  const { projects, setActiveProject } = useProjectStore()
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings', href: string) => {
+  const navigate = (view: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings', href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
   }
 
+  const runCommand = async (command: string) => {
+    setCommandPaletteOpen(false)
+    toast.promise(
+      fetch('/api/local-daemon/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command }),
+      }).then(r => r.json()),
+      {
+        loading: `Running: ${command}`,
+        success: (data) => data.success ? 'Command completed' : `Failed: ${data.error}`,
+        error: 'Command failed',
+      }
+    )
+  }
+
   const COMMANDS: Command[] = [
+    // Quick Actions
     {
       id: 'new-chat',
       label: 'New Chat',
@@ -43,12 +64,81 @@ export function CommandPalette() {
       action: () => { createSession(); navigate('chat', '/chat') },
     },
     {
+      id: 'new-agent',
+      label: 'New Agent Run',
+      description: 'Start an autonomous task',
+      icon: <Play className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['agent', 'autonomous', 'task', 'run'],
+      action: () => navigate('agents', '/agents'),
+    },
+    {
+      id: 'ask-all-models',
+      label: 'Ask All Models',
+      description: 'Compare multiple AI responses',
+      icon: <Layers className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['compare', 'all', 'models', 'council', 'multi'],
+      action: () => navigate('compare', '/compare'),
+    },
+    {
+      id: 'run-typecheck',
+      label: 'Run TypeCheck',
+      description: 'Verify TypeScript types',
+      icon: <Check className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['typecheck', 'typescript', 'types', 'verify'],
+      action: () => runCommand('npm run typecheck'),
+    },
+    {
+      id: 'run-build',
+      label: 'Run Build',
+      description: 'Build the project',
+      icon: <Terminal className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['build', 'compile', 'next'],
+      action: () => runCommand('npm run build'),
+    },
+    {
+      id: 'toggle-local-mode',
+      label: 'Toggle Local Mode',
+      description: settings.enableApiProviders ? 'Disable API providers' : 'Enable API providers',
+      icon: <Globe className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['local', 'api', 'toggle', 'mode'],
+      action: () => {
+        updateSettings({ enableApiProviders: !settings.enableApiProviders })
+        toast.success(settings.enableApiProviders ? 'API providers disabled' : 'API providers enabled')
+        setCommandPaletteOpen(false)
+      },
+    },
+
+    // Navigation
+    {
+      id: 'open-dashboard',
+      label: 'Dashboard',
+      description: 'Go to command center',
+      icon: <LayoutDashboard className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['dashboard', 'home', 'command', 'center'],
+      action: () => navigate('dashboard', '/dashboard'),
+    },
+    {
       id: 'open-chat',
-      label: 'Go to Chat',
+      label: 'Chat',
       icon: <MessageSquare className="w-4 h-4" />,
       category: 'Navigate',
       keywords: ['chat', 'go', 'open'],
       action: () => navigate('chat', '/chat'),
+    },
+    {
+      id: 'open-prompts',
+      label: 'Prompt Library',
+      description: 'Browse and manage prompts',
+      icon: <Library className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['prompts', 'library', 'templates'],
+      action: () => navigate('prompts', '/prompts'),
     },
     {
       id: 'open-compare',
@@ -58,6 +148,15 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['compare', 'side', 'vs', 'versus'],
       action: () => navigate('compare', '/compare'),
+    },
+    {
+      id: 'open-coding',
+      label: 'Coding Mission Center',
+      description: 'Compile big prompts into provider-routed missions',
+      icon: <Zap className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['coding', 'mission', 'codex', 'build', 'prompt'],
+      action: () => navigate('coding', '/coding'),
     },
     {
       id: 'open-workspace',
