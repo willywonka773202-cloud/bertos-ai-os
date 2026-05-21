@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { Mission } from '@/lib/bertos/mission-builder'
 import type { AIModel } from '@/lib/bertos/types'
+import { useUIStore } from '@/store/bertos/ui'
 
 const TEMPLATES = [
   { label: 'Fix a bug',           prompt: 'Fix the bug where ' },
@@ -35,6 +36,7 @@ const PATCH_HISTORY_KEY = 'bertos-patch-history-v1'
 const SYSTEM_FACTS_KEY = 'bertos-system-facts-v1'
 
 function readSystemFacts(): string[] {
+  if (useUIStore.getState().settings.memoryEnabled === false) return []
   try {
     const raw = localStorage.getItem(SYSTEM_FACTS_KEY)
     if (!raw) return []

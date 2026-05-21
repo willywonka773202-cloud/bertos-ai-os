@@ -29,6 +29,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { AIModel } from '@/lib/bertos/types'
 import { GitPanel } from './GitPanel'
+import { useUIStore } from '@/store/bertos/ui'
 
 interface FileNode {
   name: string
@@ -135,6 +136,7 @@ const MEMORY_FACTS = [
 ]
 
 function readSystemFacts(): string[] {
+  if (useUIStore.getState().settings.memoryEnabled === false) return []
   try {
     const raw = localStorage.getItem('bertos-system-facts-v1')
     if (!raw) return []

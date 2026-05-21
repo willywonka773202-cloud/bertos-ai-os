@@ -116,6 +116,8 @@ export function CompareView() {
             systemPrompt: 'You are a helpful AI assistant. Be concise but complete.',
             clientKeys: settings.apiKeys,
             ollamaEndpoint: settings.ollamaEndpoint,
+            enableApiProviders: settings.enableApiProviders ?? false,
+            maxTokens: settings.tokenBudget ?? 4096,
           }),
           signal: ctrl.signal,
         })

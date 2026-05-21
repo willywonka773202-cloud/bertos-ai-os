@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { AIModel } from '@/lib/bertos/types'
+import { useUIStore } from '@/store/bertos/ui'
 
 type EvolutionCategory = 'bug' | 'feature' | 'ui' | 'code-quality' | 'automation' | 'safety'
 type RecurringMode = 'suggestOnOpen' | 'dailyPlan' | 'backgroundScan'
@@ -94,6 +95,7 @@ const SETTINGS_KEY = 'bertos-evolution-lab-settings-v1'
 const SYSTEM_FACTS_KEY = 'bertos-system-facts-v1'
 
 function readSystemFacts(): string[] {
+  if (useUIStore.getState().settings.memoryEnabled === false) return []
   try {
     const raw = localStorage.getItem(SYSTEM_FACTS_KEY)
     if (!raw) return []
