@@ -134,6 +134,15 @@ const MEMORY_FACTS = [
   'Claude Code, Codex CLI, and Gemini CLI are available through the daemon when it is online.',
 ]
 
+function readSystemFacts(): string[] {
+  try {
+    const raw = localStorage.getItem('bertos-system-facts-v1')
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Array<{ text: string }>
+    return parsed.map(f => f.text).filter(Boolean)
+  } catch { return [] }
+}
+
 function flattenFiles(nodes: FileNode[]): FileNode[] {
   return nodes.flatMap(node => node.type === 'dir' ? flattenFiles(node.children ?? []) : [node])
 }
@@ -574,7 +583,7 @@ export function WorkspaceView() {
               entry.stderr,
               entry.error,
             ].filter(Boolean).join('\n')).join('\n\n'),
-            memories: MEMORY_FACTS,
+            memories: [...MEMORY_FACTS, ...readSystemFacts()],
           },
         }),
       })
