@@ -20,13 +20,14 @@ interface ModelResponse {
   error?: string
 }
 
-type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli'
-const MODELS: ModelId[] = ['ollama-pro', 'claude-code', 'gemini-cli']
+type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'codex-cli'
+const MODELS: ModelId[] = ['ollama-pro', 'claude-code', 'gemini-cli', 'codex-cli']
 
 const MODEL_META: Record<ModelId, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
   'ollama-pro':  { label: 'Ollama Pro',  icon: <Bot className="w-4 h-4" />,  color: '#F97316', desc: 'Ollama · Always-on default'    },
   'claude-code': { label: 'Claude Code', icon: <Cpu className="w-4 h-4" />,  color: '#8B5CF6', desc: 'Anthropic · CLI subscription' },
   'gemini-cli':  { label: 'Gemini CLI',  icon: <Globe className="w-4 h-4" />, color: '#3B82F6', desc: 'Google · CLI subscription'    },
+  'codex-cli':   { label: 'Codex CLI',   icon: <Zap className="w-4 h-4" />,   color: '#10B981', desc: 'OpenAI · CLI subscription'    },
 }
 
 const COMPARE_PROMPTS = [
@@ -129,14 +130,16 @@ export function CompareView() {
             if (raw === '[DONE]') break
             try {
               const parsed = JSON.parse(raw) as { text?: string; routerDecision?: unknown; error?: string }
-              if (parsed.error) throw new Error(parsed.error)
-              if (parsed.text) patchResponse(model, { content: undefined as never })
+              if (parsed.error) {
+                patchResponse(model, { streaming: false, done: true, error: parsed.error })
+                break
+              }
               if (parsed.text) {
                 setResponses(prev =>
                   prev.map(r => r.model === model ? { ...r, content: r.content + parsed.text } : r)
                 )
               }
-            } catch {}
+            } catch { /* skip malformed SSE lines */ }
           }
         }
 
@@ -290,8 +293,8 @@ export function CompareView() {
               })}
             </div>
 
-            {/* Desktop: 3 fixed-height columns. Mobile: full-width vertical stack. */}
-            <div className="flex-1 md:overflow-hidden flex flex-col md:grid md:grid-cols-3 md:divide-x divide-zinc-800/50 overflow-y-auto">
+            {/* Desktop: 4 fixed-height columns. Mobile: full-width vertical stack. */}
+            <div className="flex-1 md:overflow-hidden flex flex-col md:grid md:grid-cols-4 md:divide-x divide-zinc-800/50 overflow-y-auto">
             {responses.map(response => {
               const meta = MODEL_META[response.model as ModelId]
               const isWinner = winner === response.model
