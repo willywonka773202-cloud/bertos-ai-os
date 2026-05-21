@@ -39,7 +39,7 @@ function SkeletonMessage() {
 export function ChatView() {
   const {
     sessions, activeSessionId, isStreaming,
-    createSession, addMessage, appendToMessage, updateMessage, deleteMessage,
+    createSession, addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage,
     setStreaming, updateSessionTitle, getActiveSession, setActiveSession,
   } = useChatStore()
   const { selectedModel, settings } = useUIStore()
@@ -188,6 +188,7 @@ export function ChatView() {
           try {
             const parsed = JSON.parse(raw) as {
               text?: string
+              tokens?: number
               routerDecision?: RouterDecision
               error?: string
               localCli?: { providerId: AIModel; executable: string; durationMs: number }
@@ -201,13 +202,11 @@ export function ChatView() {
 
             if (parsed.error) throw new Error(parsed.error)
             if (parsed.localCli) {
-              updateMessage(sessionId!, aiMsg.id, {
-                model: parsed.localCli.providerId,
-                metadata: {
-                  latency: parsed.localCli.durationMs,
-                  providerSource: 'daemon',
-                  modelOrTool: parsed.localCli.executable,
-                },
+              updateMessage(sessionId!, aiMsg.id, { model: parsed.localCli.providerId })
+              patchMessageMetadata(sessionId!, aiMsg.id, {
+                latency: parsed.localCli.durationMs,
+                providerSource: 'daemon',
+                modelOrTool: parsed.localCli.executable,
               })
             }
             if (parsed.localCliFallback) {
@@ -216,13 +215,15 @@ export function ChatView() {
                 aiMsg.id,
                 `> Local CLI bridge unavailable for ${parsed.localCliFallback.requestedProvider}. Falling back to ${parsed.localCliFallback.fallbackProvider}: ${parsed.localCliFallback.reason}\n\n`,
               )
-              updateMessage(sessionId!, aiMsg.id, {
-                model: parsed.localCliFallback.fallbackProvider,
-                metadata: {
-                  providerSource: 'api',
-                  fallbackUsed: parsed.localCliFallback.fallbackProvider,
-                },
+              updateMessage(sessionId!, aiMsg.id, { model: parsed.localCliFallback.fallbackProvider })
+              patchMessageMetadata(sessionId!, aiMsg.id, {
+                providerSource: 'api',
+                fallbackUsed: parsed.localCliFallback.fallbackProvider,
               })
+            }
+
+            if (typeof parsed.tokens === 'number') {
+              patchMessageMetadata(sessionId!, aiMsg.id, { tokens: parsed.tokens })
             }
 
             if (parsed.text) {
@@ -270,8 +271,8 @@ export function ChatView() {
         streaming: false,
         routerDecision: routerDecision ?? undefined,
         model: (routerDecision?.primary ?? resolvedModel) as AIModel,
-        metadata: { latency: Date.now() - startTime },
       })
+      patchMessageMetadata(sessionId!, aiMsg.id, { latency: Date.now() - startTime })
     } catch (err) {
       setPendingDecision(null)
       if ((err as Error).name === 'AbortError') {
@@ -286,10 +287,8 @@ export function ChatView() {
 
         try {
           await doStream('qwen2.5-coder')
-          updateMessage(sessionId!, aiMsg.id, {
-            streaming: false,
-            metadata: { latency: Date.now() - startTime },
-          })
+          updateMessage(sessionId!, aiMsg.id, { streaming: false })
+          patchMessageMetadata(sessionId!, aiMsg.id, { latency: Date.now() - startTime })
         } catch (fallbackErr) {
           if ((fallbackErr as Error).name !== 'AbortError') {
             appendToMessage(sessionId!, aiMsg.id,
@@ -309,7 +308,7 @@ export function ChatView() {
     }
   }, [
     activeSessionId, selectedModel, settings.apiKeys,
-    addMessage, appendToMessage, updateMessage, deleteMessage, setStreaming,
+    addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage, setStreaming,
     createSession, updateSessionTitle, getActiveProject, setActiveSession,
   ])
 

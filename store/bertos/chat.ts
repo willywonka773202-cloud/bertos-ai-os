@@ -16,6 +16,7 @@ interface ChatStore {
 
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => Message
   updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void
+  patchMessageMetadata: (sessionId: string, messageId: string, meta: Partial<NonNullable<Message['metadata']>>) => void
   appendToMessage: (sessionId: string, messageId: string, chunk: string) => void
   deleteMessage: (sessionId: string, messageId: string) => void
 
@@ -96,6 +97,20 @@ export const useChatStore = create<ChatStore>()(
                   ...s,
                   messages: s.messages.map(m =>
                     m.id === messageId ? { ...m, ...updates } : m
+                  ),
+                }
+              : s
+          ),
+        })),
+
+      patchMessageMetadata: (sessionId, messageId, meta) =>
+        set(state => ({
+          sessions: state.sessions.map(s =>
+            s.id === sessionId
+              ? {
+                  ...s,
+                  messages: s.messages.map(m =>
+                    m.id === messageId ? { ...m, metadata: { ...m.metadata, ...meta } } : m
                   ),
                 }
               : s

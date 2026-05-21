@@ -150,9 +150,14 @@ export async function POST(req: NextRequest) {
               messages: apiMessages,
               stream: true,
             })
+            let inputTokens = 0
             for await (const event of apiStream) {
-              if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              if (event.type === 'message_start') {
+                inputTokens = event.message.usage.input_tokens
+              } else if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
                 send({ text: event.delta.text })
+              } else if (event.type === 'message_delta' && event.usage) {
+                send({ tokens: inputTokens + event.usage.output_tokens })
               }
             }
           } else if (effectiveModelAlias === 'openai-api') {
@@ -169,11 +174,13 @@ export async function POST(req: NextRequest) {
               model: API_MODEL_IDS['openai-api'],
               messages: openaiMessages,
               stream: true,
+              stream_options: { include_usage: true },
               max_tokens: 4096,
             })
             for await (const chunk of apiStream) {
               const text = chunk.choices[0]?.delta?.content
               if (text) send({ text })
+              if (chunk.usage) send({ tokens: (chunk.usage.prompt_tokens ?? 0) + (chunk.usage.completion_tokens ?? 0) })
             }
           } else if (effectiveModelAlias === 'gemini-api') {
             if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured. Add it in Settings → API Keys.')
