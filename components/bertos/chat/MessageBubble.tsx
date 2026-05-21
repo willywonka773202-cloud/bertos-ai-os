@@ -2,7 +2,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import { Copy, Check, Cpu, Globe, Zap, Sparkles, User, ChevronDown, ChevronUp, Info, Bot, RotateCcw } from 'lucide-react'
+import { Copy, Check, Cpu, Globe, Zap, Sparkles, User, ChevronDown, ChevronUp, Info, Bot, RotateCcw, Pencil, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/bertos/cn'
@@ -14,6 +14,7 @@ interface MessageBubbleProps {
   message: Message
   isStreaming?: boolean
   onRetry?: () => void
+  onEdit?: (newContent: string) => void
 }
 
 const MODEL_ICONS: Record<string, React.ReactNode> = {
@@ -63,11 +64,13 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   )
 }
 
-export function MessageBubble({ message, isStreaming, onRetry }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming, onRetry, onEdit }: MessageBubbleProps) {
   const isError = !message.role.includes('user') && message.content.startsWith('**Error:**')
   const isUser = message.role === 'user'
   const [routerOpen, setRouterOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState(message.content)
 
   const copy = () => {
     navigator.clipboard.writeText(message.content)
@@ -153,7 +156,41 @@ export function MessageBubble({ message, isStreaming, onRetry }: MessageBubblePr
           )}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            editing ? (
+              <div className="space-y-2 min-w-[200px]">
+                <textarea
+                  autoFocus
+                  value={editValue}
+                  onChange={e => setEditValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      if (editValue.trim() && onEdit) { onEdit(editValue.trim()); setEditing(false) }
+                    }
+                    if (e.key === 'Escape') { setEditing(false); setEditValue(message.content) }
+                  }}
+                  className="w-full min-w-[220px] resize-none rounded-lg bg-white/10 p-2 text-sm text-white placeholder:text-white/40 outline-none border border-white/20 focus:border-white/40"
+                  rows={Math.min(8, editValue.split('\n').length + 1)}
+                />
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => { setEditing(false); setEditValue(message.content) }}
+                    className="text-[11px] text-white/50 hover:text-white/80 transition-colors flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" /> Cancel
+                  </button>
+                  <button
+                    onClick={() => { if (editValue.trim() && onEdit) { onEdit(editValue.trim()); setEditing(false) } }}
+                    disabled={!editValue.trim()}
+                    className="text-[11px] text-violet-200 hover:text-white transition-colors font-medium"
+                  >
+                    Resend ↵
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            )
           ) : (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -286,8 +323,19 @@ export function MessageBubble({ message, isStreaming, onRetry }: MessageBubblePr
       </div>
 
       {isUser && (
-        <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5 bg-violet-600/20 border border-violet-600/30">
-          <User className="w-3.5 h-3.5 text-violet-400" />
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5 bg-violet-600/20 border border-violet-600/30">
+            <User className="w-3.5 h-3.5 text-violet-400" />
+          </div>
+          {onEdit && !editing && !isStreaming && (
+            <button
+              onClick={() => { setEditing(true); setEditValue(message.content) }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-white/5"
+              title="Edit message"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          )}
         </div>
       )}
     </motion.div>

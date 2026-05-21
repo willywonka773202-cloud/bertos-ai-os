@@ -4,22 +4,32 @@ import { X, Keyboard } from 'lucide-react'
 
 const SHORTCUTS = [
   { section: 'Navigation', items: [
-    { keys: ['⌘', 'K'], label: 'Open command palette' },
-    { keys: ['⌘', '1'], label: 'Go to Chat' },
-    { keys: ['⌘', '2'], label: 'Go to Compare' },
-    { keys: ['⌘', '3'], label: 'Go to Workspace' },
+    { keys: ['⌘', 'K'], label: 'Command palette' },
+    { keys: ['⌘', '0'], label: 'Dashboard' },
+    { keys: ['⌘', '1'], label: 'Chat' },
+    { keys: ['⌘', '2'], label: 'Compare' },
+    { keys: ['⌘', '3'], label: 'Workspace' },
+    { keys: ['⌘', '4'], label: 'Evolution Lab' },
+    { keys: ['⌘', '5'], label: 'Coding Lab' },
+    { keys: ['⌘', '6'], label: 'Agents' },
+    { keys: ['⌘', ','], label: 'Settings' },
   ]},
   { section: 'Chat', items: [
     { keys: ['↵'], label: 'Send message' },
-    { keys: ['⇧', '↵'], label: 'New line' },
-    { keys: ['/'], label: 'Slash commands' },
-    { keys: ['Esc'], label: 'Stop generation' },
+    { keys: ['⇧', '↵'], label: 'New line in message' },
+    { keys: ['/'], label: 'Open slash commands' },
+    { keys: ['Esc'], label: 'Stop generation / close menu' },
   ]},
   { section: 'Interface', items: [
     { keys: ['⌘', 'B'], label: 'Toggle sidebar' },
     { keys: ['⌘', 'P'], label: 'Toggle right panel' },
     { keys: ['⌘', 'N'], label: 'New chat' },
-    { keys: ['⌘', ','], label: 'Settings' },
+    { keys: ['⌘', '?'], label: 'Keyboard shortcuts' },
+  ]},
+  { section: 'Workspace', items: [
+    { keys: ['↑'], label: 'Previous terminal command' },
+    { keys: ['↓'], label: 'Next terminal command' },
+    { keys: ['Esc'], label: 'Clear command input' },
   ]},
 ]
 

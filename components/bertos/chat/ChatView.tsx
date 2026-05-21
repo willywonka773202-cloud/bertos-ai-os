@@ -306,6 +306,18 @@ export function ChatView() {
     void sendMessage(userMsg.content)
   }, [getActiveSession, deleteMessage, sendMessage])
 
+  // Edit a user message: delete everything from that message onward, resend with new content
+  const makeEdit = useCallback((userMsgId: string) => (newContent: string) => {
+    const s = getActiveSession()
+    if (!s) return
+    const idx = s.messages.findIndex(m => m.id === userMsgId)
+    if (idx < 0) return
+    // Delete the user message and all subsequent messages
+    const toDelete = s.messages.slice(idx).map(m => m.id)
+    for (const id of toDelete) deleteMessage(s.id, id)
+    void sendMessage(newContent)
+  }, [getActiveSession, deleteMessage, sendMessage])
+
   const handleStop = useCallback(() => {
     abortRef.current?.abort()
     setStreaming(false)
@@ -390,6 +402,7 @@ export function ChatView() {
                         message={msg}
                         isStreaming={isStreaming && !!msg.streaming}
                         onRetry={msg.role === 'assistant' && msg.content.startsWith('**Error:**') ? makeRetry(msg.id) : undefined}
+                        onEdit={msg.role === 'user' && !isStreaming ? makeEdit(msg.id) : undefined}
                       />
                     </div>
                   </div>
