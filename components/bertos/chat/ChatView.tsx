@@ -143,9 +143,17 @@ export function ChatView() {
     abortRef.current = new AbortController()
 
     const project = getActiveProject()
+    const systemFactsList: string[] = (() => {
+      try {
+        const raw = localStorage.getItem('bertos-system-facts-v1')
+        if (!raw) return []
+        return (JSON.parse(raw) as Array<{ text: string }>).map(f => f.text).filter(Boolean)
+      } catch { return [] }
+    })()
     const systemPrompt = [
       'You are BertOS, an advanced AI assistant inside the BertOS AI operating system. Be precise, helpful, and thorough.',
       project?.context ? `Project context: ${project.context}` : '',
+      systemFactsList.length > 0 ? `User-defined facts:\n${systemFactsList.map(f => `- ${f}`).join('\n')}` : '',
     ].filter(Boolean).join('\n\n')
 
     const allMessages = useChatStore.getState()
