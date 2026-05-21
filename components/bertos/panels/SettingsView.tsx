@@ -643,16 +643,133 @@ export function SettingsView() {
             </motion.div>
           )}
 
-          {(activeSection === 'memory' || activeSection === 'performance' || activeSection === 'security') && (
+          {activeSection === 'memory' && (
             <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
               <div>
-                <h3 className="text-base font-semibold text-zinc-200 mb-1 capitalize">{activeSection.replace('-', ' ')}</h3>
-                <p className="text-xs text-zinc-500">Advanced configuration options.</p>
+                <h3 className="text-base font-semibold text-zinc-200 mb-1">Memory</h3>
+                <p className="text-xs text-zinc-500">Control how BertOS stores and uses project context.</p>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-6 text-center">
-                <Settings className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-                <p className="text-sm text-zinc-600">Advanced settings coming soon</p>
-                <p className="text-xs text-zinc-700 mt-1">These controls are being built into BertOS</p>
+              <div className="space-y-4">
+                {([
+                  { key: 'memoryEnabled', label: 'Enable project memory', desc: 'Persist project facts, todos, and session context across reloads.' },
+                ] as Array<{ key: keyof typeof settings; label: string; desc: string }>).map(opt => (
+                  <div key={opt.key} className="flex items-start justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                    <div>
+                      <p className="text-sm text-zinc-200">{opt.label}</p>
+                      <p className="text-xs text-zinc-600 mt-0.5">{opt.desc}</p>
+                    </div>
+                    <ToggleSwitch value={!!settings[opt.key]} onChange={v => updateSettings({ [opt.key]: v })} />
+                  </div>
+                ))}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                  <p className="text-sm text-zinc-200">localStorage keys</p>
+                  <p className="text-xs text-zinc-500">These keys are used to persist BertOS state in your browser.</p>
+                  <div className="space-y-1.5">
+                    {[
+                      'bertos-system-facts-v1',
+                      'bertos-coding-history-v1',
+                      'bertos-patch-history-v1',
+                      'bertos-coding-prefill-v1',
+                      'bertos-evolution-lab-settings-v1',
+                      'bertos-ui-store',
+                      'bertos-chat-store',
+                    ].map(k => (
+                      <div key={k} className="flex items-center justify-between font-mono text-[11px]">
+                        <span className="text-zinc-500">{k}</span>
+                        <button
+                          onClick={() => { localStorage.removeItem(k); window.location.reload() }}
+                          className="text-red-500/60 hover:text-red-400 transition-colors text-[10px]"
+                        >
+                          clear
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeSection === 'performance' && (
+            <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-200 mb-1">Performance</h3>
+                <p className="text-xs text-zinc-500">Tune streaming, routing, animations, and token budget.</p>
+              </div>
+              <div className="space-y-4">
+                {([
+                  { key: 'streamingEnabled',  label: 'Streaming responses', desc: 'Stream tokens as they arrive instead of waiting for the full response.' },
+                  { key: 'routingEnabled',     label: 'Auto router',         desc: 'Let BertOS pick the best provider per request. Disable to always use the selected model.' },
+                  { key: 'animationsEnabled',  label: 'Animations',          desc: 'Motion effects throughout the UI. Disable for reduced motion.' },
+                ] as Array<{ key: keyof typeof settings; label: string; desc: string }>).map(opt => (
+                  <div key={opt.key} className="flex items-start justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                    <div>
+                      <p className="text-sm text-zinc-200">{opt.label}</p>
+                      <p className="text-xs text-zinc-600 mt-0.5">{opt.desc}</p>
+                    </div>
+                    <ToggleSwitch value={!!settings[opt.key]} onChange={v => updateSettings({ [opt.key]: v })} />
+                  </div>
+                ))}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                  <p className="text-sm text-zinc-200 mb-1">Token budget</p>
+                  <p className="text-xs text-zinc-600 mb-3">Max tokens to include in context assembly per request.</p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={16000}
+                      max={200000}
+                      step={4000}
+                      value={settings.tokenBudget ?? 100000}
+                      onChange={e => updateSettings({ tokenBudget: Number(e.target.value) })}
+                      className="flex-1 accent-violet-500"
+                    />
+                    <span className="text-xs font-mono text-zinc-400 w-20 text-right">
+                      {((settings.tokenBudget ?? 100000) / 1000).toFixed(0)}k tokens
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeSection === 'security' && (
+            <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-200 mb-1">Security</h3>
+                <p className="text-xs text-zinc-500">BertOS safety rules and key hygiene.</p>
+              </div>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                  {[
+                    'API keys are stored only in localStorage — never sent to a server.',
+                    'GitPanel blocks if the remote contains "sylistly" or any non-allowlisted domain.',
+                    'Local daemon runs on 127.0.0.1:8787 only — not exposed to the network.',
+                    'Auto-push is disabled. All git pushes require explicit user action.',
+                    'Evolution Lab patches require manual approval before being applied.',
+                    'Workspace file writes go through a safety check before execution.',
+                  ].map(rule => (
+                    <div key={rule} className="flex items-start gap-2.5 text-xs text-emerald-300/80">
+                      <span className="mt-0.5 flex-shrink-0">✓</span>
+                      <span>{rule}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                  <p className="text-sm text-zinc-200 mb-1">Key hygiene</p>
+                  <p className="text-xs text-zinc-600 mb-3">
+                    Clear all stored API keys from localStorage. You will need to re-enter them in the API Keys section.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      updateSettings({ apiKeys: {} })
+                    }}
+                    className="h-7 text-xs"
+                  >
+                    Clear all API keys
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}

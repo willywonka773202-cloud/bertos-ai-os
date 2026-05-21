@@ -125,7 +125,7 @@ export function CommandPalette() {
     {
       id: 'open-github',
       label: 'GitHub',
-      description: 'Issues, PRs, branches (scaffold)',
+      description: 'Repo status, branches, commit log via daemon',
       icon: <Github className="w-4 h-4" />,
       category: 'Navigate',
       keywords: ['github', 'git', 'pr', 'issue', 'branch'],
