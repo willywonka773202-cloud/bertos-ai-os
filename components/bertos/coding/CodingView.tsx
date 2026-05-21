@@ -32,6 +32,16 @@ const TEMPLATES = [
 const MISSION_HISTORY_KEY = 'bertos-coding-history-v1'
 const PREFILL_KEY = 'bertos-coding-prefill-v1'
 const PATCH_HISTORY_KEY = 'bertos-patch-history-v1'
+const SYSTEM_FACTS_KEY = 'bertos-system-facts-v1'
+
+function readSystemFacts(): string[] {
+  try {
+    const raw = localStorage.getItem(SYSTEM_FACTS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Array<{ text: string }>
+    return parsed.map(f => f.text).filter(Boolean)
+  } catch { return [] }
+}
 
 interface PatchFile {
   path: string
@@ -260,6 +270,7 @@ export function CodingView() {
               'BertOS is a standalone self-coding AI operating system.',
               'Never auto-push. All patches require approval.',
               ...mission.constraints,
+              ...readSystemFacts(),
             ],
           },
         }),

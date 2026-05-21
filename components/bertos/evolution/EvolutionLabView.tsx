@@ -91,6 +91,16 @@ interface TerminalEntry {
 }
 
 const SETTINGS_KEY = 'bertos-evolution-lab-settings-v1'
+const SYSTEM_FACTS_KEY = 'bertos-system-facts-v1'
+
+function readSystemFacts(): string[] {
+  try {
+    const raw = localStorage.getItem(SYSTEM_FACTS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Array<{ text: string }>
+    return parsed.map(f => f.text).filter(Boolean)
+  } catch { return [] }
+}
 const SCAN_KEY = 'bertos-evolution-lab-last-scan-v1'
 
 const CATEGORY_VARIANTS: Record<EvolutionCategory, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
@@ -313,6 +323,7 @@ export function EvolutionLabView() {
               'BertOS Evolution Lab can scan and propose patches, but all writes require approval.',
               'Never auto-push.',
               'Require local daemon and safe repo before changes.',
+              ...readSystemFacts(),
             ],
           },
         }),
