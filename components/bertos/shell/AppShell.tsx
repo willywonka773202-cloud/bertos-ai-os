@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { AnimatePresence } from 'framer-motion'
+import { AnimatePresence, MotionConfig } from 'framer-motion'
 import { Toaster } from 'sonner'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
@@ -50,6 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={400}>
+      <MotionConfig transition={settings.animationsEnabled === false ? { duration: 0 } : undefined}>
       <div className={cn(
         'flex h-dvh overflow-hidden text-zinc-100',
         settings.theme === 'midnight' ? 'bg-[#05050A]' :
@@ -111,6 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }}
         />
       </div>
+      </MotionConfig>
     </TooltipProvider>
   )
 }

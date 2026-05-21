@@ -143,11 +143,11 @@ export function ChatView() {
     abortRef.current = new AbortController()
 
     const project = getActiveProject()
-    const systemFactsList: string[] = (() => {
+    const systemFactsList: string[] = settings.memoryEnabled === false ? [] : (() => {
       try {
         const raw = localStorage.getItem('bertos-system-facts-v1')
         if (!raw) return []
-        return (JSON.parse(raw) as Array<{ text: string }>).map(f => f.text).filter(Boolean)
+        return (JSON.parse(raw) as Array<{ content: string }>).map(f => f.content).filter(Boolean)
       } catch { return [] }
     })()
     const systemPrompt = [
@@ -200,6 +200,8 @@ export function ChatView() {
 
       let routerDecision: RouterDecision | null = null
       let hasFirstChunk = false
+      let bufferedText = ''
+      const liveStream = settings.streamingEnabled !== false
 
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
@@ -264,12 +266,20 @@ export function ChatView() {
                 hasFirstChunk = true
                 setPendingDecision(null)
               }
-              appendToMessage(sessionId!, aiMsg.id, parsed.text)
+              if (liveStream) {
+                appendToMessage(sessionId!, aiMsg.id, parsed.text)
+              } else {
+                bufferedText += parsed.text
+              }
             }
           } catch (parseErr) {
             if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') throw parseErr
           }
         }
+      }
+
+      if (!liveStream && bufferedText) {
+        appendToMessage(sessionId!, aiMsg.id, bufferedText)
       }
 
       return routerDecision

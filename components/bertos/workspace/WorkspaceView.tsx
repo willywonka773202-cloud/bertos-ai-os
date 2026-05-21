@@ -138,8 +138,8 @@ function readSystemFacts(): string[] {
   try {
     const raw = localStorage.getItem('bertos-system-facts-v1')
     if (!raw) return []
-    const parsed = JSON.parse(raw) as Array<{ text: string }>
-    return parsed.map(f => f.text).filter(Boolean)
+    const parsed = JSON.parse(raw) as Array<{ content: string }>
+    return parsed.map(f => f.content).filter(Boolean)
   } catch { return [] }
 }
 
