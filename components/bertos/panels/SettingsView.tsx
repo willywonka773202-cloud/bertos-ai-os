@@ -61,6 +61,7 @@ interface GeminiNativeStatus {
 
 interface HermesNousStatus {
   configured: boolean
+  proxyReachable?: boolean
   paidEnabled: boolean
   availableForRouting: boolean
   billing: string
@@ -201,6 +202,7 @@ export function SettingsView() {
     } catch {
       setHermesNousStatus({
         configured: false,
+        proxyReachable: false,
         paidEnabled: false,
         availableForRouting: false,
         billing: 'Paid API credits required',
@@ -590,7 +592,9 @@ export function SettingsView() {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-zinc-200">Hermes / Nous Proxy</p>
-                        <Badge variant="warning" className="text-[9px] h-4">Paid API credits required</Badge>
+                        <Badge variant={hermesNousStatus?.availableForRouting ? 'success' : 'warning'} className="text-[9px] h-4">
+                          {hermesNousStatus?.availableForRouting ? 'Routing enabled - paid provider active' : 'Paid API credits required'}
+                        </Badge>
                         <Badge variant="default" className="text-[9px] h-4">Default: No</Badge>
                       </div>
                       <p className="text-xs text-zinc-500 mt-0.5">
@@ -601,7 +605,9 @@ export function SettingsView() {
                         BertOS will not spend Hermes/Nous credits automatically.
                       </p>
                       <div className="mt-2 grid gap-1 text-[10px] text-zinc-600">
-                        <p>Status: {hermesNousStatus?.availableForRouting ? 'Paid routing enabled' : 'Paid routing disabled'}</p>
+                        <p>Status: {hermesNousStatus?.availableForRouting ? 'Routing enabled - paid provider active' : 'Paid routing disabled'}</p>
+                        <p>Proxy configured: {hermesNousStatus?.configured ? 'Yes' : 'No'}</p>
+                        <p>Health-only checks are safe; chat completions are not run from this card.</p>
                         <p>Required env: <code>HERMES_API_URL</code> and <code>HERMES_API_KEY</code></p>
                         {hermesNousStatus?.error && <p className="text-amber-300/80">{hermesNousStatus.error}</p>}
                       </div>
@@ -614,6 +620,68 @@ export function SettingsView() {
                     <RefreshCw className="w-3 h-3" />
                     Refresh Hermes / Nous
                   </button>
+                </div>
+
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-200">Experimental / Planned Integrations</p>
+                    <p className="text-xs text-zinc-600 mt-0.5">Visible roadmap only. These are not claimed as live providers.</p>
+                  </div>
+                  {[
+                    {
+                      name: 'Free Claude Code Proxy',
+                      badge: 'Experimental proxy',
+                      detail: 'Optional future bridge. Official Claude Code CLI remains separate and preferred.',
+                    },
+                    {
+                      name: 'OpenClaw',
+                      badge: 'Planned',
+                      detail: 'Future local agent runtime placeholder. No integration is configured yet.',
+                    },
+                    {
+                      name: 'Devin-style Auto Triage',
+                      badge: 'Cloud teammate',
+                      detail: 'External copy-prompt/PR workflow unless a safe Devin API route is configured. BertOS never auto-merges Devin output.',
+                    },
+                    {
+                      name: 'Google Anti-Gravity CLI',
+                      badge: 'Migration planned',
+                      detail: 'Planned/experimental. Gemini CLI remains supported until official docs and local command detection verify migration.',
+                    },
+                    {
+                      name: 'Google Managed Agents API',
+                      badge: 'Planned cloud',
+                      detail: 'Future cloud sandbox/managed-agent runtime. No live paid calls and not a replacement for the local daemon.',
+                    },
+                    {
+                      name: 'Browser Skills',
+                      badge: 'Planned verification',
+                      detail: 'Future browser smoke-test and visual verification workflow. No direct BertOS route is wired yet.',
+                    },
+                    {
+                      name: 'Hyperframes Video Agent',
+                      badge: 'Planned media',
+                      detail: 'Planned local HTML/CSS/JS animated video pipeline. Requires Node, FFmpeg, and Hyperframes setup before BertOS can claim rendering works.',
+                    },
+                    {
+                      name: 'Remotion Video Agent',
+                      badge: 'Planned media',
+                      detail: 'Planned local React video rendering pipeline. Requires Node and FFmpeg/Remotion setup before BertOS can claim rendering works.',
+                    },
+                    {
+                      name: 'Qwen / Experimental Models',
+                      badge: 'Manual/API experimental',
+                      detail: 'Manual or future API adapter only. Do not assume free unlimited usage and do not make it default.',
+                    },
+                  ].map(item => (
+                    <div key={item.name} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-zinc-300">{item.name}</p>
+                        <Badge variant="default" className="text-[9px] h-4">{item.badge}</Badge>
+                      </div>
+                      <p className="mt-1 text-[11px] text-zinc-600">{item.detail}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 

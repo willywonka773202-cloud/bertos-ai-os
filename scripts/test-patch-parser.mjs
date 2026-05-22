@@ -43,19 +43,19 @@ function loadTsModule(relativePath) {
         strategy: 'single',
       }),
     }
-    if (specifier === './claude-cli' || specifier === './codex-cli' || specifier === './gemini-cli' || specifier === './ollama-pro') {
+    if (specifier === './claude-cli' || specifier === './codex-cli' || specifier === './gemini-cli' || specifier === './gemini-native' || specifier === './ollama-pro') {
       const providerId = specifier.replace('./', '')
       return {
         status: async () => ({
           ok: providerId === 'codex-cli',
-          providerId,
-          providerName: providerId,
+          providerId: providerId === 'gemini-native' ? 'gemini-api-native' : providerId,
+          providerName: providerId === 'gemini-native' ? 'Gemini Native API' : providerId,
           modelOrTool: providerId,
           online: providerId === 'codex-cli',
         }),
         ask: async () => ({
           ok: true,
-          providerId,
+          providerId: providerId === 'gemini-native' ? 'gemini-api-native' : providerId,
           providerName: providerId,
           modelOrTool: providerId,
           text: '{"summary":"ok","files":[],"validation":{"commands":[]}}',

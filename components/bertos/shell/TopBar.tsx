@@ -78,6 +78,11 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
     evolution: 'Evolution Lab',
     agents: 'Agent Tasks',
     memory: 'Project Memory',
+    brief: 'Daily Brief',
+    playbooks: 'Playbooks',
+    tasks: 'Tasks',
+    migrations: 'Migrations',
+    github: 'GitHub / Repo',
     settings: 'Settings',
     autopilot: 'Autopilot',
   }

@@ -15,6 +15,25 @@ export async function GET() {
   const hermesKeyConfigured = Boolean(process.env.HERMES_API_KEY)
   const hermesPaidEnabled = process.env.ENABLE_HERMES_PAID === 'true'
   const hermesConfigured = hermesUrlConfigured && hermesKeyConfigured
+  const fccEnabled = process.env.ENABLE_FCC_PROXY === 'true'
+  const devinConfigured = Boolean(process.env.DEVIN_API_KEY)
+  const qwenConfigured = Boolean(process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY)
+  const hermesStatus = {
+    id: 'hermes-nous',
+    configured: hermesConfigured,
+    proxyReachable: hermesConfigured,
+    paidEnabled: hermesPaidEnabled,
+    availableForRouting: hermesConfigured && hermesPaidEnabled,
+    requiredEnvVars: ['HERMES_API_URL', 'HERMES_API_KEY'],
+    gateEnvVar: 'ENABLE_HERMES_PAID',
+    billing: 'Paid API credits required',
+    statusMessage: 'Proxy reachable, but no free chat models available for this account.',
+    defaultProvider: false,
+    autoRoutingDisabledUnless: 'ENABLE_HERMES_PAID=true',
+    error: hermesPaidEnabled && !hermesConfigured
+      ? 'Hermes paid routing is enabled, but HERMES_API_URL or HERMES_API_KEY is missing.'
+      : undefined,
+  }
   const providers = [
     {
       id: 'ollama-pro',
@@ -45,6 +64,113 @@ export async function GET() {
         : 'Paid API credits required; auto-routing disabled',
     },
   ]
+  const externalAgents = {
+    devin: {
+      id: 'devin',
+      name: 'Devin',
+      category: 'cloud-teammate',
+      configured: devinConfigured,
+      status: devinConfigured ? 'configured' : 'copy-prompt-only',
+      billing: 'External cloud coding teammate',
+      runnableFromBertOS: false,
+      message: devinConfigured
+        ? 'Credentials detected, but BertOS does not call Devin APIs in this status endpoint.'
+        : 'Copy-prompt / PR workflow only. No live Devin API calls are made.',
+      safety: 'Do not auto-merge Devin output.',
+    },
+    freeClaudeCode: {
+      id: 'free-claude-code',
+      name: 'Free Claude Code Proxy',
+      category: 'experimental-proxy',
+      configured: fccEnabled,
+      status: fccEnabled ? 'enabled' : 'disabled',
+      billing: 'Provider-dependent backend pricing',
+      runnableFromBertOS: false,
+      message: fccEnabled
+        ? 'Experimental proxy flag is enabled; keep official Claude Code separate.'
+        : 'Disabled unless ENABLE_FCC_PROXY=true.',
+      safety: 'Not official Anthropic Claude. Do not replace Claude Code.',
+    },
+    googleAntiGravityCli: {
+      id: 'google-antigravity-cli',
+      name: 'Google Anti-Gravity CLI',
+      category: 'migration',
+      configured: false,
+      status: 'planned',
+      billing: 'Unknown until verified',
+      runnableFromBertOS: false,
+      message: 'Planned/experimental. Verify official docs and local command detection before routing.',
+      safety: 'Gemini CLI remains supported and Anti-Gravity is not default.',
+    },
+    googleManagedAgents: {
+      id: 'google-managed-agents',
+      name: 'Google Managed Agents API',
+      category: 'planned',
+      configured: false,
+      status: 'planned',
+      billing: 'Cloud billing likely; unverified',
+      runnableFromBertOS: false,
+      message: 'Future cloud sandbox concept. No live paid calls are made.',
+      safety: 'Local daemon remains the current file and terminal bridge.',
+    },
+    qwenExperimental: {
+      id: 'qwen-experimental',
+      name: 'Qwen Experimental',
+      category: 'experimental',
+      configured: qwenConfigured,
+      status: qwenConfigured ? 'configured' : 'manual-or-api-needed',
+      billing: 'Manual/API provider dependent',
+      runnableFromBertOS: false,
+      message: qwenConfigured
+        ? 'Qwen key detected, but no live call is made from provider status.'
+        : 'Manual/API experimental. Do not assume free unlimited usage.',
+      safety: 'Use as copy-prompt or future adapter only.',
+    },
+    openclaw: {
+      id: 'openclaw',
+      name: 'OpenClaw',
+      category: 'planned-local-agent',
+      configured: false,
+      status: 'planned',
+      billing: 'Planned local/open integration',
+      runnableFromBertOS: false,
+      message: 'Planned local agent integration. No installed backend is claimed.',
+      safety: 'No fake autonomous execution.',
+    },
+    browserSkills: {
+      id: 'browser-skills',
+      name: 'Browser Skills',
+      category: 'planned-verification',
+      configured: false,
+      status: 'planned',
+      billing: 'Local/plugin dependent',
+      runnableFromBertOS: false,
+      message: 'Planned browser verification surface. No direct BertOS route yet.',
+      safety: 'Use route smoke checks only when a real browser workflow is wired.',
+    },
+    hyperframes: {
+      id: 'hyperframes',
+      name: 'Hyperframes Video Agent',
+      category: 'planned-media',
+      configured: false,
+      status: 'planned',
+      billing: 'Local setup dependent; requires Node, FFmpeg, and Hyperframes setup',
+      runnableFromBertOS: false,
+      message: 'Planned local HTML/CSS/JS animated video pipeline. Not installed or verified.',
+      safety: 'No fake rendering. Treat as setup/prompt-only until detected.',
+    },
+    remotion: {
+      id: 'remotion',
+      name: 'Remotion Video Agent',
+      category: 'planned-media',
+      configured: false,
+      status: 'planned',
+      billing: 'Local setup dependent; requires Node, FFmpeg/Remotion setup',
+      runnableFromBertOS: false,
+      message: 'Planned local React video rendering pipeline. Not installed or verified.',
+      safety: 'No fake API integration.',
+    },
+  }
 
   return NextResponse.json({
     providers,
@@ -78,20 +204,16 @@ export async function GET() {
       error: geminiNativeConfigured ? undefined : 'GEMINI_API_KEY is missing. GOOGLE_API_KEY is also supported as a fallback.',
     },
     composio,
-    hermesNous: {
-      id: 'hermes-nous',
-      configured: hermesConfigured,
-      paidEnabled: hermesPaidEnabled,
-      availableForRouting: hermesConfigured && hermesPaidEnabled,
-      requiredEnvVars: ['HERMES_API_URL', 'HERMES_API_KEY'],
-      gateEnvVar: 'ENABLE_HERMES_PAID',
-      billing: 'Paid API credits required',
-      statusMessage: 'Proxy reachable, but no free chat models available for this account.',
-      defaultProvider: false,
-      autoRoutingDisabledUnless: 'ENABLE_HERMES_PAID=true',
-      error: hermesPaidEnabled && !hermesConfigured
-        ? 'Hermes paid routing is enabled, but HERMES_API_URL or HERMES_API_KEY is missing.'
-        : undefined,
+    hermes: hermesStatus,
+    hermesNous: hermesStatus,
+    externalAgents,
+    migrations: {
+      geminiCli: {
+        status: providers.find(provider => provider.id === 'gemini-cli')?.status ?? 'unknown',
+        message: 'Current Gemini CLI remains supported.',
+      },
+      googleAntiGravityCli: externalAgents.googleAntiGravityCli,
+      googleManagedAgents: externalAgents.googleManagedAgents,
     },
   }, {
     headers: { 'Cache-Control': 'no-store' },

@@ -5,6 +5,8 @@ import {
   Activity, Zap, Clock, CheckCircle2, XCircle, AlertCircle,
   FolderOpen, MessageSquare, Code2, Server,
   Sparkles, GitBranch, Terminal, Box, Bot, Library, Scale, Cpu,
+  CalendarDays, ClipboardList, ShieldCheck, KanbanSquare, Compass,
+  Github,
 } from 'lucide-react'
 import { useProjectStore } from '@/store/bertos/projects'
 import { useChatStore } from '@/store/bertos/chat'
@@ -23,6 +25,9 @@ import { cn } from '@/lib/bertos/cn'
 import { useRouter } from 'next/navigation'
 import type { ProviderHealth } from '@/lib/bertos/providers/types'
 import type { AutomationRun } from '@/lib/bertos/types'
+import { AGENT_ROSTER } from '@/lib/bertos/command-center'
+import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
+import { AGENT_TEAMS } from '@/lib/bertos/agent-teams'
 
 interface ProviderStatus {
   id: string
@@ -85,6 +90,11 @@ export function DashboardView() {
   const automationRunning = automationRuns.filter(run => run.status === 'running').length
   const recentAutomationRuns = automationRuns.slice(0, 5)
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
+  const providerById = new Map(providers.map(provider => [provider.id, provider]))
+  const hermesProvider = providerById.get('hermes-nous')
+  const nextAction = daemonOnline
+    ? 'Open Builder and compile a scoped mission, then run typecheck/build from the safe daemon.'
+    : 'Start npm run bertos:daemon to unlock local CLI agents, validation checks, and workspace file operations.'
 
   const handleNewChat = () => {
     createSession(selectedModel)
@@ -142,10 +152,10 @@ export function DashboardView() {
           <div>
             <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
               <Activity className="w-6 h-6 text-violet-400" />
-              Command Center
+              Bert OS Command Center
             </h1>
             <p className="text-sm text-zinc-500 mt-0.5">
-              Your AI operating system dashboard
+              Local-first AI operating system for coding, providers, playbooks, memory, daily brief, and self-coding workflows.
             </p>
           </div>
           <Button onClick={handleNewChat} className="gap-2">
@@ -209,6 +219,20 @@ export function DashboardView() {
                 subtitle={`${recentSessions.length} recent`}
               />
               <StatusCard
+                label="Memory"
+                value="Local"
+                icon={<Library className="w-5 h-5" />}
+                status="info"
+                subtitle="Project notes and command-center context"
+              />
+              <StatusCard
+                label="Paid Provider Gate"
+                value={hermesProvider?.status === 'online' ? 'Enabled' : 'Disabled'}
+                icon={<ShieldCheck className="w-5 h-5" />}
+                status={hermesProvider?.status === 'online' ? 'warning' : 'success'}
+                subtitle="Hermes/Nous never routes silently"
+              />
+              <StatusCard
                 label="Repo Status"
                 value={daemonHealth?.repoDetected ? 'Detected' : 'No Repo'}
                 icon={<GitBranch className="w-5 h-5" />}
@@ -222,6 +246,173 @@ export function DashboardView() {
                 status={daemonOnline ? 'success' : 'warning'}
                 subtitle={daemonOnline ? 'Workspace bridge ready' : 'Copy start command above'}
               />
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              Self-Coding Readiness
+            </h2>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ['Builder exists', true],
+                  ['Playbooks exist', true],
+                  ['Tasks exist', true],
+                  ['Memory exists', true],
+                  ['Provider status exists', providers.length > 0],
+                  ['Daemon available', daemonOnline],
+                  ['Safe verification available', daemonOnline],
+                  ['Paid providers gated', hermesProvider?.status !== 'online'],
+                ].map(([label, ok]) => (
+                  <div key={String(label)} className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      {ok ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <AlertCircle className="h-4 w-4 text-amber-400" />}
+                      <span className="text-xs font-semibold text-zinc-200">{label}</span>
+                    </div>
+                    <p className="text-[11px] text-zinc-600">{ok ? 'Ready or safely available.' : 'Needs setup or daemon.'}</p>
+                  </div>
+                ))}
+              </div>
+              <SelfCodingSafetyContract compact />
+            </div>
+          </section>
+
+          {/* Today's Command Center */}
+          <section>
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-amber-400" />
+              Today's Command Center
+            </h2>
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4">
+              <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-4">
+                <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Top goal</div>
+                <h3 className="text-base font-semibold text-zinc-100">Keep BertOS local-first, safe, and useful for building itself.</h3>
+                <p className="mt-2 text-sm text-zinc-500">{nextAction}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button size="sm" onClick={() => { setActiveView('coding'); router.push('/builder') }}>
+                    <Zap className="w-3.5 h-3.5" />Open Builder
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => { setActiveView('playbooks'); router.push('/playbooks') }}>
+                    <ClipboardList className="w-3.5 h-3.5" />Open Playbooks
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-4">
+                <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Active project</div>
+                <div className="text-sm font-medium text-zinc-200">{activeProject?.name ?? 'No project selected'}</div>
+                <p className="mt-1 text-xs text-zinc-500">{activeProject?.description || 'Use Memory to create project context and keep the active mission focused.'}</p>
+                <div className="mt-3 text-[11px] text-zinc-600">
+                  Recent task: {recentAutomationRuns[0]?.title ?? agentTasks[0]?.title ?? 'No recent task yet.'}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Agent Stack */}
+          <section>
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+              <Bot className="w-5 h-5 text-amber-400" />
+              Agent Team Readiness
+            </h2>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {AGENT_TEAMS.filter(team => ['coding-team', 'content-team', 'daily-chief-of-staff-team', 'bertos-maintenance-team'].includes(team.id)).map(team => {
+                const liveCount = team.agents.filter(agent => agent.status === 'live').length
+                const plannedCount = team.agents.filter(agent => agent.status === 'planned').length
+                const copyCount = team.agents.filter(agent => agent.status === 'copy-prompt').length
+                return (
+                  <div key={team.id} className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-zinc-200">{team.name}</h3>
+                        <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{team.bestUse}</p>
+                      </div>
+                      <Badge variant={team.status === 'partially-live' ? 'warning' : 'default'} className="text-[9px] shrink-0">
+                        {team.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2">
+                        <div className="text-sm font-semibold text-emerald-300">{liveCount}</div>
+                        <div className="text-[9px] text-zinc-600">live</div>
+                      </div>
+                      <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2">
+                        <div className="text-sm font-semibold text-amber-300">{copyCount}</div>
+                        <div className="text-[9px] text-zinc-600">prompt</div>
+                      </div>
+                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/50 p-2">
+                        <div className="text-sm font-semibold text-zinc-300">{plannedCount}</div>
+                        <div className="text-[9px] text-zinc-600">planned</div>
+                      </div>
+                    </div>
+                    <p className="mt-3 text-[11px] leading-relaxed text-zinc-600">{team.nextSetupStep}</p>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+              <Bot className="w-5 h-5 text-violet-400" />
+              Agent Stack
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {AGENT_ROSTER.slice(1, 10).map(agent => {
+                const provider = providerById.get(agent.id) ?? (agent.id === 'ollama-local' ? providerById.get('ollama-pro') : undefined)
+                const configured = provider?.status === 'online'
+                const statusLabel = provider ? (configured ? 'configured' : 'not configured') : agent.status
+                return (
+                  <div key={agent.id} className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold text-zinc-200">{agent.name}</h3>
+                        <p className="mt-1 text-xs text-zinc-500">{agent.bestUse}</p>
+                      </div>
+                      <Badge variant={configured ? 'success' : agent.status === 'paid-gated' || agent.status === 'experimental' ? 'warning' : 'default'} className="text-[9px] shrink-0">
+                        {statusLabel}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid gap-1 text-[11px] text-zinc-600">
+                      <div>Billing: {agent.billing}</div>
+                      <div>Runnable from BertOS: {agent.canRunNow}</div>
+                      {provider?.message && <div className="line-clamp-2">Status: {provider.message}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+
+          {/* Quick Launch */}
+          <section>
+            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              Quick Launch
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+              {[
+                { label: 'Chat', href: '/chat', view: 'chat' as const, icon: <MessageSquare className="w-4 h-4" /> },
+                { label: 'Builder', href: '/builder', view: 'coding' as const, icon: <Zap className="w-4 h-4" /> },
+                { label: 'Settings', href: '/settings', view: 'settings' as const, icon: <Server className="w-4 h-4" /> },
+                { label: 'Daily Brief', href: '/brief', view: 'brief' as const, icon: <CalendarDays className="w-4 h-4" /> },
+                { label: 'Playbooks', href: '/playbooks', view: 'playbooks' as const, icon: <ClipboardList className="w-4 h-4" /> },
+                { label: 'Tasks', href: '/tasks', view: 'tasks' as const, icon: <KanbanSquare className="w-4 h-4" /> },
+                { label: 'Agents', href: '/agents', view: 'agents' as const, icon: <Bot className="w-4 h-4" /> },
+                { label: 'Migrations', href: '/migrations', view: 'migrations' as const, icon: <Compass className="w-4 h-4" /> },
+                { label: 'GitHub', href: '/github', view: 'github' as const, icon: <Github className="w-4 h-4" /> },
+                { label: 'Memory', href: '/memory', view: 'memory' as const, icon: <Library className="w-4 h-4" /> },
+              ].map(item => (
+                <button
+                  key={item.href}
+                  onClick={() => { setActiveView(item.view); router.push(item.href) }}
+                  className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-3 text-left hover:border-zinc-700 hover:bg-zinc-900/40 transition"
+                >
+                  <div className="mb-2 text-violet-400">{item.icon}</div>
+                  <div className="text-xs font-medium text-zinc-200">{item.label}</div>
+                </button>
+              ))}
             </div>
           </section>
 

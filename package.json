@@ -14,8 +14,10 @@
     "bertos": "node cli/bertos.mjs",
     "bertos:daemon": "node scripts/bertos-daemon.mjs",
     "bertos:safety": "node scripts/assert-bertos-repo.mjs",
+    "hermes:status": "node scripts/hermes-status.mjs",
     "smoke": "node scripts/test-patch-parser.mjs",
-    "validate": "npm run typecheck && npm run build && npm run bertos:safety && npm run smoke"
+    "smoke:payload": "node scripts/test-patch-payload.mjs",
+    "validate": "npm run typecheck && npm run build && npm run bertos:safety && npm run smoke && npm run smoke:payload"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   Bot,
@@ -9,8 +9,10 @@ import {
   Code2,
   Copy,
   GitBranch,
+  History,
   Loader2,
   Play,
+  RefreshCw,
   ShieldCheck,
   Sparkles,
   Terminal,
@@ -26,6 +28,20 @@ import {
   type CodingMission,
 } from '@/lib/bertos/missions'
 import type { AIModel } from '@/lib/bertos/types'
+import type { MissionProvider } from '@/lib/bertos/missions'
+import { useDaemonHealth } from '@/hooks/useDaemonHealth'
+import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
+import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
+import {
+  AGENT_ROSTER,
+  TASK_TYPE_OPTIONS,
+  buildSelfCodingPrompt,
+  recommendAgentForTask,
+  type CommandCenterAgentId,
+  type CommandCenterMode,
+  type CommandCenterTaskType,
+} from '@/lib/bertos/command-center'
+import { AGENT_TEAMS, buildAgentTeamPrompt, getAgentTeam, type AgentTeamId } from '@/lib/bertos/agent-teams'
 
 interface RepoStatus {
   online?: boolean
@@ -96,6 +112,19 @@ interface CommandResult {
   error?: string
 }
 
+interface BuilderHistoryItem {
+  id: string
+  title: string
+  templateId: string
+  provider: MissionProvider
+  risk: CodingMission['risk']
+  scope: CodingMission['estimatedScope']
+  status: 'compiled' | 'running' | 'proposed' | 'failed'
+  createdAt: string
+  prompt: string
+  missionPrompt: string
+}
+
 const DEFAULT_PROMPT = `Add a focused improvement to BertOS.
 
 Goal:
@@ -115,6 +144,22 @@ const VALIDATION_COMMANDS = new Map<string, { executable: string; args: string[]
   ['npm run validate', { executable: 'npm', args: ['run', 'validate'], timeoutMs: 300000 }],
 ])
 
+const PROVIDER_OPTIONS: Array<{ id: 'recommended' | MissionProvider; label: string; description: string }> = [
+  { id: 'recommended', label: 'Recommended', description: 'Use BertOS mission routing.' },
+  { id: 'ollama', label: 'Ollama', description: 'Cheap/default summaries and low-risk work.' },
+  { id: 'gemini', label: 'Gemini CLI', description: 'Long planning and research.' },
+  { id: 'claude', label: 'Claude Code', description: 'Architecture, UI review, refactors.' },
+  { id: 'codex', label: 'Codex CLI', description: 'Implementation and repo edits.' },
+  { id: 'team', label: 'Team Mode', description: 'Plan, implement, then review.' },
+]
+
+const MODE_OPTIONS = [
+  { id: 'plan', label: 'Plan only', description: 'Compile a mission and copy prompts. No patch request.' },
+  { id: 'prompt', label: 'Generate prompt', description: 'Produce provider-specific CLI prompts.' },
+  { id: 'local', label: 'Safe local task', description: 'Use BertOS patch flow and daemon safety gates.' },
+  { id: 'external', label: 'External CLI task', description: 'Prepare prompts for Claude, Codex, Gemini, Hermes, or FCC.' },
+] as const
+
 function normalizeCommand(command: string) {
   return command.trim().replace(/\s+/g, ' ')
 }
@@ -131,9 +176,83 @@ function badgeForRisk(risk: PatchProposal['riskLevel']) {
   return 'success'
 }
 
+function applyProviderOverride(mission: CodingMission, providerOverride: 'recommended' | MissionProvider): CodingMission {
+  if (providerOverride === 'recommended' || providerOverride === mission.provider) return mission
+  return {
+    ...mission,
+    provider: providerOverride,
+    providerReason: `Manually selected ${providerOverride} for this mission. BertOS will still keep safety and validation gates active.`,
+    mode: providerOverride === 'team' ? 'team' : mission.mode,
+  }
+}
+
+type CopyPromptTarget = 'claude' | 'codex' | 'gemini' | 'hermes' | 'fcc' | 'devin' | 'qwen' | 'hyperframes' | 'remotion' | 'generic'
+
+function buildCopyPrompt(mission: CodingMission, target: CopyPromptTarget, teamPrompt?: string) {
+  const role = target === 'claude'
+    ? 'Claude Code reviewer/architect'
+    : target === 'codex'
+      ? 'Codex implementation agent'
+      : target === 'gemini'
+        ? 'Gemini planning/research agent'
+        : target === 'hermes'
+          ? 'Hermes/Nous paid proxy reviewer'
+          : target === 'fcc'
+            ? 'Free Claude Code Proxy experimental reviewer'
+            : target === 'devin'
+              ? 'Devin external cloud coding teammate'
+              : target === 'qwen'
+                ? 'Qwen experimental long-context reviewer'
+                : target === 'hyperframes'
+                  ? 'Hyperframes planned local video pipeline planner'
+                  : target === 'remotion'
+                    ? 'Remotion planned local video pipeline planner'
+                    : 'general AI engineering agent'
+  return [
+    `You are the ${role} for BertOS.`,
+    '',
+    mission.suggestedPrompt,
+    ...(teamPrompt ? ['', 'Agent team handoff:', teamPrompt] : []),
+    '',
+    'Provider role:',
+    target === 'claude'
+      ? '- Focus on architecture, UI quality, safety risks, and reviewable diffs.'
+      : target === 'codex'
+        ? '- Focus on implementation, exact files, patch quality, and validation.'
+        : target === 'gemini'
+          ? '- Focus on planning, context gaps, file discovery, and risk analysis.'
+        : target === 'hermes'
+          ? '- Only use this if paid Hermes/Nous credits were explicitly approved. Do not assume free models are available.'
+          : target === 'fcc'
+            ? '- Treat this as experimental. Official Claude Code remains the trusted provider.'
+            : target === 'devin'
+              ? '- Treat this as a scoped PR task. Do not auto-merge and do not push without explicit approval.'
+              : target === 'qwen'
+                ? '- Use long-context planning/review. Do not assume free unlimited usage.'
+                : target === 'hyperframes'
+                  ? '- Generate setup/implementation guidance for Hyperframes only. Verify Node, FFmpeg, and Hyperframes first. Do not claim rendering works.'
+                  : target === 'remotion'
+                    ? '- Generate setup/implementation guidance for Remotion only. Verify Node, FFmpeg, and Remotion first. Do not claim rendering works.'
+                : '- Keep the work scoped, honest, and validation-focused.',
+    '',
+    'Output requirements:',
+    '- Do not claim success unless validation passed.',
+    '- Do not push to GitHub.',
+    '- Do not touch Sylistly.',
+    '- Do not expose or request secrets.',
+  ].join('\n')
+}
+
 export function CodingView() {
+  const [taskTitle, setTaskTitle] = useState('')
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
+  const [taskType, setTaskType] = useState<CommandCenterTaskType>('ui-react-change')
+  const [executionShape, setExecutionShape] = useState<'single' | 'team'>('single')
+  const [selectedTeamId, setSelectedTeamId] = useState<AgentTeamId>('coding-team')
+  const [agentTarget, setAgentTarget] = useState<'auto' | CommandCenterAgentId>('auto')
   const [templateId, setTemplateId] = useState(CODING_MISSION_TEMPLATES[0]?.id ?? '')
+  const [providerOverride, setProviderOverride] = useState<'recommended' | MissionProvider>('recommended')
+  const [builderMode, setBuilderMode] = useState<typeof MODE_OPTIONS[number]['id']>('local')
   const [mission, setMission] = useState<CodingMission | null>(null)
   const [repoStatus, setRepoStatus] = useState<RepoStatus | null>(null)
   const [patchResponse, setPatchResponse] = useState<PatchResponse | null>(null)
@@ -144,12 +263,31 @@ export function CodingView() {
   const [runningChecks, setRunningChecks] = useState(false)
   const [commandResults, setCommandResults] = useState<Array<{ command: string; result: CommandResult }>>([])
   const [runLog, setRunLog] = useState<string[]>([])
+  const [history, setHistory] = useState<BuilderHistoryItem[]>([])
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null)
+  const activeHistoryIdRef = useRef<string | null>(null)
+  const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
 
   const template = useMemo(
     () => CODING_MISSION_TEMPLATES.find(item => item.id === templateId),
     [templateId],
   )
   const safe = Boolean(repoStatus?.repo?.safeRepo)
+  const daemonOnline = Boolean(daemonHealth?.daemonOnline)
+  const canRunLocalMission = builderMode === 'local' && executionShape === 'single'
+  const recommendedAgent = useMemo(() => recommendAgentForTask(taskType, prompt), [taskType, prompt])
+  const selectedAgent = useMemo(
+    () => agentTarget === 'auto' ? recommendedAgent : (AGENT_ROSTER.find(agent => agent.id === agentTarget) ?? recommendedAgent),
+    [agentTarget, recommendedAgent],
+  )
+  const selectedTeam = useMemo(() => getAgentTeam(selectedTeamId), [selectedTeamId])
+  const commandCenterMode: CommandCenterMode = builderMode === 'plan'
+    ? 'plan-only'
+    : builderMode === 'local'
+      ? 'patch-proposal'
+      : builderMode === 'external'
+        ? 'external-prompt'
+        : 'external-prompt'
   const proposal = patchResponse?.proposal
   const safeValidationCommands = useMemo(() => {
     return (proposal?.commandsToRun ?? [])
@@ -171,17 +309,87 @@ export function CodingView() {
     void refreshRepoStatus()
   }, [])
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem('bertos-builder-history')
+      if (raw) setHistory(JSON.parse(raw) as BuilderHistoryItem[])
+    } catch {
+      setHistory([])
+    }
+
+    try {
+      const teamRequestRaw = window.localStorage.getItem('bertos-builder-team-request')
+      if (teamRequestRaw) {
+        const request = JSON.parse(teamRequestRaw) as { teamId?: AgentTeamId; task?: string }
+        if (request.teamId && AGENT_TEAMS.some(team => team.id === request.teamId)) {
+          setExecutionShape('team')
+          setSelectedTeamId(request.teamId)
+          setBuilderMode('external')
+          if (request.task) setPrompt(request.task)
+          window.localStorage.removeItem('bertos-builder-team-request')
+        }
+      }
+    } catch {
+      // Ignore malformed handoff data and leave Builder in its default state.
+    }
+  }, [])
+
+  const persistHistory = (items: BuilderHistoryItem[]) => {
+    setHistory(items)
+    try {
+      window.localStorage.setItem('bertos-builder-history', JSON.stringify(items.slice(0, 20)))
+    } catch {
+      // Local history is a convenience; ignore storage quota/private-mode failures.
+    }
+  }
+
   const appendLog = (line: string) => {
     setRunLog(current => [`${new Date().toLocaleTimeString()} ${line}`, ...current].slice(0, 80))
+  }
+
+  const compileBuilderMission = () => {
+    const teamPrompt = executionShape === 'team'
+      ? buildAgentTeamPrompt(selectedTeam, prompt)
+      : ''
+    const commandCenterPrompt = buildSelfCodingPrompt({
+      title: taskTitle.trim() || prompt.trim().split(/\r?\n/).find(Boolean) || 'BertOS self-coding task',
+      description: executionShape === 'team'
+        ? `${prompt}\n\n${teamPrompt}`
+        : prompt,
+      taskType,
+      mode: executionShape === 'team' ? 'external-prompt' : commandCenterMode,
+      agentId: executionShape === 'team' ? 'bertos-orchestrator' : selectedAgent.id,
+    })
+    return applyProviderOverride(compileCodingMission(commandCenterPrompt, template), providerOverride)
+  }
+
+  const upsertHistory = (compiled: CodingMission, status: BuilderHistoryItem['status']) => {
+    const id = activeHistoryIdRef.current ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    activeHistoryIdRef.current = id
+    setActiveHistoryId(id)
+    const item: BuilderHistoryItem = {
+      id,
+      title: compiled.title,
+      templateId,
+      provider: compiled.provider,
+      risk: compiled.risk,
+      scope: compiled.estimatedScope,
+      status,
+      createdAt: new Date().toISOString(),
+      prompt,
+      missionPrompt: compiled.suggestedPrompt,
+    }
+    persistHistory([item, ...history.filter(existing => existing.id !== id)].slice(0, 20))
   }
 
   const buildMission = () => {
     setBuildingMission(true)
     try {
-      const compiled = compileCodingMission(prompt, template)
+      const compiled = compileBuilderMission()
       setMission(compiled)
       setPatchResponse(null)
       setSelectedFiles(new Set())
+      upsertHistory(compiled, 'compiled')
       appendLog(`Mission compiled: ${compiled.title}`)
       if (compiled.warnings.length) toast.warning(compiled.warnings[0])
       else toast.success('Mission compiled.')
@@ -191,8 +399,9 @@ export function CodingView() {
   }
 
   const runMission = async () => {
-    const compiled = mission ?? compileCodingMission(prompt, template)
+    const compiled = mission ?? compileBuilderMission()
     setMission(compiled)
+    upsertHistory(compiled, 'running')
     setRunningMission(true)
     setPatchResponse(null)
     setCommandResults([])
@@ -220,15 +429,18 @@ export function CodingView() {
       const data = await res.json() as PatchResponse
       setPatchResponse(data)
       if (!res.ok || !data.ok || !data.proposal) {
+        upsertHistory(compiled, 'failed')
         appendLog(`Patch generation failed: ${data.error ?? `HTTP ${res.status}`}`)
         toast.error(data.error ?? 'Patch generation failed.')
         return
       }
       setSelectedFiles(new Set(data.proposal.files.map(file => file.path)))
+      upsertHistory(compiled, 'proposed')
       appendLog(`Patch proposed: ${data.proposal.files.length} file(s).`)
       toast.success(`Patch proposed by ${data.provider?.providerName ?? data.proposal.provider ?? 'provider'}.`)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Mission run failed.'
+      upsertHistory(compiled, 'failed')
       appendLog(message)
       toast.error(message)
     } finally {
@@ -304,9 +516,29 @@ export function CodingView() {
   }
 
   const copyMission = async () => {
-    const compiled = mission ?? compileCodingMission(prompt, template)
+    const compiled = mission ?? compileBuilderMission()
     await navigator.clipboard.writeText(compiled.suggestedPrompt)
     toast.success('Mission prompt copied.')
+  }
+
+  const copyProviderPrompt = async (target: CopyPromptTarget) => {
+    const compiled = mission ?? compileBuilderMission()
+    const teamPrompt = executionShape === 'team' ? buildAgentTeamPrompt(selectedTeam, prompt) : undefined
+    await navigator.clipboard.writeText(buildCopyPrompt(compiled, target, teamPrompt))
+    const label = target === 'claude' ? 'Claude' : target === 'codex' ? 'Codex' : target === 'gemini' ? 'Gemini' : target === 'hermes' ? 'Hermes' : target === 'fcc' ? 'FCC' : target === 'devin' ? 'Devin' : target === 'qwen' ? 'Qwen' : target === 'hyperframes' ? 'Hyperframes' : target === 'remotion' ? 'Remotion' : 'Generic'
+    toast.success(`${label} prompt copied.`)
+  }
+
+  const loadHistoryItem = (item: BuilderHistoryItem) => {
+    setPrompt(item.prompt)
+    setTemplateId(item.templateId)
+    setProviderOverride(item.provider)
+    setMission(null)
+    setPatchResponse(null)
+    setSelectedFiles(new Set())
+    activeHistoryIdRef.current = item.id
+    setActiveHistoryId(item.id)
+    appendLog(`Loaded history item: ${item.title}`)
   }
 
   return (
@@ -315,12 +547,36 @@ export function CodingView() {
         <div className="border-b border-zinc-800/50 p-4">
           <div className="flex items-center gap-2">
             <Code2 className="h-4 w-4 text-violet-400" />
-            <h1 className="text-sm font-semibold text-zinc-100">Coding</h1>
+            <h1 className="text-sm font-semibold text-zinc-100">Builder / Code Lab</h1>
           </div>
           <p className="mt-1 text-xs text-zinc-600">Mission compiler for large build prompts.</p>
         </div>
         <ScrollArea className="h-[calc(100%-73px)]">
           <div className="space-y-4 p-3">
+            <section className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Terminal className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-xs font-medium text-zinc-300">Daemon</span>
+                </div>
+                <Badge variant={daemonOnline ? 'success' : 'warning'} className="text-[9px]">
+                  {daemonLoading ? 'checking' : daemonOnline ? 'online' : 'offline'}
+                </Badge>
+              </div>
+              <p className="text-[11px] leading-relaxed text-zinc-600">
+                {daemonOnline
+                  ? 'Repo commands, patch apply, and validation checks are available.'
+                  : 'Start npm run bertos:daemon for file edits, checks, and CLI agents.'}
+              </p>
+              <button
+                onClick={() => void refreshDaemonHealth()}
+                className="mt-2 flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Refresh daemon
+              </button>
+            </section>
+
             <section>
               <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-700">Templates</div>
               <div className="space-y-1">
@@ -339,6 +595,39 @@ export function CodingView() {
                   >
                     <div className="font-medium">{item.label}</div>
                     <div className="mt-0.5 line-clamp-2 text-[11px] text-zinc-600">{item.description}</div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-zinc-700">
+                <History className="h-3 w-3" />
+                Task history
+              </div>
+              <div className="space-y-1">
+                {history.length === 0 && (
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 text-[11px] text-zinc-600">
+                    Compiled missions will appear here.
+                  </div>
+                )}
+                {history.map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => loadHistoryItem(item)}
+                    className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                      activeHistoryId === item.id
+                        ? 'border-emerald-500/40 bg-emerald-500/10'
+                        : 'border-zinc-800 bg-zinc-900/30 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="truncate text-xs font-medium text-zinc-300">{item.title}</div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Badge variant={item.status === 'failed' ? 'error' : item.status === 'proposed' ? 'success' : 'default'} className="text-[9px]">
+                        {item.status}
+                      </Badge>
+                      <Badge variant="default" className="text-[9px]">{item.provider}</Badge>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -369,9 +658,157 @@ export function CodingView() {
 
           <ScrollArea className="flex-1">
             <div className="space-y-4 p-4">
+              <DaemonHealthBanner health={daemonHealth} loading={daemonLoading} onRefresh={refreshDaemonHealth} />
+
+              <section className="grid gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="lg:col-span-2">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-amber-400" />
+                    <h3 className="text-sm font-semibold text-zinc-100">Task definition</h3>
+                  </div>
+                  <p className="text-xs leading-relaxed text-zinc-500">
+                    Give the mission a title, choose the type of work, and BertOS will recommend the agent/provider before compiling the prompt.
+                  </p>
+                </div>
+                <input
+                  value={taskTitle}
+                  onChange={event => setTaskTitle(event.target.value)}
+                  placeholder="Task title, e.g. Add route smoke checks"
+                  className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-100 outline-none placeholder:text-zinc-700 focus:border-violet-500/60"
+                />
+                <select
+                  value={taskType}
+                  onChange={event => setTaskType(event.target.value as CommandCenterTaskType)}
+                  className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 outline-none focus:border-violet-500/60"
+                >
+                  {TASK_TYPE_OPTIONS.map(option => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+                <div className="lg:col-span-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_280px]">
+                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+                    <div className="text-xs font-semibold text-zinc-300">Recommended agent</div>
+                    <div className="mt-1 text-sm text-zinc-100">{recommendedAgent.name}</div>
+                    <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">{recommendedAgent.bestUse}</p>
+                  </div>
+                  <select
+                    value={agentTarget}
+                    onChange={event => setAgentTarget(event.target.value as 'auto' | CommandCenterAgentId)}
+                    className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 outline-none focus:border-emerald-500/60"
+                  >
+                    <option value="auto">Auto recommendation</option>
+                    {AGENT_ROSTER.map(agent => (
+                      <option key={agent.id} value={agent.id}>{agent.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="lg:col-span-2 grid gap-2 md:grid-cols-[180px_minmax(0,1fr)]">
+                  <select
+                    value={executionShape}
+                    onChange={event => setExecutionShape(event.target.value as 'single' | 'team')}
+                    className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 outline-none focus:border-amber-500/60"
+                  >
+                    <option value="single">Single agent mode</option>
+                    <option value="team">Team mode</option>
+                  </select>
+                  {executionShape === 'team' ? (
+                    <select
+                      value={selectedTeamId}
+                      onChange={event => setSelectedTeamId(event.target.value as AgentTeamId)}
+                      className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 outline-none focus:border-amber-500/60"
+                    >
+                      {AGENT_TEAMS.map(team => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-xs text-zinc-600">
+                      Single agent mode uses the recommended or selected provider. Switch to Team Mode for role-based handoffs.
+                    </div>
+                  )}
+                  {executionShape === 'team' && (
+                    <div className="md:col-span-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="warning" className="text-[9px]">{selectedTeam.status}</Badge>
+                        <span className="text-xs font-semibold text-amber-100">{selectedTeam.name}</span>
+                      </div>
+                      <p className="mt-1 text-[11px] leading-relaxed text-amber-200/75">{selectedTeam.bestUse}</p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {selectedTeam.agents.slice(0, 6).map(agent => (
+                          <Badge key={agent.id} variant={agent.status === 'live' ? 'success' : agent.status === 'planned' ? 'default' : 'warning'} className="text-[9px]">
+                            {agent.name}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="grid gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Bot className="h-4 w-4 text-violet-400" />
+                    <h3 className="text-sm font-semibold text-zinc-100">Provider route</h3>
+                  </div>
+                  <p className="text-xs leading-relaxed text-zinc-500">
+                    Choose Recommended for BertOS routing, or force a provider when preparing a patch request.
+                    External agent target is currently {selectedAgent.name}; Hermes / Nous remains paid-gated.
+                  </p>
+                </div>
+                <select
+                  value={providerOverride}
+                  onChange={event => setProviderOverride(event.target.value as 'recommended' | MissionProvider)}
+                  className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 outline-none focus:border-violet-500/60"
+                >
+                  {PROVIDER_OPTIONS.map(option => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+                <div className="lg:col-span-2 grid gap-2 md:grid-cols-3">
+                  {PROVIDER_OPTIONS.filter(option => option.id !== 'recommended').slice(0, 3).map(option => (
+                    <div key={option.id} className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-2">
+                      <div className="text-xs font-medium text-zinc-300">{option.label}</div>
+                      <div className="mt-1 text-[11px] text-zinc-600">{option.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section className="grid gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Clipboard className="h-4 w-4 text-emerald-400" />
+                    <h3 className="text-sm font-semibold text-zinc-100">Workflow mode</h3>
+                  </div>
+                  <p className="text-xs leading-relaxed text-zinc-500">
+                    Use Plan/Prompt modes when you only want copyable instructions. Use Safe local task when the daemon is running and you want BertOS patch review.
+                  </p>
+                </div>
+                <select
+                  value={builderMode}
+                  onChange={event => setBuilderMode(event.target.value as typeof MODE_OPTIONS[number]['id'])}
+                  className="h-10 rounded-lg border border-zinc-800 bg-zinc-900 px-3 text-sm text-zinc-200 outline-none focus:border-emerald-500/60"
+                >
+                  {MODE_OPTIONS.map(option => (
+                    <option key={option.id} value={option.id}>{option.label}</option>
+                  ))}
+                </select>
+                <div className="lg:col-span-2 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 text-xs text-zinc-500">
+                  {MODE_OPTIONS.find(option => option.id === builderMode)?.description}
+                  <div className="mt-2 text-[11px] text-zinc-600">
+                    Planned creative agents: Hyperframes setup and Remotion setup prompts are copy-only until local installation and FFmpeg/tool detection are verified.
+                  </div>
+                </div>
+              </section>
+
               <textarea
                 value={prompt}
-                onChange={event => setPrompt(event.target.value)}
+                onChange={event => {
+                  setPrompt(event.target.value)
+                  activeHistoryIdRef.current = null
+                  setActiveHistoryId(null)
+                }}
                 placeholder="Paste a huge Claude/Codex/Gemini-style build prompt..."
                 className="min-h-72 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 p-4 font-mono text-sm leading-relaxed text-zinc-100 outline-none placeholder:text-zinc-700 focus:border-violet-500/60"
               />
@@ -380,14 +817,16 @@ export function CodingView() {
                   {buildingMission ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   Build mission
                 </Button>
-                <Button variant="secondary" onClick={() => void runMission()} disabled={runningMission || !prompt.trim()}>
+                <Button variant="secondary" onClick={() => void runMission()} disabled={runningMission || !prompt.trim() || !canRunLocalMission}>
                   {runningMission ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                  Run mission
+                  {canRunLocalMission ? 'Run mission' : 'Copy-only mode'}
                 </Button>
                 <Button variant="outline" onClick={() => void copyMission()}>
                   <Copy className="h-4 w-4" />Copy mission
                 </Button>
               </div>
+
+              <SelfCodingSafetyContract />
 
               {mission && (
                 <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
@@ -431,6 +870,53 @@ export function CodingView() {
                       </div>
                     </div>
                   </div>
+                  <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Copy className="h-3.5 w-3.5 text-zinc-500" />
+                      <div className="text-xs font-semibold text-zinc-300">Copy for external CLIs</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('claude')}>
+                        Claude prompt
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('codex')}>
+                        Codex prompt
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('gemini')}>
+                        Gemini prompt
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('hermes')}>
+                        Hermes prompt
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('fcc')}>
+                        FCC prompt
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('devin')}>
+                        Devin prompt
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('qwen')}>
+                        Qwen prompt
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('hyperframes')}>
+                        Hyperframes setup
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('remotion')}>
+                        Remotion setup
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyProviderPrompt('generic')}>
+                        Generic prompt
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-zinc-600">
+                      These prompts include BertOS safety rules, likely files, validation commands, and done-when checks. Devin, Hermes, FCC, Qwen, Hyperframes, Remotion, and planned agents are copy-only unless a verified backend exists.
+                    </p>
+                  </div>
+                  <details className="mt-4 rounded-lg border border-zinc-800 bg-black/30 p-3">
+                    <summary className="cursor-pointer text-xs font-semibold text-zinc-300">Output panel: compiled mission prompt</summary>
+                    <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-[11px] leading-relaxed text-zinc-500">
+                      {mission.suggestedPrompt}
+                    </pre>
+                  </details>
                 </section>
               )}
 

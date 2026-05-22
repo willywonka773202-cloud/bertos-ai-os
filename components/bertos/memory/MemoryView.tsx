@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Plus, Folder, Edit3, Trash2, Check, X, Pin,
-  MessageSquare, FileText, Clock, Tag, Search
+  MessageSquare, FileText, Clock, Tag, Search, ClipboardCopy, HardDrive
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useProjectStore } from '@/store/bertos/projects'
@@ -11,12 +11,25 @@ import { useChatStore } from '@/store/bertos/chat'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { toast } from 'sonner'
 
 const PROJECT_COLORS = [
   '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
   '#EC4899', '#14B8A6', '#F97316', '#6366F1', '#84CC16',
 ]
 const PROJECT_ICONS = ['🤖', '🚀', '⚡', '🔥', '💡', '🎯', '🌊', '🎨', '🔬', '💎']
+
+const MEMORY_CATEGORIES = [
+  { label: 'Project Notes', detail: 'Active repo goals, project summaries, and working context.', status: 'local' },
+  { label: 'Decisions', detail: 'Architecture decisions, rejected approaches, and safety notes.', status: 'local' },
+  { label: 'Provider Setup', detail: 'CLI/API/provider configuration facts without secret values.', status: 'local' },
+  { label: 'Playbooks', detail: 'Reusable triage and build workflows shared with Builder.', status: 'local' },
+  { label: 'Daily Journal', detail: 'Future local markdown notes for daily work summaries.', status: 'planned' },
+  { label: 'Agent Sessions', detail: 'Task history and agent run summaries when connected.', status: 'planned' },
+  { label: 'Bugs and Fixes', detail: 'Known bugs, fixes, and regression notes for future agents.', status: 'planned' },
+  { label: 'User Preferences', detail: 'Preferred providers, validation profile, and workflow style.', status: 'planned' },
+  { label: 'Roadmap', detail: 'Longer-term BertOS build phases and deferred integrations.', status: 'planned' },
+]
 
 export function MemoryView() {
   const { projects, activeProjectId, createProject, updateProject, deleteProject, setActiveProject, updateContext } = useProjectStore()
@@ -58,6 +71,33 @@ export function MemoryView() {
   const getSessionCount = (projectId: string) =>
     sessions.filter(s => s.projectId === projectId).length
 
+  const copyObsidianPrompt = async () => {
+    const prompt = [
+      'MISSION: Add Obsidian / local markdown memory support to BertOS safely.',
+      '',
+      'Context:',
+      '- BertOS already has a local-first Memory Vault and project memory.',
+      '- Obsidian/local markdown is a planned future upgrade, not currently connected.',
+      '',
+      'Requirements:',
+      '- Inspect existing daemon file-write capability before adding any writer.',
+      '- Create a permissioned local markdown writer only if the daemon can validate paths inside an approved vault.',
+      '- Add setup fields for vault path, daily journal folder, project notes folder, and agent sessions folder.',
+      '- Add daily journal and session note templates.',
+      '- Never write secrets, .env files, credentials, tokens, or unrelated repo files.',
+      '- Require explicit user approval before writing markdown files.',
+      '- Run npm run typecheck, npm run build, and npm run bertos:safety.',
+      '',
+      'Final report:',
+      '- Files changed',
+      '- What writes are enabled vs still planned',
+      '- Safety gates',
+      '- Validation results',
+    ].join('\n')
+    await navigator.clipboard.writeText(prompt)
+    toast.success('Obsidian integration prompt copied.')
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -69,14 +109,66 @@ export function MemoryView() {
                 <Brain className="w-4 h-4 text-blue-400" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-zinc-200">Project Memory</h2>
-                <p className="text-[11px] text-zinc-500">Persistent context and knowledge for each project</p>
+                <h2 className="text-sm font-semibold text-zinc-200">Memory Vault</h2>
+                <p className="text-[11px] text-zinc-500">Local-first project memory now, Obsidian/markdown vault support later</p>
               </div>
             </div>
             <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
               <Plus className="w-3.5 h-3.5" />
               New Project
             </Button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+            {MEMORY_CATEGORIES.map(category => (
+              <div key={category.label} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-zinc-300">{category.label}</p>
+                  <Badge variant={category.status === 'local' ? 'success' : 'default'} className="text-[9px]">
+                    {category.status}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">{category.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex gap-3">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-blue-500/20 bg-blue-500/10">
+                  <HardDrive className="h-4 w-4 text-blue-300" />
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-zinc-100">Obsidian / Local Markdown Vault</h3>
+                    <Badge variant="default" className="text-[9px]">planned</Badge>
+                  </div>
+                  <p className="mt-1 max-w-2xl text-xs leading-relaxed text-blue-100/70">
+                    Future agents should save sessions, goals, decisions, daily journals, and project notes as local markdown.
+                    BertOS will not claim Obsidian is connected until a safe vault path and permissioned daemon writer exist.
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => void copyObsidianPrompt()}>
+                <ClipboardCopy className="h-3.5 w-3.5" />Generate Obsidian Integration Prompt
+              </Button>
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2">
+              {[
+                ['Vault path', 'Not configured. Future setup should validate a local folder outside secrets.'],
+                ['Memory categories', 'Projects, goals, decisions, daily journal, agent sessions, playbooks.'],
+                ['Daily journal folder', 'Planned markdown notes for daily brief and trend-scout summaries.'],
+                ['Project notes folder', 'Planned architecture, roadmap, and provider setup notes.'],
+                ['Agent sessions folder', 'Planned proof logs, task reports, and validation summaries.'],
+                ['Safety', 'Local files only; no secrets; writes require explicit permission and daemon validation.'],
+              ].map(([label, detail]) => (
+                <div key={label} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-zinc-700">{label}</div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{detail}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Search */}

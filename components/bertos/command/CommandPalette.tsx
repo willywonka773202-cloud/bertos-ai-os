@@ -5,7 +5,7 @@ import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
   Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical,
   LayoutDashboard, Library, Play, Check, Terminal, FileText, FolderOpen, Layers,
-  Shield, Clipboard,
+  Shield, Clipboard, KanbanSquare, Compass, Github,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -31,7 +31,7 @@ export function CommandPalette() {
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings' | 'autopilot', href: string) => {
+  const navigate = (view: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'brief' | 'playbooks' | 'tasks' | 'migrations' | 'github' | 'settings' | 'autopilot', href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
@@ -215,6 +215,51 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['coding', 'mission', 'codex', 'build', 'prompt'],
       action: () => navigate('coding', '/coding'),
+    },
+    {
+      id: 'open-brief',
+      label: 'Daily Brief',
+      description: 'Open today\'s priorities, provider health, and next actions',
+      icon: <Clipboard className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['brief', 'daily', 'today', 'priorities'],
+      action: () => navigate('brief', '/brief'),
+    },
+    {
+      id: 'open-playbooks',
+      label: 'Playbooks',
+      description: 'Open safe auto-triage and workflow templates',
+      icon: <FileText className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['playbook', 'triage', 'workflow', 'template'],
+      action: () => navigate('playbooks', '/playbooks'),
+    },
+    {
+      id: 'open-tasks',
+      label: 'Tasks',
+      description: 'Track self-coding tasks from prompt to review',
+      icon: <KanbanSquare className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['tasks', 'todo', 'board', 'self coding', 'work'],
+      action: () => navigate('tasks', '/tasks'),
+    },
+    {
+      id: 'open-migrations',
+      label: 'Migrations',
+      description: 'Manage Gemini CLI and Google Anti-Gravity migration risk',
+      icon: <Compass className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['migration', 'gemini', 'anti gravity', 'antigravity', 'google'],
+      action: () => navigate('migrations', '/migrations'),
+    },
+    {
+      id: 'open-github',
+      label: 'GitHub / Repo',
+      description: 'Open safe repository status and read-only git actions',
+      icon: <Github className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['github', 'git', 'repo', 'branch', 'remote'],
+      action: () => navigate('github', '/github'),
     },
     {
       id: 'open-workspace',

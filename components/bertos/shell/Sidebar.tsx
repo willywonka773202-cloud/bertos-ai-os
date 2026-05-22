@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, FlaskConical,
-  Plus, ChevronLeft, ChevronRight, Hash, Zap, Command, Trash2, LayoutDashboard, Library, Cpu,
+  Plus, ChevronLeft, ChevronRight, Hash, Zap, Command, Trash2, LayoutDashboard, Library, Cpu, CalendarDays, ClipboardList,
+  KanbanSquare, Compass, Github,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -23,6 +24,11 @@ const NAV_ITEMS = [
   { id: 'evolution', icon: FlaskConical,  label: 'Evolution', href: '/evolution' },
   { id: 'agents',    icon: Bot,           label: 'Agents',    href: '/agents'    },
   { id: 'memory',    icon: Brain,         label: 'Memory',    href: '/memory'    },
+  { id: 'brief',     icon: CalendarDays,  label: 'Brief',     href: '/brief'     },
+  { id: 'playbooks', icon: ClipboardList, label: 'Playbooks', href: '/playbooks' },
+  { id: 'tasks',     icon: KanbanSquare,  label: 'Tasks',     href: '/tasks'     },
+  { id: 'migrations',icon: Compass,       label: 'Migrations',href: '/migrations'},
+  { id: 'github',    icon: Github,        label: 'GitHub',    href: '/github'    },
   { id: 'autopilot', icon: Cpu,           label: 'Autopilot', href: '/autopilot' },
 ] as const
 

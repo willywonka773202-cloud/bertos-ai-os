@@ -1,0 +1,144 @@
+'use client'
+
+import { useEffect, useMemo, useState } from 'react'
+import { CalendarDays, CheckCircle2, ClipboardList, Server, Sparkles, Zap } from 'lucide-react'
+import { useProjectStore } from '@/store/bertos/projects'
+import { useAutomationStore } from '@/store/bertos/automations'
+import { useDaemonHealth } from '@/hooks/useDaemonHealth'
+import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
+
+interface ProviderStatus {
+  id: string
+  name: string
+  status: 'online' | 'offline' | 'unknown'
+  message?: string
+}
+
+export function BriefView() {
+  const { projects, activeProjectId } = useProjectStore()
+  const { runs } = useAutomationStore()
+  const { health, loading, refresh } = useDaemonHealth()
+  const [providers, setProviders] = useState<ProviderStatus[]>([])
+  const activeProject = projects.find(project => project.id === activeProjectId)
+
+  useEffect(() => {
+    fetch('/api/providers/status', { cache: 'no-store' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => setProviders(data?.providers ?? []))
+      .catch(() => setProviders([]))
+  }, [])
+
+  const onlineProviders = providers.filter(provider => provider.status === 'online')
+  const missingProviders = providers.filter(provider => provider.status !== 'online')
+  const recentRun = runs[0]
+  const recommendedAction = useMemo(() => {
+    if (!health?.daemonOnline) return 'Start npm run bertos:daemon so Builder, Workspace, Autopilot, and local CLI agents can run safely.'
+    if (missingProviders.length > 0) return 'Open Settings and review missing provider setup before starting a broad mission.'
+    return 'Open Builder, compile a scoped mission, then run validation before applying or committing changes.'
+  }, [health?.daemonOnline, missingProviders.length])
+
+  const priorities = [
+    'Keep active work scoped to one mission at a time.',
+    'Use Builder for implementation prompts and Playbooks for triage prompts.',
+    'Run typecheck/build/safety before considering work done.',
+  ]
+
+  return (
+    <div className="flex h-full flex-col bg-[#0A0A0B]">
+      <div className="border-b border-zinc-800/50 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10">
+            <CalendarDays className="h-4 w-4 text-amber-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-zinc-100">Daily Brief</h1>
+            <p className="text-sm text-zinc-500">A local-first chief-of-staff view. Works without Gmail or Calendar access.</p>
+          </div>
+        </div>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="space-y-5 p-6">
+          <DaemonHealthBanner health={health} loading={loading} onRefresh={refresh} />
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-violet-400" />
+                <h2 className="text-sm font-semibold text-zinc-100">Today's priorities</h2>
+              </div>
+              <div className="space-y-2">
+                {priorities.map(priority => (
+                  <div key={priority} className="flex items-start gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3 text-sm text-zinc-400">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                    {priority}
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-4">
+              <div className="mb-3 text-[10px] uppercase tracking-widest text-zinc-600">Recommended next action</div>
+              <p className="text-sm leading-relaxed text-zinc-300">{recommendedAction}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => { window.location.href = '/builder' }}>
+                  <Zap className="h-3.5 w-3.5" />Open Builder
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => { window.location.href = '/playbooks' }}>
+                  <ClipboardList className="h-3.5 w-3.5" />Open Playbooks
+                </Button>
+              </div>
+            </section>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <BriefCard title="Active project" value={activeProject?.name ?? 'None'} detail={activeProject?.description || 'Create or select a project in Memory.'} />
+            <BriefCard title="Provider health" value={`${onlineProviders.length}/${providers.length || 0} online`} detail={missingProviders.length ? `${missingProviders.length} need setup or daemon access.` : 'Configured providers look available.'} />
+            <BriefCard title="Recent build status" value={recentRun?.status ?? 'Unknown'} detail={recentRun ? recentRun.title : 'Run Autopilot Project Build Check for real status.'} />
+            <BriefCard title="Missing integrations" value={missingProviders.length.toString()} detail="External tools stay optional until configured. No paid calls run from this page." />
+          </div>
+
+          <section className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Server className="h-4 w-4 text-blue-400" />
+              <h2 className="text-sm font-semibold text-zinc-100">Provider summary</h2>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {providers.map(provider => (
+                <div key={provider.id} className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-zinc-300">{provider.name}</span>
+                    <Badge variant={provider.status === 'online' ? 'success' : 'default'} className="text-[9px]">{provider.status}</Badge>
+                  </div>
+                  {provider.message && <p className="mt-1 text-[11px] text-zinc-600">{provider.message}</p>}
+                </div>
+              ))}
+              {providers.length === 0 && <p className="text-sm text-zinc-600">Provider status is unavailable.</p>}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-4">
+            <div className="mb-2 text-sm font-semibold text-zinc-100">Generate brief</div>
+            <p className="text-sm text-zinc-500">
+              Brief generation is intentionally not wired to paid models here. Future integrations can summarize calendar, email,
+              GitHub, and daemon logs after you explicitly connect those sources.
+            </p>
+          </section>
+        </div>
+      </ScrollArea>
+    </div>
+  )
+}
+
+function BriefCard({ title, value, detail }: { title: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-4">
+      <div className="text-[10px] uppercase tracking-widest text-zinc-600">{title}</div>
+      <div className="mt-2 text-lg font-semibold text-zinc-100">{value}</div>
+      <p className="mt-1 text-xs text-zinc-500">{detail}</p>
+    </div>
+  )
+}

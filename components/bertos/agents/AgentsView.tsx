@@ -19,6 +19,9 @@ import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import { toast } from 'sonner'
 import { v4 as uuidv4 } from 'uuid'
+import { AGENT_ROSTER } from '@/lib/bertos/command-center'
+import { AGENT_TEAMS, buildAgentTeamPrompt, type AgentTeam } from '@/lib/bertos/agent-teams'
+import { useRouter } from 'next/navigation'
 
 const TASK_TEMPLATES = [
   { title: 'Fix TypeScript Errors',   description: 'Scan codebase for type errors and fix them systematically. Report what was fixed.', model: 'codex-cli' as AIModel, mode: 'debug' as AgentTask['mode'] },
@@ -491,6 +494,7 @@ function TaskCard({ task, daemonOnline }: { task: AgentTask; daemonOnline: boole
 export function AgentsView() {
   const { tasks, createTask } = useAgentStore()
   const { pendingAgentTask, setPendingAgentTask } = useUIStore()
+  const router = useRouter()
   const { health: daemonHealth, loading: daemonHealthLoading, refresh: refreshDaemonHealth } = useDaemonHealth()
   const [showTemplates, setShowTemplates] = useState(false)
   const [customTitle, setCustomTitle] = useState('')
@@ -524,10 +528,32 @@ export function AgentsView() {
   const done    = tasks.filter(t => t.status === 'done').length
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
 
+  const copySetupPrompt = async (name: string, prompt: string) => {
+    await navigator.clipboard.writeText(prompt)
+    toast.success(`${name} setup prompt copied.`)
+  }
+
+  const copyTeamPrompt = async (team: AgentTeam) => {
+    await navigator.clipboard.writeText(buildAgentTeamPrompt(team, `Use ${team.name} for a focused BertOS task.`))
+    toast.success(`${team.name} setup prompt copied.`)
+  }
+
+  const useTeamInBuilder = (team: AgentTeam) => {
+    try {
+      window.localStorage.setItem('bertos-builder-team-request', JSON.stringify({
+        teamId: team.id,
+        task: `Use ${team.name} for a focused BertOS task.\n\nPurpose: ${team.purpose}`,
+      }))
+    } catch {
+      // Builder still opens; it just will not preselect the team if storage is unavailable.
+    }
+    router.push('/builder')
+  }
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-6xl mx-auto">
           <DaemonHealthBanner
             health={daemonHealth}
             loading={daemonHealthLoading}
@@ -554,6 +580,104 @@ export function AgentsView() {
               )}
               {done > 0 && <span className="text-emerald-400">{done} done</span>}
               <span className="text-zinc-600">{tasks.length} total</span>
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-100">Agent roster</h3>
+                <p className="mt-1 text-xs text-zinc-600">Control room for runnable CLIs, copy-prompt teammates, paid-gated providers, and planned integrations.</p>
+              </div>
+              <Badge variant="warning" className="text-[10px]">no auto-merge</Badge>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {AGENT_ROSTER.map(agent => (
+                <article key={agent.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-semibold text-zinc-100">{agent.name}</div>
+                      <div className="mt-0.5 text-[10px] uppercase tracking-widest text-zinc-700">{agent.category}</div>
+                    </div>
+                    <Badge
+                      variant={agent.status === 'available' ? 'success' : agent.status === 'paid-gated' || agent.status === 'experimental' ? 'warning' : 'default'}
+                      className="text-[9px]"
+                    >
+                      {agent.status}
+                    </Badge>
+                  </div>
+                  <p className="line-clamp-2 text-[11px] leading-relaxed text-zinc-500">{agent.role}</p>
+                  <div className="mt-2 space-y-1 text-[10px] text-zinc-600">
+                    <div>Billing: {agent.billing}</div>
+                    <div>Can run now: {agent.canRunNow}</div>
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {agent.requiresDaemon && <Badge variant="default" className="text-[9px]">daemon</Badge>}
+                      {agent.requiresApi && <Badge variant="default" className="text-[9px]">API</Badge>}
+                      {agent.copyPromptOnly && <Badge variant="default" className="text-[9px]">copy prompt only</Badge>}
+                    </div>
+                  </div>
+                  {agent.warning && <p className="mt-2 text-[10px] leading-relaxed text-amber-300/80">{agent.warning}</p>}
+                  <button
+                    onClick={() => void copySetupPrompt(agent.name, agent.setupPrompt)}
+                    className="mt-3 text-[11px] text-violet-300 hover:text-violet-200"
+                  >
+                    Copy setup prompt
+                  </button>
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-100">Agent Teams</h3>
+                <p className="mt-1 text-xs text-zinc-600">Prompt-orchestrated teams with narrow roles, visible outputs, and clear proof. No fake execution.</p>
+              </div>
+              <Badge variant="default" className="text-[10px]">prompt-orchestrated</Badge>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {AGENT_TEAMS.map(team => {
+                const liveCount = team.agents.filter(agent => agent.status === 'live').length
+                const plannedCount = team.agents.filter(agent => agent.status === 'planned').length
+                return (
+                  <article key={team.id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-semibold text-zinc-100">{team.name}</div>
+                        <div className="mt-0.5 text-[10px] uppercase tracking-widest text-zinc-700">{team.status}</div>
+                      </div>
+                      <Badge variant={team.status === 'partially-live' ? 'warning' : 'default'} className="text-[9px]">
+                        {liveCount} live / {plannedCount} planned
+                      </Badge>
+                    </div>
+                    <p className="line-clamp-2 text-[11px] leading-relaxed text-zinc-500">{team.purpose}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {team.agents.slice(0, 5).map(agent => (
+                        <Badge key={agent.id} variant={agent.status === 'live' ? 'success' : agent.status === 'planned' ? 'default' : 'warning'} className="text-[9px]">
+                          {agent.name}
+                        </Badge>
+                      ))}
+                      {team.agents.length > 5 && <Badge variant="default" className="text-[9px]">+{team.agents.length - 5}</Badge>}
+                    </div>
+                    <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">{team.nextSetupStep}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => useTeamInBuilder(team)}
+                        className="text-[11px] text-violet-300 hover:text-violet-200"
+                      >
+                        Use Team in Builder
+                      </button>
+                      <button
+                        onClick={() => void copyTeamPrompt(team)}
+                        className="text-[11px] text-zinc-500 hover:text-zinc-300"
+                      >
+                        Copy Team Setup Prompt
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           </div>
 
@@ -642,7 +766,7 @@ export function AgentsView() {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="max-w-3xl mx-auto px-6 py-4 space-y-3">
+        <div className="max-w-6xl mx-auto px-6 py-4 space-y-3">
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Bot className="w-12 h-12 text-zinc-800 mb-4" />
