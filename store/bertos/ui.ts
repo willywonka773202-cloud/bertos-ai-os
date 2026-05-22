@@ -5,9 +5,9 @@ import type { AIModel, BertOSSettings } from '@/lib/bertos/types'
 interface UIStore {
   commandPaletteOpen: boolean
   rightPanelOpen: boolean
-  rightPanelTab: 'logs' | 'memory' | 'tasks' | 'files' | 'terminal'
+  rightPanelTab: 'logs' | 'memory' | 'tasks' | 'files' | 'terminal' | 'git'
   sidebarCollapsed: boolean
-  activeView: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings'
+  activeView: 'chat' | 'compare' | 'workspace' | 'coding' | 'evolution' | 'agents' | 'memory' | 'settings' | 'dashboard' | 'github' | 'autopilot'
   selectedModel: AIModel
   settings: BertOSSettings
 
@@ -32,7 +32,7 @@ const DEFAULT_SETTINGS: BertOSSettings = {
   ollamaCloudModel: 'gpt-oss:120b-cloud',
   ollamaLocalFallback: 'qwen2.5-coder:latest',
   modelPriority: ['ollama-pro', 'claude-code', 'gemini-cli', 'codex-cli', 'qwen2.5-coder'],
-  tokenBudget: 100000,
+  tokenBudget: 4096,
   animationsEnabled: true,
 }
 

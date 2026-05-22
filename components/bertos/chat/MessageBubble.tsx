@@ -2,7 +2,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import { Copy, Check, Cpu, Globe, Zap, Sparkles, User, ChevronDown, ChevronUp, Info, Bot } from 'lucide-react'
+import { Copy, Check, Cpu, Globe, Zap, Sparkles, User, ChevronDown, ChevronUp, Info, Bot, RotateCcw, Pencil, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/bertos/cn'
@@ -13,6 +13,8 @@ import { getModelColor, getModelLabel } from '@/lib/bertos/router'
 interface MessageBubbleProps {
   message: Message
   isStreaming?: boolean
+  onRetry?: () => void
+  onEdit?: (newContent: string) => void
 }
 
 const MODEL_ICONS: Record<string, React.ReactNode> = {
@@ -62,10 +64,13 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   )
 }
 
-export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming, onRetry, onEdit }: MessageBubbleProps) {
+  const isError = !message.role.includes('user') && message.content.startsWith('**Error:**')
   const isUser = message.role === 'user'
   const [routerOpen, setRouterOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [editValue, setEditValue] = useState(message.content)
 
   const copy = () => {
     navigator.clipboard.writeText(message.content)
@@ -151,7 +156,41 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
           )}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            editing ? (
+              <div className="space-y-2 min-w-[200px]">
+                <textarea
+                  autoFocus
+                  value={editValue}
+                  onChange={e => setEditValue(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      if (editValue.trim() && onEdit) { onEdit(editValue.trim()); setEditing(false) }
+                    }
+                    if (e.key === 'Escape') { setEditing(false); setEditValue(message.content) }
+                  }}
+                  className="w-full min-w-[220px] resize-none rounded-lg bg-white/10 p-2 text-sm text-white placeholder:text-white/40 outline-none border border-white/20 focus:border-white/40"
+                  rows={Math.min(8, editValue.split('\n').length + 1)}
+                />
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => { setEditing(false); setEditValue(message.content) }}
+                    className="text-[11px] text-white/50 hover:text-white/80 transition-colors flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" /> Cancel
+                  </button>
+                  <button
+                    onClick={() => { if (editValue.trim() && onEdit) { onEdit(editValue.trim()); setEditing(false) } }}
+                    disabled={!editValue.trim()}
+                    className="text-[11px] text-violet-200 hover:text-white transition-colors font-medium"
+                  >
+                    Resend ↵
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            )
           ) : (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -249,6 +288,14 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
         {/* Actions */}
         {!isUser && !isStreaming && (
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isError && onRetry && (
+              <button
+                onClick={onRetry}
+                className="flex items-center gap-1.5 text-[10px] text-amber-500 hover:text-amber-400 transition-colors"
+              >
+                <RotateCcw className="w-3 h-3" /> Retry
+              </button>
+            )}
             <button
               onClick={copy}
               className="flex items-center gap-1.5 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
@@ -257,27 +304,49 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
               {copied ? 'Copied' : 'Copy'}
             </button>
             {message.metadata?.tokens && (
-              <span className="text-[10px] text-zinc-700">{message.metadata.tokens} tokens</span>
+              <span className="text-[10px] text-zinc-700">
+                {message.metadata.tokens >= 1000
+                  ? `${(message.metadata.tokens / 1000).toFixed(1)}k tok`
+                  : `${message.metadata.tokens} tok`}
+              </span>
             )}
             {message.metadata?.latency && (
-              <span className="text-[10px] text-zinc-700">{message.metadata.latency}ms</span>
+              <span className="text-[10px] text-zinc-700">
+                {message.metadata.latency >= 1000
+                  ? `${(message.metadata.latency / 1000).toFixed(1)}s`
+                  : `${message.metadata.latency}ms`}
+              </span>
             )}
-            {message.metadata?.providerSource && (
-              <span className="text-[10px] text-zinc-700">source: {message.metadata.providerSource}</span>
+            {message.metadata?.providerSource === 'daemon' && (
+              <span className="text-[10px] text-zinc-700">via daemon</span>
             )}
             {message.metadata?.modelOrTool && (
-              <span className="text-[10px] text-zinc-700 truncate max-w-48">tool: {message.metadata.modelOrTool}</span>
+              <span className="text-[10px] text-zinc-700 truncate max-w-48 font-mono">{message.metadata.modelOrTool}</span>
             )}
             {message.metadata?.fallbackUsed && (
-              <span className="text-[10px] text-amber-500">fallback: {message.metadata.fallbackUsed}</span>
+              <span className="text-[10px] text-amber-500">↳ fallback: {message.metadata.fallbackUsed}</span>
             )}
+            <span className="text-[10px] text-zinc-800 ml-auto">
+              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
           </div>
         )}
       </div>
 
       {isUser && (
-        <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5 bg-violet-600/20 border border-violet-600/30">
-          <User className="w-3.5 h-3.5 text-violet-400" />
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center mt-0.5 bg-violet-600/20 border border-violet-600/30">
+            <User className="w-3.5 h-3.5 text-violet-400" />
+          </div>
+          {onEdit && !editing && !isStreaming && (
+            <button
+              onClick={() => { setEditing(true); setEditValue(message.content) }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-white/5"
+              title="Edit message"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          )}
         </div>
       )}
     </motion.div>

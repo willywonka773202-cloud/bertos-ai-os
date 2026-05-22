@@ -14,7 +14,7 @@ import { askLocalDaemon, type LocalCliProvider } from '@/lib/bertos/local-daemon
 export const runtime = 'nodejs'
 
 const API_MODEL_IDS: Record<string, string> = {
-  'claude-api':  'claude-opus-4-5',
+  'claude-api':  'claude-sonnet-4-6',
   'openai-api':  'gpt-4o',
   'gemini-api':  'gemini-2.0-flash',
 }
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     clientKeys?: ClientKeys
     ollamaEndpoint?: string
     enableApiProviders?: boolean
+    maxTokens?: number
   }
 
   try {
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
     ? routePrompt(conversationMessages[conversationMessages.length - 1]?.content ?? '', 'auto')
     : { primary: modelAlias, reasoning: `Routed to ${modelAlias} as selected.`, confidence: 1, taskType: 'general', strategy: 'single' }
 
+  const maxTokens = Math.min(Math.max(body.maxTokens ?? 4096, 256), 16384)
   const encoder = new TextEncoder()
 
   // Build an SSE ReadableStream
@@ -145,14 +147,19 @@ export async function POST(req: NextRequest) {
             }))
             const apiStream = await client.messages.create({
               model: API_MODEL_IDS['claude-api'],
-              max_tokens: 4096,
+              max_tokens: maxTokens,
               system: systemPrompt,
               messages: apiMessages,
               stream: true,
             })
+            let inputTokens = 0
             for await (const event of apiStream) {
-              if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              if (event.type === 'message_start') {
+                inputTokens = event.message.usage.input_tokens
+              } else if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
                 send({ text: event.delta.text })
+              } else if (event.type === 'message_delta' && event.usage) {
+                send({ tokens: inputTokens + event.usage.output_tokens })
               }
             }
           } else if (effectiveModelAlias === 'openai-api') {
@@ -169,11 +176,13 @@ export async function POST(req: NextRequest) {
               model: API_MODEL_IDS['openai-api'],
               messages: openaiMessages,
               stream: true,
-              max_tokens: 4096,
+              stream_options: { include_usage: true },
+              max_tokens: maxTokens,
             })
             for await (const chunk of apiStream) {
               const text = chunk.choices[0]?.delta?.content
               if (text) send({ text })
+              if (chunk.usage) send({ tokens: (chunk.usage.prompt_tokens ?? 0) + (chunk.usage.completion_tokens ?? 0) })
             }
           } else if (effectiveModelAlias === 'gemini-api') {
             if (!geminiKey) throw new Error('GEMINI_API_KEY is not configured. Add it in Settings → API Keys.')

@@ -28,6 +28,8 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { AIModel } from '@/lib/bertos/types'
+import { GitPanel } from './GitPanel'
+import { useUIStore } from '@/store/bertos/ui'
 
 interface FileNode {
   name: string
@@ -83,6 +85,29 @@ interface PatchProposal {
   riskLevel: 'low' | 'medium' | 'high'
 }
 
+interface PerFileDebug {
+  path: string
+  originalChars: number
+  includedChars: number
+  matchScore: number
+  included: boolean
+  omittedReason?: string
+  truncated?: boolean
+  chunked?: boolean
+}
+
+interface ContextDebug {
+  includedFiles: number
+  omittedFiles: number
+  totalChars: number
+  includedPaths: string[]
+  omittedPaths: string[]
+  truncationWarnings: string[]
+  promptSize: number
+  assembleMs: number
+  perFile: PerFileDebug[]
+}
+
 interface PatchResponse {
   ok: boolean
   proposal?: PatchProposal
@@ -97,6 +122,7 @@ interface PatchResponse {
   }
   error?: string
   raw?: string
+  contextDebug?: ContextDebug
 }
 
 const STORAGE_KEY = 'bertos-workspace-tabs-v2'
@@ -132,6 +158,53 @@ const MEMORY_FACTS = [
   'Ollama Cloud works for API responses.',
   'Claude Code, Codex CLI, and Gemini CLI are available through the daemon when it is online.',
 ]
+
+function readSystemFacts(): string[] {
+  if (useUIStore.getState().settings.memoryEnabled === false) return []
+  try {
+    const raw = localStorage.getItem('bertos-system-facts-v1')
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as Array<{ content: string }>
+    return parsed.map(f => f.content).filter(Boolean)
+  } catch { return [] }
+}
+
+function extractFileNamesFromTask(task: string, flatFiles: FileNode[]): string[] {
+  const taskLower = task.toLowerCase()
+  const found = new Set<string>()
+  for (const file of flatFiles) {
+    const segments = file.path.toLowerCase().split(/[\\/]/)
+    const name = segments[segments.length - 1] ?? ''
+    // Match full filename or path segment (min 5 chars to avoid noise)
+    if (name.length >= 5 && taskLower.includes(name)) {
+      found.add(file.path)
+      continue
+    }
+    // Match path segments like "workspace" or "context-engine"
+    for (const segment of segments) {
+      if (segment.length >= 6 && taskLower.includes(segment)) {
+        found.add(file.path)
+        break
+      }
+    }
+  }
+  return Array.from(found).slice(0, 6)
+}
+
+async function loadContextFiles(paths: string[]): Promise<Array<{ path: string; content: string }>> {
+  const results = await Promise.all(
+    paths.map(async (path) => {
+      try {
+        const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+        if (!res.ok) return null
+        const data = await res.json() as { content?: string }
+        if (typeof data.content !== 'string' || data.content.length === 0) return null
+        return { path, content: data.content }
+      } catch { return null }
+    })
+  )
+  return results.filter((r): r is { path: string; content: string } => r !== null)
+}
 
 function flattenFiles(nodes: FileNode[]): FileNode[] {
   return nodes.flatMap(node => node.type === 'dir' ? flattenFiles(node.children ?? []) : [node])
@@ -284,6 +357,8 @@ export function WorkspaceView() {
   const [fileSearch, setFileSearch] = useState('')
   const [terminalEntries, setTerminalEntries] = useState<TerminalEntry[]>([])
   const [terminalInput, setTerminalInput] = useState('')
+  const [cmdHistory, setCmdHistory] = useState<string[]>([])
+  const [historyPos, setHistoryPos] = useState(-1)
   const [loading, setLoading] = useState(false)
   const [task, setTask] = useState('')
   const [provider, setProvider] = useState<AIModel>('auto')
@@ -294,6 +369,9 @@ export function WorkspaceView() {
   const [applyingPatch, setApplyingPatch] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
   const [generatingCommit, setGeneratingCommit] = useState(false)
+  const [forceIncludeActive, setForceIncludeActive] = useState(true)
+  const [contextDebug, setContextDebug] = useState<ContextDebug | null>(null)
+  const [showContextDebug, setShowContextDebug] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
   const activeTab = tabs.find(tab => tab.path === activeFile)
   const dirty = Boolean(activeTab && activeTab.content !== activeTab.savedContent)
@@ -513,8 +591,31 @@ export function WorkspaceView() {
       toast.error('Command is not allowlisted. Use the safe command buttons or an exact allowed command.')
       return
     }
+    setCmdHistory(prev => [normalized, ...prev.filter(c => c !== normalized)].slice(0, 50))
+    setHistoryPos(-1)
     setTerminalInput('')
     await runCommand({ label: normalized, ...command })
+  }
+
+  const handleTerminalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') { void runCustomCommand(); return }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setHistoryPos(prev => {
+        const next = Math.min(prev + 1, cmdHistory.length - 1)
+        if (cmdHistory[next]) setTerminalInput(cmdHistory[next])
+        return next
+      })
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setHistoryPos(prev => {
+        const next = prev - 1
+        if (next < 0) { setTerminalInput(''); return -1 }
+        if (cmdHistory[next]) setTerminalInput(cmdHistory[next])
+        return next
+      })
+    }
   }
 
   const generatePatch = async () => {
@@ -525,17 +626,39 @@ export function WorkspaceView() {
     setGeneratingPatch(true)
     setProposal(null)
     setProposalProvider(null)
+    setContextDebug(null)
     try {
+      // Auto-load any files mentioned in the task that aren't already open
+      const mentionedPaths = extractFileNamesFromTask(task, flatFiles)
+      const openPaths = new Set(tabs.map(t => t.path))
+      if (forceIncludeActive && activeFile) openPaths.delete(activeFile) // force active through explicit param
+      const pathsToLoad = mentionedPaths.filter(p => !openPaths.has(p))
+      const extraFiles = pathsToLoad.length > 0 ? await loadContextFiles(pathsToLoad) : []
+
+      // Active file content always goes through activeContent; combine open tabs + extra loaded files
+      const openTabFiles = tabs
+        .filter(tab => typeof tab.content === 'string' && tab.content.length > 0)
+        .slice(0, 8)
+        .map(tab => ({ path: tab.path, content: tab.content }))
+
+      // Merge: extra loaded files + open tabs (dedup by path, open tabs take precedence)
+      const mergedMap = new Map<string, { path: string; content: string }>()
+      for (const f of extraFiles) mergedMap.set(f.path, f)
+      for (const f of openTabFiles) mergedMap.set(f.path, f)
+      const includedFiles = Array.from(mergedMap.values())
+
       const res = await fetch('/api/workspace/patch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           task,
           provider,
+          forceActiveFile: forceIncludeActive,
           context: {
             repo: status?.repo,
-            activeFile,
+            activeFile: forceIncludeActive ? (activeFile || undefined) : activeFile,
             activeContent: activeTab?.content,
+            includedFiles,
             fileTree: flatFiles.map(file => file.path),
             gitStatus: status?.repo?.status,
             terminalOutput: terminalEntries.slice(-5).map(entry => [
@@ -544,11 +667,12 @@ export function WorkspaceView() {
               entry.stderr,
               entry.error,
             ].filter(Boolean).join('\n')).join('\n\n'),
-            memories: MEMORY_FACTS,
+            memories: [...MEMORY_FACTS, ...readSystemFacts()],
           },
         }),
       })
       const data = await res.json() as PatchResponse
+      if (data.contextDebug) setContextDebug(data.contextDebug)
       if (!res.ok || !data.ok || !data.proposal) throw new Error(data.error || 'Patch generation failed.')
       const hydratedFiles = data.proposal.files.map(file => {
         const open = tabs.find(tab => tab.path === file.path)
@@ -573,6 +697,7 @@ export function WorkspaceView() {
     if (!safe) return toast.error('Workspace is not safe.')
     setApplyingPatch(true)
     try {
+      const patchedPaths: string[] = []
       for (const file of proposal.files) {
         if (!selectedPatchFiles.has(file.path)) continue
         if (file.operation === 'delete') {
@@ -586,6 +711,7 @@ export function WorkspaceView() {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || `Could not write ${file.path}`)
+        patchedPaths.push(file.path)
         const existing = tabs.find(tab => tab.path === file.path)
         if (existing) {
           setTabs(current => current.map(tab => tab.path === file.path
@@ -593,8 +719,32 @@ export function WorkspaceView() {
             : tab))
         }
       }
+
+      // Reload open tab contents for any patched files from disk.
+      await Promise.all(patchedPaths.map(async path => {
+        const existing = tabs.find(tab => tab.path === path)
+        if (!existing) return
+        const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        setTabs(current => current.map(tab => tab.path === path
+          ? { ...tab, content: data.content ?? '', savedContent: data.content ?? '' }
+          : tab))
+      }))
+
       toast.success('Approved patch files applied.')
       await refresh()
+
+      // Run typecheck and surface the result as a toast.
+      const typecheckCommand = CUSTOM_COMMANDS.get('npm run typecheck')
+      if (typecheckCommand) {
+        const result = await runCommand({ label: 'npm run typecheck', ...typecheckCommand })
+        if (result?.exitCode === 0) {
+          toast.success('Typecheck passed.')
+        } else {
+          toast.error(`Typecheck failed (exit ${result?.exitCode ?? '?'}).`)
+        }
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Patch apply failed.')
     } finally {
@@ -702,7 +852,7 @@ export function WorkspaceView() {
           <div className="ml-auto flex items-center gap-1.5">
             <Button size="sm" variant="ghost" onClick={copyActivePath} disabled={!activeFile}><Copy className="w-3.5 h-3.5" />Path</Button>
             <Button size="sm" variant="ghost" onClick={reloadActiveFile} disabled={!activeTab}><RotateCcw className="w-3.5 h-3.5" />Revert</Button>
-            <Button size="sm" variant="secondary" onClick={saveActiveFile} disabled={!dirty || !safe}>
+            <Button size="sm" variant="secondary" onClick={saveActiveFile} disabled={!dirty || !safe} title="Save current file (Ctrl+S)">
               <Save className="w-3.5 h-3.5" />{dirty ? 'Save' : 'Saved'}
             </Button>
           </div>
@@ -776,7 +926,7 @@ export function WorkspaceView() {
                 <input
                   value={terminalInput}
                   onChange={event => setTerminalInput(event.target.value)}
-                  onKeyDown={event => { if (event.key === 'Enter') void runCustomCommand() }}
+                  onKeyDown={handleTerminalKeyDown}
                   placeholder="Custom safe command, e.g. npm run typecheck"
                   className="flex-1 bg-transparent px-3 py-2 font-mono text-xs text-zinc-300 outline-none placeholder:text-zinc-700"
                 />
@@ -789,11 +939,20 @@ export function WorkspaceView() {
                   {terminalEntries.length === 0 ? (
                     <div className="text-zinc-600">Run a safe command. Output is never faked.</div>
                   ) : terminalEntries.map(entry => (
-                    <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3">
+                    <div key={entry.id} className="rounded-lg border border-zinc-800 bg-zinc-950 p-3 group">
                       <div className="mb-2 flex items-center gap-2 text-zinc-500">
                         {entry.running ? <Loader2 className="w-3 h-3 animate-spin" /> : <PanelBottom className="w-3 h-3" />}
                         <span>$ {entry.label}</span>
                         <span className="ml-auto">{new Date(entry.timestamp).toLocaleTimeString()}</span>
+                        {!entry.running && entry.stdout && (
+                          <button
+                            onClick={() => navigator.clipboard.writeText(entry.stdout)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-600 hover:text-zinc-400"
+                            title="Copy output"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        )}
                         {entry.exitCode !== undefined && <Badge variant={entry.exitCode === 0 ? 'success' : 'error'} className="text-[10px]">exit {entry.exitCode}</Badge>}
                       </div>
                       <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-zinc-400">{entry.stdout}</pre>
@@ -821,7 +980,7 @@ export function WorkspaceView() {
                     placeholder="Describe a repo change. The AI must return structured patch JSON for review."
                     className="min-h-24 w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-700"
                   />
-                  <div className="mt-2 flex items-center gap-2">
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
                     <select
                       value={provider}
                       onChange={event => setProvider(event.target.value as AIModel)}
@@ -837,10 +996,74 @@ export function WorkspaceView() {
                       {generatingPatch ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bot className="w-3.5 h-3.5" />}
                       Generate patch
                     </Button>
+                    <label className="flex items-center gap-1.5 text-[11px] text-zinc-500 cursor-pointer ml-auto">
+                      <input
+                        type="checkbox"
+                        checked={forceIncludeActive}
+                        onChange={e => setForceIncludeActive(e.target.checked)}
+                        className="accent-violet-500"
+                      />
+                      Force active file
+                    </label>
+                    {contextDebug && (
+                      <button
+                        onClick={() => setShowContextDebug(v => !v)}
+                        className="text-[11px] text-zinc-600 hover:text-zinc-300 underline"
+                      >
+                        {showContextDebug ? 'Hide' : 'View'} payload debug
+                      </button>
+                    )}
                   </div>
                   {proposalProvider && (
                     <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2 text-[11px] text-zinc-500">
                       Provider: {proposalProvider.providerName ?? proposalProvider.providerId} / {proposalProvider.modelOrTool ?? 'unknown'} / {proposalProvider.source ?? 'unknown'} / {proposalProvider.latencyMs ?? 'n/a'}ms
+                    </div>
+                  )}
+                  {showContextDebug && contextDebug && (
+                    <div className="mt-3 rounded-lg border border-violet-800/50 bg-violet-950/20 p-3 space-y-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clipboard className="w-3.5 h-3.5 text-violet-400" />
+                        <span className="text-[11px] font-semibold text-violet-300">Final Provider Payload Debug</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(JSON.stringify(contextDebug, null, 2))}
+                          className="ml-auto text-[10px] text-zinc-600 hover:text-zinc-300"
+                          title="Copy debug JSON"
+                        >
+                          <Copy className="w-3 h-3 inline mr-1" />copy
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[10px] text-zinc-500">
+                        <span>Prompt size</span><span className="text-zinc-300">{contextDebug.promptSize.toLocaleString()} chars</span>
+                        <span>Context chars</span><span className="text-zinc-300">{contextDebug.totalChars.toLocaleString()} / 80,000</span>
+                        <span>Files included</span><span className="text-zinc-300">{contextDebug.includedFiles}</span>
+                        <span>Files omitted</span><span className={cn('', contextDebug.omittedFiles > 0 ? 'text-amber-300' : 'text-zinc-300')}>{contextDebug.omittedFiles}</span>
+                        <span>Assemble time</span><span className="text-zinc-300">{contextDebug.assembleMs}ms</span>
+                      </div>
+                      {contextDebug.truncationWarnings.length > 0 && (
+                        <div className="text-[10px] text-amber-300 break-all">{contextDebug.truncationWarnings.join(' | ')}</div>
+                      )}
+                      <div className="space-y-1 mt-1">
+                        {contextDebug.perFile.map(pf => (
+                          <div key={pf.path} className={cn('rounded px-2 py-1 text-[10px] font-mono', pf.included ? 'bg-emerald-950/40 text-emerald-300' : 'bg-red-950/40 text-red-400')}>
+                            <span className="font-semibold">{pf.included ? '✓' : '✗'}</span>
+                            {' '}{pf.path.split(/[\\/]/).pop()}
+                            {pf.included && (
+                              <span className="text-zinc-500 ml-2">
+                                {pf.includedChars.toLocaleString()}/{pf.originalChars.toLocaleString()} chars
+                                {pf.chunked && ' [chunked]'}
+                                {pf.truncated && ' [truncated]'}
+                                {' '}score={pf.matchScore}
+                              </span>
+                            )}
+                            {!pf.included && pf.omittedReason && (
+                              <span className="text-zinc-500 ml-2">{pf.omittedReason}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {contextDebug.omittedPaths.length > 0 && (
+                        <div className="text-[10px] text-zinc-600">Omitted: {contextDebug.omittedPaths.join(', ')}</div>
+                      )}
                     </div>
                   )}
                 </section>
@@ -897,42 +1120,7 @@ export function WorkspaceView() {
                   </section>
                 )}
 
-                <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                  <div className="mb-3 flex items-center gap-2">
-                    <GitCommit className="w-4 h-4 text-emerald-400" />
-                    <h2 className="text-sm font-semibold text-zinc-200">Git workflow</h2>
-                  </div>
-                  <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-900/40 p-2">
-                    <div className="text-[11px] text-zinc-600">Changed files</div>
-                    {changedFiles.length ? (
-                      <ul className="mt-1 space-y-1 text-xs text-zinc-400">
-                        {changedFiles.slice(0, 12).map(file => <li key={file} className="truncate">{file}</li>)}
-                      </ul>
-                    ) : <p className="mt-1 text-xs text-zinc-600">No repo changes detected.</p>}
-                  </div>
-                  <textarea
-                    value={commitMessage}
-                    onChange={event => setCommitMessage(event.target.value)}
-                    placeholder="Commit message"
-                    className="min-h-20 w-full resize-none rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-700"
-                  />
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={generateCommitMessage} disabled={generatingCommit || !changedFiles.length}>
-                      {generatingCommit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clipboard className="w-3.5 h-3.5" />}
-                      Draft message
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={commitChanges} disabled={!commitMessage.trim() || !changedFiles.length || !safe}>
-                      Commit locally
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => toast.message('Push is intentionally disabled in-app until explicit push approval flow is added.')}
-                    >
-                      Push disabled
-                    </Button>
-                  </div>
-                </section>
+                <GitPanel />
               </div>
             </ScrollArea>
           </aside>

@@ -1,7 +1,7 @@
 'use client'
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GitCompare, Send, Cpu, Globe, Zap, Trophy, Copy, Check, Loader2, RotateCcw, Bot } from 'lucide-react'
+import { GitCompare, Send, Cpu, Globe, Zap, Trophy, Copy, Check, Loader2, RotateCcw, Bot, Code2, Download } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { readAIStream } from '@/lib/bertos/stream-utils'
 import { useUIStore } from '@/store/bertos/ui'
+import { useRouter } from 'next/navigation'
 
 interface ModelResponse {
   model: string
@@ -19,13 +20,14 @@ interface ModelResponse {
   error?: string
 }
 
-type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli'
-const MODELS: ModelId[] = ['ollama-pro', 'claude-code', 'gemini-cli']
+type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'codex-cli'
+const MODELS: ModelId[] = ['ollama-pro', 'claude-code', 'gemini-cli', 'codex-cli']
 
 const MODEL_META: Record<ModelId, { label: string; icon: React.ReactNode; color: string; desc: string }> = {
   'ollama-pro':  { label: 'Ollama Pro',  icon: <Bot className="w-4 h-4" />,  color: '#F97316', desc: 'Ollama · Always-on default'    },
   'claude-code': { label: 'Claude Code', icon: <Cpu className="w-4 h-4" />,  color: '#8B5CF6', desc: 'Anthropic · CLI subscription' },
   'gemini-cli':  { label: 'Gemini CLI',  icon: <Globe className="w-4 h-4" />, color: '#3B82F6', desc: 'Google · CLI subscription'    },
+  'codex-cli':   { label: 'Codex CLI',   icon: <Zap className="w-4 h-4" />,   color: '#10B981', desc: 'OpenAI · CLI subscription'    },
 }
 
 const COMPARE_PROMPTS = [
@@ -51,6 +53,9 @@ function StreamingBars({ color }: { color: string }) {
   )
 }
 
+const COMPARE_PREFILL_KEY = 'bertos-coding-prefill-v1'
+const COMPARE_QUERY_PREFILL_KEY = 'bertos-compare-prefill-v1'
+
 export function CompareView() {
   const [query, setQuery] = useState('')
   const [responses, setResponses] = useState<ModelResponse[]>([])
@@ -59,7 +64,26 @@ export function CompareView() {
   const [copiedModel, setCopiedModel] = useState<ModelId | null>(null)
   const [activeTab, setActiveTab] = useState<ModelId>('ollama-pro')
   const abortRefs = useRef<Map<ModelId, AbortController>>(new Map())
-  const { settings } = useUIStore()
+  const { settings, setActiveView } = useUIStore()
+  const router = useRouter()
+
+  useEffect(() => {
+    try {
+      const prefill = localStorage.getItem(COMPARE_QUERY_PREFILL_KEY)
+      if (prefill) {
+        setQuery(prefill)
+        localStorage.removeItem(COMPARE_QUERY_PREFILL_KEY)
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  const sendToCoding = (model: ModelId) => {
+    const r = responses.find(r => r.model === model)
+    if (!r?.content) return
+    try { localStorage.setItem(COMPARE_PREFILL_KEY, r.content) } catch { /* ignore */ }
+    setActiveView('coding')
+    router.push('/coding')
+  }
 
   const patchResponse = useCallback((model: ModelId, patch: Partial<ModelResponse>) => {
     setResponses(prev => prev.map(r => r.model === model ? { ...r, ...patch } : r))
@@ -92,6 +116,8 @@ export function CompareView() {
             systemPrompt: 'You are a helpful AI assistant. Be concise but complete.',
             clientKeys: settings.apiKeys,
             ollamaEndpoint: settings.ollamaEndpoint,
+            enableApiProviders: settings.enableApiProviders ?? false,
+            maxTokens: settings.tokenBudget ?? 4096,
           }),
           signal: ctrl.signal,
         })
@@ -117,14 +143,16 @@ export function CompareView() {
             if (raw === '[DONE]') break
             try {
               const parsed = JSON.parse(raw) as { text?: string; routerDecision?: unknown; error?: string }
-              if (parsed.error) throw new Error(parsed.error)
-              if (parsed.text) patchResponse(model, { content: undefined as never })
+              if (parsed.error) {
+                patchResponse(model, { streaming: false, done: true, error: parsed.error })
+                break
+              }
               if (parsed.text) {
                 setResponses(prev =>
                   prev.map(r => r.model === model ? { ...r, content: r.content + parsed.text } : r)
                 )
               }
-            } catch {}
+            } catch { /* skip malformed SSE lines */ }
           }
         }
 
@@ -148,6 +176,8 @@ export function CompareView() {
     setIsRunning(false)
   }, [isRunning, patchResponse])
 
+  const [exportCopied, setExportCopied] = useState(false)
+
   const copy = (model: ModelId) => {
     const r = responses.find(r => r.model === model)
     if (r?.content) {
@@ -155,6 +185,25 @@ export function CompareView() {
       setCopiedModel(model)
       setTimeout(() => setCopiedModel(null), 2000)
     }
+  }
+
+  const exportMarkdown = () => {
+    if (!responses.length) return
+    const lines = [
+      `# BertOS Compare — ${new Date().toLocaleString()}`,
+      '',
+      `**Prompt:** ${query}`,
+      '',
+      ...responses.map(r => [
+        `## ${MODEL_META[r.model as ModelId]?.label ?? r.model}`,
+        '',
+        r.error ? `> ⚠️ ${r.error}` : (r.content || '_No response_'),
+        '',
+      ].join('\n')),
+    ]
+    navigator.clipboard.writeText(lines.join('\n'))
+    setExportCopied(true)
+    setTimeout(() => setExportCopied(false), 2000)
   }
 
   return (
@@ -171,12 +220,22 @@ export function CompareView() {
               <p className="text-[11px] text-zinc-500">Stream multiple AI providers in parallel — Ollama Pro always works, CLI providers require local setup</p>
             </div>
             {responses.length > 0 && !isRunning && (
-              <button
-                onClick={() => { setResponses([]); setQuery('') }}
-                className="ml-auto flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Reset
-              </button>
+              <div className="ml-auto flex items-center gap-3">
+                <button
+                  onClick={exportMarkdown}
+                  className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                  title="Copy all responses as markdown"
+                >
+                  {exportCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Download className="w-3.5 h-3.5" />}
+                  {exportCopied ? 'Copied!' : 'Export'}
+                </button>
+                <button
+                  onClick={() => { setResponses([]); setQuery('') }}
+                  className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Reset
+                </button>
+              </div>
             )}
           </div>
 
@@ -247,8 +306,8 @@ export function CompareView() {
               })}
             </div>
 
-            {/* Desktop: 3 fixed-height columns. Mobile: full-width vertical stack. */}
-            <div className="flex-1 md:overflow-hidden flex flex-col md:grid md:grid-cols-3 md:divide-x divide-zinc-800/50 overflow-y-auto">
+            {/* Desktop: 4 fixed-height columns. Mobile: full-width vertical stack. */}
+            <div className="flex-1 md:overflow-hidden flex flex-col md:grid md:grid-cols-4 md:divide-x divide-zinc-800/50 overflow-y-auto">
             {responses.map(response => {
               const meta = MODEL_META[response.model as ModelId]
               const isWinner = winner === response.model
@@ -290,8 +349,16 @@ export function CompareView() {
                           <button
                             onClick={() => setWinner(isWinner ? null : response.model as ModelId)}
                             className={cn('p-1 rounded hover:bg-white/5 transition-colors', isWinner ? 'text-amber-400' : 'text-zinc-700')}
+                            title="Mark as best answer"
                           >
                             <Trophy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => sendToCoding(response.model as ModelId)}
+                            className="p-1 rounded hover:bg-white/5 transition-colors text-zinc-700 hover:text-emerald-400"
+                            title="Send to Coding Lab"
+                          >
+                            <Code2 className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )}

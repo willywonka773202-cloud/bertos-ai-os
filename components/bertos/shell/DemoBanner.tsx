@@ -16,7 +16,7 @@ type HealthStatus = {
 }
 
 // Models that are always-on and require no separate configuration
-const ALWAYS_ON = new Set(['auto', 'ollama-pro', 'qwen2.5-coder', 'llama3', 'llama3.2', 'mistral', 'deepseek-coder', 'hermes3'])
+const ALWAYS_ON = new Set(['auto', 'team', 'ollama-pro', 'qwen2.5-coder', 'llama3', 'llama3.2', 'mistral', 'deepseek-coder', 'hermes3'])
 
 // CLI models — available once the local CLI tool is installed
 const CLI_MODELS = new Set(['claude-code', 'gemini-cli', 'codex-cli'])

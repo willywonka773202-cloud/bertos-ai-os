@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
-  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical
+  Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical,
+  Home, Terminal, Github, Power,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -26,7 +27,7 @@ export function CommandPalette() {
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings', href: string) => {
+  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings' | 'dashboard' | 'coding' | 'github' | 'autopilot', href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
@@ -43,12 +44,30 @@ export function CommandPalette() {
       action: () => { createSession(); navigate('chat', '/chat') },
     },
     {
+      id: 'open-dashboard',
+      label: 'Dashboard',
+      description: 'Provider status, system overview, quick actions',
+      icon: <Home className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['dashboard', 'home', 'overview', 'status'],
+      action: () => navigate('dashboard', '/dashboard'),
+    },
+    {
       id: 'open-chat',
       label: 'Go to Chat',
       icon: <MessageSquare className="w-4 h-4" />,
       category: 'Navigate',
       keywords: ['chat', 'go', 'open'],
       action: () => navigate('chat', '/chat'),
+    },
+    {
+      id: 'open-coding',
+      label: 'Coding Lab',
+      description: 'Mission builder, AI patch loop, apply patches',
+      icon: <Terminal className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['coding', 'lab', 'mission', 'patch', 'build'],
+      action: () => navigate('coding', '/coding'),
     },
     {
       id: 'open-compare',
@@ -87,6 +106,27 @@ export function CommandPalette() {
       action: () => navigate('agents', '/agents'),
     },
     {
+      id: 'open-autopilot',
+      label: 'Autopilot',
+      description: 'Mission control — visible, permissioned automations',
+      icon: <Power className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['autopilot', 'automation', 'rules', 'mission', 'control', 'schedule'],
+      action: () => navigate('autopilot', '/autopilot'),
+    },
+    {
+      id: 'autopilot-health-check',
+      label: 'Run: Provider Health Check',
+      description: 'Trigger the Autopilot provider health rule',
+      icon: <Power className="w-4 h-4 text-emerald-400" />,
+      category: 'Actions',
+      keywords: ['autopilot', 'health', 'providers', 'run', 'check'],
+      action: () => {
+        setCommandPaletteOpen(false)
+        navigate('autopilot', '/autopilot')
+      },
+    },
+    {
       id: 'open-memory',
       label: 'Project Memory',
       description: 'View project context and history',
@@ -102,6 +142,15 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['settings', 'config', 'preferences'],
       action: () => navigate('settings', '/settings'),
+    },
+    {
+      id: 'open-github',
+      label: 'GitHub',
+      description: 'Repo status, branches, commit log via daemon',
+      icon: <Github className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['github', 'git', 'pr', 'issue', 'branch'],
+      action: () => navigate('github', '/github'),
     },
     {
       id: 'keyboard-shortcuts',
@@ -125,7 +174,7 @@ export function CommandPalette() {
       id: 'use-claude-code',
       label: 'Switch to Claude Code',
       description: 'Set Claude Code CLI as primary model',
-      icon: <Cpu className="w-4 h-4 text-violet-400" />,
+      icon: <Cpu className="w-4 h-4 text-cyan-300" />,
       category: 'Model',
       keywords: ['claude', 'anthropic', 'model', 'cli'],
       action: () => { setSelectedModel('claude-code'); setCommandPaletteOpen(false) },
@@ -156,6 +205,15 @@ export function CommandPalette() {
       category: 'Model',
       keywords: ['auto', 'router', 'smart', 'automatic'],
       action: () => { setSelectedModel('auto'); setCommandPaletteOpen(false) },
+    },
+    {
+      id: 'use-team',
+      label: 'Switch to Team Mode',
+      description: 'Gemini plan → Claude review → Codex implement → Ollama summarize',
+      icon: <Sparkles className="w-4 h-4 text-purple-400" />,
+      category: 'Model',
+      keywords: ['team', 'pipeline', 'multi', 'chain', 'gemini', 'claude', 'codex'],
+      action: () => { setSelectedModel('team' as Parameters<typeof setSelectedModel>[0]); setCommandPaletteOpen(false) },
     },
     {
       id: 'clear-chat',
@@ -232,7 +290,7 @@ export function CommandPalette() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -20 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden pointer-events-auto"
+              className="w-full max-w-xl bg-[#05080F] border border-zinc-800 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden pointer-events-auto"
             >
               {/* Search input */}
               <div className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800">
@@ -270,11 +328,11 @@ export function CommandPalette() {
                                 className={cn(
                                   'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all duration-100',
                                   isSelected
-                                    ? 'bg-violet-500/15 border border-violet-500/20 text-zinc-100'
+                                    ? 'bg-cyan-500/15 border border-cyan-500/20 text-zinc-100'
                                     : 'text-zinc-400 hover:bg-white/5 border border-transparent'
                                 )}
                               >
-                                <span className={cn(isSelected ? 'text-violet-400' : 'text-zinc-500')}>
+                                <span className={cn(isSelected ? 'text-cyan-300' : 'text-zinc-500')}>
                                   {cmd.icon}
                                 </span>
                                 <div className="flex-1 min-w-0">
@@ -283,7 +341,7 @@ export function CommandPalette() {
                                     <p className="text-[11px] text-zinc-600 truncate">{cmd.description}</p>
                                   )}
                                 </div>
-                                {isSelected && <ArrowRight className="w-3.5 h-3.5 text-violet-400" />}
+                                {isSelected && <ArrowRight className="w-3.5 h-3.5 text-cyan-300" />}
                               </button>
                             )
                           })}
@@ -295,7 +353,7 @@ export function CommandPalette() {
               </div>
 
               {/* Footer */}
-              <div className="flex items-center gap-3 px-4 py-2 border-t border-zinc-800 bg-zinc-950/50">
+              <div className="flex items-center gap-3 px-4 py-2 border-t border-zinc-800 bg-[#05080F]/50">
                 <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
                   <kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[9px]">↑↓</kbd>
                   <span>Navigate</span>

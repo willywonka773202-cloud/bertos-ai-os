@@ -66,7 +66,7 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
       onClick={() => onChange(!value)}
       className={cn(
         'relative w-9 h-5 rounded-full transition-all duration-200',
-        value ? 'bg-violet-600' : 'bg-zinc-700'
+        value ? 'bg-cyan-600' : 'bg-zinc-700'
       )}
     >
       <div className={cn(
@@ -91,6 +91,65 @@ function SecretInput({ value, onChange, placeholder }: { value: string; onChange
       <button onClick={() => setShow(!show)} className="text-zinc-600 hover:text-zinc-400 transition-colors">
         {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
       </button>
+    </div>
+  )
+}
+
+function EnvStatusPanel() {
+  const [envStatus, setEnvStatus] = useState<{ mode?: string; required?: Record<string, boolean | string>; optional?: Record<string, boolean | string> } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  const fetch_ = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/debug/env-status', { cache: 'no-store' })
+      if (res.ok) setEnvStatus(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm text-zinc-200">Environment Variables</p>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={fetch_} disabled={loading}>
+          {loading ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Check'}
+        </Button>
+      </div>
+      {envStatus ? (
+        <div className="space-y-3">
+          <p className="text-[10px] text-zinc-600">Mode: <span className="text-zinc-400 font-mono">{envStatus.mode}</span></p>
+          {envStatus.required && (
+            <div>
+              <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mb-1.5">Required</p>
+              <div className="space-y-1">
+                {Object.entries(envStatus.required).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between font-mono text-[11px]">
+                    <span className="text-zinc-500">{k}</span>
+                    <span className={v === true ? 'text-emerald-400' : v === false ? 'text-red-400' : 'text-zinc-600'}>{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {envStatus.optional && (
+            <div>
+              <p className="text-[10px] font-semibold text-zinc-600 uppercase tracking-wider mb-1.5">Optional</p>
+              <div className="space-y-1">
+                {Object.entries(envStatus.optional).map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between font-mono text-[11px]">
+                    <span className="text-zinc-500">{k}</span>
+                    <span className={v === true ? 'text-emerald-400' : 'text-zinc-600'}>{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-zinc-700">Click Check to inspect server-side env vars (values are never exposed, only presence).</p>
+      )}
     </div>
   )
 }
@@ -183,7 +242,7 @@ export function SettingsView() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* Section nav */}
-      <div className="w-48 flex-shrink-0 border-r border-zinc-800/50 p-3 space-y-0.5">
+      <div className="w-48 flex-shrink-0 border-r border-cyan-500/15 p-3 space-y-0.5">
         <p className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Settings</p>
         {SECTIONS.map(section => (
           <button
@@ -192,11 +251,11 @@ export function SettingsView() {
             className={cn(
               'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
               activeSection === section.id
-                ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+                ? 'bg-cyan-500/15 text-cyan-200 border border-cyan-500/20'
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5 border border-transparent'
             )}
           >
-            <section.icon className={cn('w-3.5 h-3.5', activeSection === section.id && 'text-violet-400')} />
+            <section.icon className={cn('w-3.5 h-3.5', activeSection === section.id && 'text-cyan-300')} />
             <span className="text-xs font-medium">{section.label}</span>
           </button>
         ))}
@@ -394,7 +453,7 @@ export function SettingsView() {
                   <div className="grid gap-2">
                     {(localDaemonStatus?.tools ?? []).map(tool => (
                       <div key={tool.id} className="flex items-center gap-2 rounded-lg bg-zinc-950/50 border border-zinc-800 px-2.5 py-2">
-                        {tool.id === 'claude-code' ? <Cpu className="w-3.5 h-3.5 text-violet-400" /> :
+                        {tool.id === 'claude-code' ? <Cpu className="w-3.5 h-3.5 text-cyan-300" /> :
                          tool.id === 'codex-cli' ? <Zap className="w-3.5 h-3.5 text-emerald-400" /> :
                          <Globe className="w-3.5 h-3.5 text-blue-400" />}
                         <div className="flex-1 min-w-0">
@@ -431,7 +490,7 @@ export function SettingsView() {
                 {([
                   {
                     id: 'claude-code', label: 'Claude Code', color: '#8B5CF6',
-                    icon: <Cpu className="w-4 h-4 text-violet-400" />,
+                    icon: <Cpu className="w-4 h-4 text-cyan-300" />,
                     desc: 'Anthropic Pro subscription · Claude Code CLI',
                     install: 'npm install -g @anthropic-ai/claude-code',
                     login: 'claude login',
@@ -630,29 +689,150 @@ export function SettingsView() {
                     className={cn(
                       'rounded-xl border p-4 text-center transition-all',
                       settings.theme === t.value
-                        ? 'border-violet-500/40 bg-violet-500/10'
+                        ? 'border-cyan-500/40 bg-cyan-500/10'
                         : 'border-zinc-800 hover:border-zinc-700'
                     )}
                   >
                     <div className={cn('w-full h-16 rounded-lg mb-2 border border-zinc-800', t.preview)} />
                     <p className="text-xs font-medium text-zinc-300">{t.label}</p>
-                    {settings.theme === t.value && <Check className="w-3.5 h-3.5 text-violet-400 mx-auto mt-1" />}
+                    {settings.theme === t.value && <Check className="w-3.5 h-3.5 text-cyan-300 mx-auto mt-1" />}
                   </button>
                 ))}
               </div>
             </motion.div>
           )}
 
-          {(activeSection === 'memory' || activeSection === 'performance' || activeSection === 'security') && (
+          {activeSection === 'memory' && (
             <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
               <div>
-                <h3 className="text-base font-semibold text-zinc-200 mb-1 capitalize">{activeSection.replace('-', ' ')}</h3>
-                <p className="text-xs text-zinc-500">Advanced configuration options.</p>
+                <h3 className="text-base font-semibold text-zinc-200 mb-1">Memory</h3>
+                <p className="text-xs text-zinc-500">Control how BertOS stores and uses project context.</p>
               </div>
-              <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-6 text-center">
-                <Settings className="w-8 h-8 text-zinc-700 mx-auto mb-2" />
-                <p className="text-sm text-zinc-600">Advanced settings coming soon</p>
-                <p className="text-xs text-zinc-700 mt-1">These controls are being built into BertOS</p>
+              <div className="space-y-4">
+                {([
+                  { key: 'memoryEnabled', label: 'Enable project memory', desc: 'Persist project facts, todos, and session context across reloads.' },
+                ] as Array<{ key: keyof typeof settings; label: string; desc: string }>).map(opt => (
+                  <div key={opt.key} className="flex items-start justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                    <div>
+                      <p className="text-sm text-zinc-200">{opt.label}</p>
+                      <p className="text-xs text-zinc-600 mt-0.5">{opt.desc}</p>
+                    </div>
+                    <ToggleSwitch value={!!settings[opt.key]} onChange={v => updateSettings({ [opt.key]: v })} />
+                  </div>
+                ))}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+                  <p className="text-sm text-zinc-200">localStorage keys</p>
+                  <p className="text-xs text-zinc-500">These keys are used to persist BertOS state in your browser.</p>
+                  <div className="space-y-1.5">
+                    {[
+                      'bertos-system-facts-v1',
+                      'bertos-coding-history-v1',
+                      'bertos-patch-history-v1',
+                      'bertos-coding-prefill-v1',
+                      'bertos-compare-prefill-v1',
+                      'bertos-evolution-lab-settings-v1',
+                      'bertos-evolution-lab-last-scan-v1',
+                      'bertos-onboarded',
+                      'bertos-ui',
+                      'bertos-chat',
+                      'bertos-projects',
+                      'bertos-agents',
+                    ].map(k => (
+                      <div key={k} className="flex items-center justify-between font-mono text-[11px]">
+                        <span className="text-zinc-500">{k}</span>
+                        <button
+                          onClick={() => { localStorage.removeItem(k); window.location.reload() }}
+                          className="text-red-500/60 hover:text-red-400 transition-colors text-[10px]"
+                        >
+                          clear
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeSection === 'performance' && (
+            <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-200 mb-1">Performance</h3>
+                <p className="text-xs text-zinc-500">Tune streaming, routing, animations, and token budget.</p>
+              </div>
+              <div className="space-y-4">
+                {([
+                  { key: 'streamingEnabled',  label: 'Streaming responses', desc: 'Stream tokens as they arrive instead of waiting for the full response.' },
+                  { key: 'routingEnabled',     label: 'Auto router',         desc: 'Let BertOS pick the best provider per request. Disable to always use the selected model.' },
+                  { key: 'animationsEnabled',  label: 'Animations',          desc: 'Motion effects throughout the UI. Disable for reduced motion.' },
+                ] as Array<{ key: keyof typeof settings; label: string; desc: string }>).map(opt => (
+                  <div key={opt.key} className="flex items-start justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                    <div>
+                      <p className="text-sm text-zinc-200">{opt.label}</p>
+                      <p className="text-xs text-zinc-600 mt-0.5">{opt.desc}</p>
+                    </div>
+                    <ToggleSwitch value={!!settings[opt.key]} onChange={v => updateSettings({ [opt.key]: v })} />
+                  </div>
+                ))}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                  <p className="text-sm text-zinc-200 mb-1">Max response tokens</p>
+                  <p className="text-xs text-zinc-600 mb-3">Maximum output length for API provider responses (Claude, OpenAI, Gemini).</p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={256}
+                      max={16384}
+                      step={256}
+                      value={settings.tokenBudget ?? 4096}
+                      onChange={e => updateSettings({ tokenBudget: Number(e.target.value) })}
+                      className="flex-1 accent-cyan-500"
+                    />
+                    <span className="text-xs font-mono text-zinc-400 w-20 text-right">
+                      {(settings.tokenBudget ?? 4096).toLocaleString()} tok
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {activeSection === 'security' && (
+            <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-200 mb-1">Security</h3>
+                <p className="text-xs text-zinc-500">BertOS safety rules and key hygiene.</p>
+              </div>
+              <div className="space-y-4">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                  {[
+                    'API keys are stored only in localStorage — never sent to a server.',
+                    'GitPanel blocks if the remote contains "sylistly" or any non-allowlisted domain.',
+                    'Local daemon runs on 127.0.0.1:8787 only — not exposed to the network.',
+                    'Auto-push is disabled. All git pushes require explicit user action.',
+                    'Evolution Lab patches require manual approval before being applied.',
+                    'Workspace file writes go through a safety check before execution.',
+                  ].map(rule => (
+                    <div key={rule} className="flex items-start gap-2.5 text-xs text-emerald-300/80">
+                      <span className="mt-0.5 flex-shrink-0">✓</span>
+                      <span>{rule}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                  <p className="text-sm text-zinc-200 mb-1">Key hygiene</p>
+                  <p className="text-xs text-zinc-600 mb-3">
+                    Clear all stored API keys from localStorage. You will need to re-enter them in the API Keys section.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => { updateSettings({ apiKeys: {} }) }}
+                    className="h-7 text-xs"
+                  >
+                    Clear all API keys
+                  </Button>
+                </div>
+                <EnvStatusPanel />
               </div>
             </motion.div>
           )}
