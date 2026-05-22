@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { motion } from 'framer-motion'
 import {
   AlertTriangle,
   Bot,
@@ -403,13 +404,23 @@ export function EvolutionLabView() {
   return (
     <div className="flex h-full overflow-hidden bg-[#09090B]">
       <section className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-zinc-800/50 px-6 py-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/10">
-              <FlaskConical className="h-5 w-5 text-violet-300" />
-            </div>
+        <div className="border-b border-zinc-800/50 px-6 py-5 bg-zinc-950/40 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-3 mb-5">
+            <motion.div
+              animate={scanning
+                ? { boxShadow: ['0 0 8px rgba(139,92,246,0.2)', '0 0 20px rgba(139,92,246,0.5)', '0 0 8px rgba(139,92,246,0.2)'] }
+                : { boxShadow: '0 0 0px transparent' }
+              }
+              transition={{ duration: 1.5, repeat: Infinity }}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/10 flex-shrink-0"
+            >
+              {scanning
+                ? <Loader2 className="h-5 w-5 text-violet-300 animate-spin" />
+                : <FlaskConical className="h-5 w-5 text-violet-300" />
+              }
+            </motion.div>
             <div>
-              <h1 className="text-base font-semibold text-zinc-100">Evolution Lab</h1>
+              <h1 className="text-lg font-bold text-zinc-100 tracking-tight">Evolution Lab</h1>
               <p className="text-xs text-zinc-500">Continuous improvement backlog, patch proposals, and approval-gated self-coding.</p>
             </div>
             <div className="ml-auto flex flex-wrap gap-2">
@@ -421,6 +432,50 @@ export function EvolutionLabView() {
                 {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 Generate next improvement
               </Button>
+            </div>
+          </div>
+
+          {/* Hero stat tiles */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className={cn(
+              'rounded-xl border px-4 py-3',
+              safe ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-amber-500/20 bg-amber-500/5'
+            )}>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Status</p>
+              <div className="flex items-center gap-2">
+                {safe
+                  ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  : <AlertTriangle className="w-4 h-4 text-amber-400" />
+                }
+                <p className={cn('text-sm font-semibold', safe ? 'text-emerald-300' : 'text-amber-300')}>
+                  {safe ? 'Safe' : 'Read-only'}
+                </p>
+              </div>
+            </div>
+            <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Backlog</p>
+              <p className="text-xl font-bold font-mono text-violet-300">{scan?.backlog.length ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Last Scan</p>
+              <p className="text-sm font-semibold text-zinc-300 truncate">
+                {scan ? new Date(scan.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+              </p>
+            </div>
+            <div className={cn(
+              'rounded-xl border px-4 py-3',
+              generating ? 'border-violet-500/30 bg-violet-500/5' : 'border-zinc-800 bg-zinc-900/40'
+            )}>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Generating</p>
+              <div className="flex items-center gap-2">
+                {generating
+                  ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
+                  : <Sparkles className="w-4 h-4 text-zinc-600" />
+                }
+                <p className={cn('text-sm font-semibold', generating ? 'text-violet-300' : 'text-zinc-500')}>
+                  {generating ? 'Running' : 'Idle'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -443,21 +498,38 @@ export function EvolutionLabView() {
                 </div>
 
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                  <div className="mb-2 flex items-center gap-2">
+                  <div className="mb-3 flex items-center gap-2">
                     <Shield className="h-4 w-4 text-blue-300" />
                     <h2 className="text-sm font-semibold text-zinc-200">Recurring mode</h2>
                   </div>
-                  {([
-                    ['suggestOnOpen', 'Suggest improvements every time app opens'],
-                    ['dailyPlan', 'Daily improvement plan'],
-                    ['backgroundScan', 'Background scan only'],
-                  ] as const).map(([key, label]) => (
-                    <label key={key} className="flex items-center gap-2 py-1.5 text-xs text-zinc-400">
-                      <input type="checkbox" checked={recurring[key]} onChange={() => toggleRecurring(key)} />
-                      {label}
-                    </label>
-                  ))}
-                  <p className="mt-2 text-[11px] text-zinc-600">These modes only scan and suggest. They never write files without approval.</p>
+                  <div className="space-y-2">
+                    {([
+                      ['suggestOnOpen', 'Suggest on open', 'Scan every time the app starts'],
+                      ['dailyPlan', 'Daily plan', 'Run a full improvement plan once per day'],
+                      ['backgroundScan', 'Background scan', 'Scan silently without interrupting'],
+                    ] as const).map(([key, label, desc]) => (
+                      <div key={key} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/50 bg-zinc-900/30 px-3 py-2">
+                        <div>
+                          <p className="text-xs font-medium text-zinc-300">{label}</p>
+                          <p className="text-[10px] text-zinc-600">{desc}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleRecurring(key)}
+                          className={cn(
+                            'relative w-8 h-4.5 rounded-full transition-all duration-200 flex-shrink-0',
+                            recurring[key] ? 'bg-violet-600' : 'bg-zinc-700'
+                          )}
+                          style={{ height: '18px', minWidth: '32px' }}
+                        >
+                          <div className={cn(
+                            'absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-all duration-200',
+                            recurring[key] ? 'left-[14px]' : 'left-0.5'
+                          )} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-[11px] text-zinc-600">These modes only scan and suggest — never write without approval.</p>
                 </div>
 
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">

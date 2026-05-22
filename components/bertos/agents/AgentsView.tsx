@@ -182,6 +182,27 @@ function TaskCard({ task }: { task: AgentTask }) {
   )
 }
 
+function AgentStatTile({ label, value, tone, pulse }: { label: string; value: number; tone: 'violet' | 'emerald' | 'amber' | 'red' | 'zinc'; pulse?: boolean }) {
+  const toneMap = {
+    violet: 'text-violet-300 border-violet-500/20 bg-violet-500/5',
+    emerald: 'text-emerald-300 border-emerald-500/20 bg-emerald-500/5',
+    amber: 'text-amber-300 border-amber-500/20 bg-amber-500/5',
+    red: 'text-red-300 border-red-500/20 bg-red-500/5',
+    zinc: 'text-zinc-300 border-zinc-800 bg-zinc-900/40',
+  }
+  return (
+    <div className={cn('rounded-xl border px-4 py-3', toneMap[tone])}>
+      <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">{label}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-xl font-bold font-mono">{value}</p>
+        {pulse && value > 0 && <div className={cn('w-2 h-2 rounded-full animate-pulse', {
+          violet: 'bg-violet-400', emerald: 'bg-emerald-400', amber: 'bg-amber-400', red: 'bg-red-400', zinc: 'bg-zinc-400',
+        }[tone])} />}
+      </div>
+    </div>
+  )
+}
+
 export function AgentsView() {
   const { tasks, createTask } = useAgentStore()
   const [showTemplates, setShowTemplates] = useState(false)
@@ -203,42 +224,46 @@ export function AgentsView() {
 
   const running = tasks.filter(t => t.status === 'running').length
   const done = tasks.filter(t => t.status === 'done').length
+  const failed = tasks.filter(t => t.status === 'failed').length
+  const pending = tasks.filter(t => t.status === 'pending').length
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
+      {/* Hero header */}
+      <div className="flex-shrink-0 px-6 py-5 border-b border-zinc-800/50 bg-zinc-950/40">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-                <Bot className="w-4 h-4 text-violet-400" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-zinc-200">Agent Tasks</h2>
-                <p className="text-[11px] text-zinc-500">Long-running autonomous AI operations</p>
-              </div>
+          <div className="flex items-center gap-3 mb-5">
+            <motion.div
+              animate={{ boxShadow: running > 0
+                ? ['0 0 10px rgba(139,92,246,0.2)', '0 0 20px rgba(139,92,246,0.4)', '0 0 10px rgba(139,92,246,0.2)']
+                : '0 0 0px transparent'
+              }}
+              transition={{ duration: 2.5, repeat: Infinity }}
+              className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0"
+            >
+              <Bot className={cn('w-5 h-5', running > 0 ? 'text-violet-400' : 'text-violet-500')} />
+            </motion.div>
+            <div>
+              <h1 className="text-lg font-bold text-zinc-100 tracking-tight">Agent Tasks</h1>
+              <p className="text-xs text-zinc-500">Long-running autonomous AI operations — run, monitor, approve</p>
             </div>
-            <div className="flex items-center gap-3 text-xs">
-              {running > 0 && (
-                <div className="flex items-center gap-1.5 text-violet-400">
-                  <div className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-                  {running} running
-                </div>
-              )}
-              {done > 0 && (
-                <span className="text-emerald-400">{done} done</span>
-              )}
-              <span className="text-zinc-600">{tasks.length} total</span>
-            </div>
+          </div>
+
+          {/* Stat tiles */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <AgentStatTile label="Running" value={running} tone="violet" pulse />
+            <AgentStatTile label="Pending" value={pending} tone="zinc" />
+            <AgentStatTile label="Done" value={done} tone="emerald" />
+            <AgentStatTile label="Failed" value={failed} tone={failed > 0 ? 'red' : 'zinc'} />
           </div>
 
           {/* Create task */}
           <div className="flex gap-2">
-            <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 space-y-2">
+            <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3 space-y-2 focus-within:border-zinc-700 transition-colors">
               <input
                 value={customTitle}
                 onChange={e => setCustomTitle(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && addCustom()}
                 placeholder="Task title: e.g. Refactor the authentication module"
                 className="w-full bg-transparent text-sm text-zinc-200 placeholder:text-zinc-600 outline-none"
               />
@@ -273,7 +298,7 @@ export function AgentsView() {
               className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1"
             >
               {showTemplates ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              Browse task templates
+              Browse task templates ({TASK_TEMPLATES.length})
             </button>
             <AnimatePresence>
               {showTemplates && (
@@ -288,10 +313,10 @@ export function AgentsView() {
                       <button
                         key={i}
                         onClick={() => addFromTemplate(t)}
-                        className="text-left rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-900 p-3 transition-all"
+                        className="text-left rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-violet-500/30 hover:bg-violet-500/5 p-3 transition-all group"
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <p className="text-xs font-medium text-zinc-300">{t.title}</p>
+                          <p className="text-xs font-medium text-zinc-300 group-hover:text-zinc-100 transition-colors">{t.title}</p>
                           <Badge variant={(MODEL_META[t.model]?.variant ?? 'default') as 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'codex-cli' | 'auto' | 'default'} className="text-[9px] h-4">{t.model}</Badge>
                         </div>
                         <p className="text-[11px] text-zinc-600 line-clamp-2">{t.description}</p>
@@ -310,10 +335,28 @@ export function AgentsView() {
       <ScrollArea className="flex-1">
         <div className="max-w-3xl mx-auto px-6 py-4 space-y-3">
           {tasks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Bot className="w-12 h-12 text-zinc-800 mb-4" />
-              <p className="text-zinc-600 text-sm">No agent tasks yet</p>
-              <p className="text-zinc-700 text-xs mt-1">Create a task above or pick a template to get started</p>
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="relative mb-6">
+                <motion.div
+                  animate={{ opacity: [0.2, 0.4, 0.2], scale: [1, 1.2, 1] }}
+                  transition={{ duration: 3, repeat: Infinity }}
+                  className="absolute inset-0 rounded-full bg-violet-500/10"
+                />
+                <div className="relative w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                  <Bot className="w-8 h-8 text-zinc-700" />
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-zinc-400">No agent tasks yet</p>
+              <p className="text-xs text-zinc-600 mt-1 max-w-xs">
+                Create a custom task above or pick a template to launch an autonomous AI operation.
+              </p>
+              <button
+                onClick={() => setShowTemplates(true)}
+                className="mt-4 text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Browse templates
+              </button>
             </div>
           ) : (
             <AnimatePresence initial={false}>
