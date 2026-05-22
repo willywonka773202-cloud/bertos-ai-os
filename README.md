@@ -216,6 +216,38 @@ Auto routing prefers:
 
 If the local daemon is offline, BertOS falls back to Ollama Pro instead of pretending the CLI ran.
 
+## Devin Integration
+
+BertOS supports [Devin](https://docs.devin.ai) as an external cloud coding agent. Devin is a cloud AI software engineer by Cognition that can open branches, write code, create PRs, and run builds autonomously.
+
+### What is connected
+
+- **Agents page** (`/agents`): Shows a Devin agent card with status, best-use cases, and safety warnings.
+- **Playbooks page** (`/playbooks`): Pre-built Devin task prompts — copy-paste into a new Devin session.
+- **Builder page** (`/builder`): Generate custom scoped task prompts for Devin (or other agents). Includes "Copy for Devin" button.
+- **Provider status** (`/api/providers/status`): Reports Devin status under `externalAgents.devin`.
+
+### What is placeholder
+
+- No live Devin API calls are made. BertOS generates task prompts that you manually paste into Devin.
+- The `DEVIN_API_KEY` env var is checked for status only. If set, Devin shows as "configured" instead of "not-connected".
+
+### How to use Devin safely
+
+1. Use the Builder (`/builder`) to generate a scoped task prompt.
+2. Open [app.devin.ai](https://app.devin.ai), start a new session, and paste the prompt.
+3. Devin opens a branch and creates a PR.
+4. **Review the PR manually. Do not auto-merge.**
+5. After merging, record what happened in BertOS Memory.
+
+### Safety rules
+
+- Do not auto-merge Devin PRs.
+- Do not give Devin unrestricted repo access — scope tasks narrowly.
+- Do not edit `.env.local` through Devin.
+- Do not print or expose secrets.
+- BertOS does not call paid Devin APIs unless `DEVIN_API_KEY` is explicitly configured.
+
 ## Hermes and Composio
 
 The environment schema reserves:

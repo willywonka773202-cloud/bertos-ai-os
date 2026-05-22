@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, FlaskConical,
   Plus, ChevronLeft, ChevronRight, Hash, Zap, Command, Trash2,
+  BookOpen, Hammer,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -19,6 +20,8 @@ const NAV_ITEMS = [
   { id: 'workspace', icon: Code2,         label: 'Workspace', href: '/workspace' },
   { id: 'evolution', icon: FlaskConical,  label: 'Evolution', href: '/evolution' },
   { id: 'agents',    icon: Bot,           label: 'Agents',    href: '/agents'    },
+  { id: 'playbooks', icon: BookOpen,      label: 'Playbooks', href: '/playbooks' },
+  { id: 'builder',   icon: Hammer,        label: 'Builder',   href: '/builder'   },
   { id: 'memory',    icon: Brain,         label: 'Memory',    href: '/memory'    },
 ] as const
 
