@@ -12,24 +12,24 @@ import { readAIStream } from '@/lib/bertos/stream-utils'
 import type { AIModel, RouterDecision } from '@/lib/bertos/types'
 
 const WELCOME_PROMPTS = [
-  { icon: <Cpu className="w-4 h-4 text-violet-400" />, label: 'Explain async/await in TypeScript with examples' },
-  { icon: <Sparkles className="w-4 h-4 text-amber-400" />, label: 'What is the best AI stack for a startup in 2025?' },
-  { icon: <Globe className="w-4 h-4 text-blue-400" />, label: 'Research the latest breakthroughs in LLM architecture' },
-  { icon: <Zap className="w-4 h-4 text-emerald-400" />, label: 'Build a React hook for debounced localStorage sync' },
-  { icon: <Cpu className="w-4 h-4 text-violet-400" />, label: 'Write a compelling product roadmap for an AI startup' },
-  { icon: <Globe className="w-4 h-4 text-blue-400" />, label: 'Compare REST vs GraphQL vs tRPC for a Next.js app' },
+  { icon: <Cpu className="w-4 h-4 text-cyan-300" />,    label: 'Explain async/await in TypeScript with examples' },
+  { icon: <Sparkles className="w-4 h-4 text-amber-300" />, label: 'What is the best AI stack for a startup in 2025?' },
+  { icon: <Globe className="w-4 h-4 text-cyan-400" />,   label: 'Research the latest breakthroughs in LLM architecture' },
+  { icon: <Zap className="w-4 h-4 text-amber-400" />,    label: 'Build a React hook for debounced localStorage sync' },
+  { icon: <Cpu className="w-4 h-4 text-cyan-300" />,     label: 'Write a compelling product roadmap for an AI startup' },
+  { icon: <Globe className="w-4 h-4 text-cyan-400" />,   label: 'Compare REST vs GraphQL vs tRPC for a Next.js app' },
 ]
 
 function SkeletonMessage() {
   return (
     <div className="flex gap-3 py-2">
-      <div className="w-7 h-7 rounded-lg bg-zinc-800 flex-shrink-0 mt-0.5 animate-pulse" />
+      <div className="w-7 h-7 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex-shrink-0 mt-0.5 animate-pulse" />
       <div className="flex-1 space-y-2 pt-1">
-        <div className="h-3 bg-zinc-800 rounded-full w-20 animate-pulse" />
+        <div className="h-3 bg-cyan-500/15 rounded-full w-24 animate-pulse" />
         <div className="space-y-1.5">
-          <div className="h-2.5 bg-zinc-800/70 rounded-full w-full animate-pulse" />
-          <div className="h-2.5 bg-zinc-800/60 rounded-full w-4/5 animate-pulse" style={{ animationDelay: '0.1s' }} />
-          <div className="h-2.5 bg-zinc-800/40 rounded-full w-3/5 animate-pulse" style={{ animationDelay: '0.2s' }} />
+          <div className="h-2.5 bg-cyan-500/10 rounded-full w-full animate-pulse" />
+          <div className="h-2.5 bg-cyan-500/10 rounded-full w-4/5 animate-pulse" style={{ animationDelay: '0.1s' }} />
+          <div className="h-2.5 bg-cyan-500/8 rounded-full w-3/5 animate-pulse" style={{ animationDelay: '0.2s' }} />
         </div>
       </div>
     </div>
@@ -39,7 +39,7 @@ function SkeletonMessage() {
 export function ChatView() {
   const {
     sessions, activeSessionId, isStreaming,
-    createSession, addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage,
+    createSession, getOrCreateSession, addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage,
     setStreaming, updateSessionTitle, getActiveSession, setActiveSession,
   } = useChatStore()
   const { selectedModel, settings, setActiveView, setSelectedModel } = useUIStore()
@@ -72,16 +72,15 @@ export function ChatView() {
   const session = getActiveSession()
   const messages = session?.messages ?? []
 
-  // Bootstrap first session
+  // Bootstrap: if no active session, focus an existing one. Do NOT spawn an
+  // empty session — the welcome screen handles the zero-state, and sendMessage
+  // will create the session on first submit. This stops "ghost" empty sessions
+  // from cluttering Recent Chats.
   useEffect(() => {
-    if (!activeSessionId) {
-      if (sessions.length > 0) {
-        useChatStore.getState().setActiveSession(sessions[0].id)
-      } else {
-        createSession(selectedModel)
-      }
+    if (!activeSessionId && sessions.length > 0) {
+      useChatStore.getState().setActiveSession(sessions[0].id)
     }
-  }, [activeSessionId, sessions, createSession, selectedModel])
+  }, [activeSessionId, sessions])
 
   const scrollToBottom = useCallback((smooth = true) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
@@ -123,17 +122,17 @@ export function ChatView() {
       content = `Explain in detail: ${trimmed.slice(9).trim()}`
     }
 
-    // Ensure active session
-    let sessionId = activeSessionId
-    if (!sessionId) {
-      const s = createSession(selectedModel)
-      sessionId = s.id
-    }
+    // Ensure an active session — reuse the empty active one if present so
+    // pressing Enter never creates a "phantom" extra chat.
+    const session = getOrCreateSession(selectedModel)
+    const sessionId = session.id
     setActiveSession(sessionId)
 
+    // Title from first prompt (always rewrite "New Chat")
     const currentSession = useChatStore.getState().sessions.find(s => s.id === sessionId)
     if (!currentSession || currentSession.title === 'New Chat') {
-      updateSessionTitle(sessionId, content.length > 50 ? content.slice(0, 50) + '…' : content)
+      const fallback = content.replace(/\s+/g, ' ').trim().slice(0, 60)
+      updateSessionTitle(sessionId, fallback || 'New Chat')
     }
     addMessage(sessionId, { role: 'user', content })
 
@@ -356,7 +355,7 @@ export function ChatView() {
     settings.routingEnabled, settings.tokenBudget, settings.ollamaEndpoint,
     settings.enableApiProviders,
     addMessage, appendToMessage, updateMessage, patchMessageMetadata, deleteMessage, setStreaming,
-    createSession, updateSessionTitle, getActiveProject, setActiveSession, setActiveView, setSelectedModel,
+    createSession, getOrCreateSession, updateSessionTitle, getActiveProject, setActiveSession, setActiveView, setSelectedModel,
   ])
 
   const makeRetry = useCallback((failedMsgId: string) => () => {
@@ -421,22 +420,29 @@ export function ChatView() {
               <div className="space-y-4">
                 <div className="relative inline-flex">
                   <motion.div
-                    animate={{ boxShadow: ['0 0 40px rgba(139,92,246,0.3)', '0 0 70px rgba(139,92,246,0.5)', '0 0 40px rgba(139,92,246,0.3)'] }}
+                    animate={{
+                      boxShadow: [
+                        '0 0 32px rgba(34,211,238,0.35), inset 0 0 24px rgba(217,119,6,0.15)',
+                        '0 0 60px rgba(34,211,238,0.55), inset 0 0 32px rgba(217,119,6,0.25)',
+                        '0 0 32px rgba(34,211,238,0.35), inset 0 0 24px rgba(217,119,6,0.15)',
+                      ],
+                    }}
                     transition={{ duration: 3, repeat: Infinity }}
-                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center"
+                    className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 via-cyan-600 to-amber-600 flex items-center justify-center border-2 border-cyan-300/40"
                   >
-                    <Sparkles className="w-8 h-8 text-white" />
+                    <Sparkles className="w-10 h-10 text-white drop-shadow" />
                   </motion.div>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-400 border-4 border-[#0A0A0B]" />
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-400 border-4 border-[#02050B] shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold tracking-tight">
-                    <span className="text-zinc-100">How can </span>
-                    <span className="bg-gradient-to-r from-violet-400 via-blue-400 to-emerald-400 bg-clip-text text-transparent">BertOS</span>
-                    <span className="text-zinc-100"> help?</span>
+                  <p className="text-[10px] text-amber-300/80 uppercase tracking-[0.3em] mb-2 font-bold">Oracle awaiting query</p>
+                  <h1 className="text-3xl font-black tracking-tight">
+                    <span className="text-cyan-50">How can the </span>
+                    <span className="text-hermes-gradient">Oracle</span>
+                    <span className="text-cyan-50"> assist?</span>
                   </h1>
-                  <p className="text-zinc-500 mt-2 text-sm max-w-sm mx-auto leading-relaxed">
-                    Claude, Codex, and Gemini — unified. The right AI for every task, automatically.
+                  <p className="text-cyan-100/40 mt-2 text-sm max-w-sm mx-auto leading-relaxed">
+                    Claude, Codex, and Gemini — channeled through one cockpit. Smart routing engages automatically.
                   </p>
                 </div>
               </div>
@@ -449,20 +455,20 @@ export function ChatView() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.06 + i * 0.04 }}
                     onClick={() => sendMessage(p.label)}
-                    className="flex items-center gap-2.5 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 p-3 text-left transition-all duration-150 group"
+                    className="flex items-center gap-2.5 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.03] hover:bg-cyan-500/[0.08] hover:border-cyan-500/40 p-3 text-left transition-all duration-150 group hover:shadow-[0_0_16px_rgba(34,211,238,0.15)]"
                   >
                     <span className="flex-shrink-0">{p.icon}</span>
-                    <span className="text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors leading-snug">{p.label}</span>
+                    <span className="text-xs text-cyan-100/60 group-hover:text-cyan-100 transition-colors leading-snug">{p.label}</span>
                   </motion.button>
                 ))}
               </div>
 
-              <div className="flex items-center gap-3 text-[11px] text-zinc-700">
-                <div className="flex items-center gap-1.5"><kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[10px]">⌘K</kbd><span>Commands</span></div>
-                <span className="text-zinc-800">·</span>
-                <div className="flex items-center gap-1.5"><kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[10px]">/</kbd><span>Slash menu</span></div>
-                <span className="text-zinc-800">·</span>
-                <div className="flex items-center gap-1.5"><kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[10px]">⌘?</kbd><span>Shortcuts</span></div>
+              <div className="flex items-center gap-3 text-[11px] text-cyan-100/30">
+                <div className="flex items-center gap-1.5"><kbd className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded text-[10px] font-mono">⌘K</kbd><span>Commands</span></div>
+                <span className="text-cyan-500/30">·</span>
+                <div className="flex items-center gap-1.5"><kbd className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 px-1 py-0.5 rounded text-[10px] font-mono">/</kbd><span>Slash menu</span></div>
+                <span className="text-cyan-500/30">·</span>
+                <div className="flex items-center gap-1.5"><kbd className="bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded text-[10px] font-mono">⌘?</kbd><span>Shortcuts</span></div>
               </div>
             </motion.div>
           ) : (

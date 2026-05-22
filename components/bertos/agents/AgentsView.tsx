@@ -34,7 +34,7 @@ const MODEL_META: Record<string, { icon: React.ReactNode; color: string; variant
 
 const STATUS_CONFIG: Record<AgentTask['status'], { icon: React.ReactNode; color: string; bgColor: string; label: string }> = {
   pending: { icon: <Clock className="w-3.5 h-3.5" />, color: 'text-zinc-400', bgColor: 'bg-zinc-400', label: 'Pending' },
-  running: { icon: <Activity className="w-3.5 h-3.5 animate-pulse" />, color: 'text-violet-400', bgColor: 'bg-violet-400', label: 'Running' },
+  running: { icon: <Activity className="w-3.5 h-3.5 animate-pulse" />, color: 'text-cyan-300', bgColor: 'bg-cyan-300', label: 'Running' },
   paused: { icon: <Pause className="w-3.5 h-3.5" />, color: 'text-amber-400', bgColor: 'bg-amber-400', label: 'Paused' },
   done: { icon: <CheckCircle2 className="w-3.5 h-3.5" />, color: 'text-emerald-400', bgColor: 'bg-emerald-400', label: 'Complete' },
   failed: { icon: <XCircle className="w-3.5 h-3.5" />, color: 'text-red-400', bgColor: 'bg-red-400', label: 'Failed' },
@@ -83,7 +83,7 @@ function TaskCard({ task }: { task: AgentTask }) {
       animate={{ opacity: 1, y: 0 }}
       className={cn(
         'rounded-xl border p-4 space-y-3 transition-all duration-300',
-        task.status === 'running' && 'border-violet-500/30 bg-violet-500/5',
+        task.status === 'running' && 'border-cyan-500/30 bg-cyan-500/5',
         task.status === 'done' && 'border-emerald-500/20 bg-emerald-500/5',
         task.status === 'failed' && 'border-red-500/20 bg-red-500/5',
         task.status === 'pending' || task.status === 'paused' ? 'border-zinc-800 bg-zinc-900/50' : ''
@@ -184,7 +184,7 @@ function TaskCard({ task }: { task: AgentTask }) {
 
 function AgentStatTile({ label, value, tone, pulse }: { label: string; value: number; tone: 'violet' | 'emerald' | 'amber' | 'red' | 'zinc'; pulse?: boolean }) {
   const toneMap = {
-    violet: 'text-violet-300 border-violet-500/20 bg-violet-500/5',
+    violet: 'text-cyan-200 border-cyan-500/20 bg-cyan-500/5',
     emerald: 'text-emerald-300 border-emerald-500/20 bg-emerald-500/5',
     amber: 'text-amber-300 border-amber-500/20 bg-amber-500/5',
     red: 'text-red-300 border-red-500/20 bg-red-500/5',
@@ -196,7 +196,7 @@ function AgentStatTile({ label, value, tone, pulse }: { label: string; value: nu
       <div className="flex items-center gap-2">
         <p className="text-xl font-bold font-mono">{value}</p>
         {pulse && value > 0 && <div className={cn('w-2 h-2 rounded-full animate-pulse', {
-          violet: 'bg-violet-400', emerald: 'bg-emerald-400', amber: 'bg-amber-400', red: 'bg-red-400', zinc: 'bg-zinc-400',
+          violet: 'bg-cyan-300', emerald: 'bg-emerald-400', amber: 'bg-amber-400', red: 'bg-red-400', zinc: 'bg-zinc-400',
         }[tone])} />}
       </div>
     </div>
@@ -230,18 +230,18 @@ export function AgentsView() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Hero header */}
-      <div className="flex-shrink-0 px-6 py-5 border-b border-zinc-800/50 bg-zinc-950/40">
+      <div className="flex-shrink-0 px-6 py-5 border-b border-cyan-500/15 bg-[radial-gradient(ellipse_at_top,_rgba(34,211,238,0.07),_transparent_60%)]">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center gap-3 mb-5">
             <motion.div
               animate={{ boxShadow: running > 0
-                ? ['0 0 10px rgba(139,92,246,0.2)', '0 0 20px rgba(139,92,246,0.4)', '0 0 10px rgba(139,92,246,0.2)']
+                ? ['0 0 10px rgba(34,211,238,0.2)', '0 0 20px rgba(34,211,238,0.4)', '0 0 10px rgba(34,211,238,0.2)']
                 : '0 0 0px transparent'
               }}
               transition={{ duration: 2.5, repeat: Infinity }}
-              className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center flex-shrink-0"
+              className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center flex-shrink-0"
             >
-              <Bot className={cn('w-5 h-5', running > 0 ? 'text-violet-400' : 'text-violet-500')} />
+              <Bot className={cn('w-5 h-5', running > 0 ? 'text-cyan-300' : 'text-cyan-500')} />
             </motion.div>
             <div>
               <h1 className="text-lg font-bold text-zinc-100 tracking-tight">Agent Tasks</h1>
@@ -313,7 +313,7 @@ export function AgentsView() {
                       <button
                         key={i}
                         onClick={() => addFromTemplate(t)}
-                        className="text-left rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-violet-500/30 hover:bg-violet-500/5 p-3 transition-all group"
+                        className="text-left rounded-xl border border-zinc-800 bg-zinc-900/50 hover:border-cyan-500/30 hover:bg-cyan-500/5 p-3 transition-all group"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <p className="text-xs font-medium text-zinc-300 group-hover:text-zinc-100 transition-colors">{t.title}</p>
@@ -340,7 +340,7 @@ export function AgentsView() {
                 <motion.div
                   animate={{ opacity: [0.2, 0.4, 0.2], scale: [1, 1.2, 1] }}
                   transition={{ duration: 3, repeat: Infinity }}
-                  className="absolute inset-0 rounded-full bg-violet-500/10"
+                  className="absolute inset-0 rounded-full bg-cyan-500/10"
                 />
                 <div className="relative w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
                   <Bot className="w-8 h-8 text-zinc-700" />
@@ -352,7 +352,7 @@ export function AgentsView() {
               </p>
               <button
                 onClick={() => setShowTemplates(true)}
-                className="mt-4 text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1.5"
+                className="mt-4 text-xs text-cyan-300 hover:text-cyan-200 transition-colors flex items-center gap-1.5"
               >
                 <Sparkles className="w-3.5 h-3.5" />
                 Browse templates

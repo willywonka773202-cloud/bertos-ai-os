@@ -23,13 +23,13 @@ import {
 
 const ACTION_META: Record<AutomationAction, { label: string; icon: typeof Activity; tone: string }> = {
   'check-provider-health':       { label: 'Provider Health',   icon: Server,          tone: 'text-blue-400'    },
-  'run-typecheck':               { label: 'TypeScript Check',  icon: Code2,           tone: 'text-violet-400'  },
+  'run-typecheck':               { label: 'TypeScript Check',  icon: Code2,           tone: 'text-cyan-300'  },
   'run-build':                   { label: 'Production Build',  icon: Hammer,          tone: 'text-amber-400'   },
   'run-lint':                    { label: 'Lint',              icon: AlertTriangle,   tone: 'text-orange-400'  },
   'run-tests':                   { label: 'Test Suite',        icon: TestTube,        tone: 'text-emerald-400' },
   'git-status':                  { label: 'Git Status',        icon: GitBranch,       tone: 'text-emerald-400' },
   'git-diff-stat':               { label: 'Git Diff Stat',     icon: GitCommit,       tone: 'text-blue-400'    },
-  'create-agent-plan':           { label: 'Plan with AI',      icon: Bot,             tone: 'text-violet-400'  },
+  'create-agent-plan':           { label: 'Plan with AI',      icon: Bot,             tone: 'text-cyan-300'  },
   'create-workspace-debug-task': { label: 'Debug Task',        icon: Bug,             tone: 'text-red-400'     },
   'create-project-health-report':{ label: 'Health Report',     icon: FileSearch,      tone: 'text-emerald-400' },
 }
@@ -42,7 +42,7 @@ const RISK_META: Record<AutomationRule['risk'], { label: string; color: string; 
 
 const STATUS_META: Record<AutomationRun['status'], { label: string; tone: string; pulse?: boolean }> = {
   'queued':         { label: 'Queued',           tone: 'text-zinc-400 bg-zinc-500/10 border-zinc-700' },
-  'running':        { label: 'Running',          tone: 'text-violet-300 bg-violet-500/10 border-violet-500/30', pulse: true },
+  'running':        { label: 'Running',          tone: 'text-cyan-200 bg-cyan-500/10 border-cyan-500/30', pulse: true },
   'completed':      { label: 'Completed',        tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30' },
   'failed':         { label: 'Failed',           tone: 'text-red-300 bg-red-500/10 border-red-500/30' },
   'blocked':        { label: 'Blocked',          tone: 'text-amber-300 bg-amber-500/10 border-amber-500/30' },
@@ -83,7 +83,7 @@ function ActionRow({ action, isLast }: { action: AutomationRunAction; isLast: bo
   const Icon = meta.icon
 
   const statusIcon = (() => {
-    if (action.status === 'running')   return <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400" />
+    if (action.status === 'running')   return <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-300" />
     if (action.status === 'completed') return <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
     if (action.status === 'failed')    return <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
     if (action.status === 'skipped')   return <Pause className="w-3.5 h-3.5 text-zinc-500" />
@@ -100,7 +100,7 @@ function ActionRow({ action, isLast }: { action: AutomationRunAction; isLast: bo
       <div className="flex items-start gap-3 py-1.5">
         <div className={cn(
           'flex h-[34px] w-[34px] flex-shrink-0 items-center justify-center rounded-lg border',
-          action.status === 'running'   && 'border-violet-500/30 bg-violet-500/5',
+          action.status === 'running'   && 'border-cyan-500/30 bg-cyan-500/5',
           action.status === 'completed' && 'border-emerald-500/30 bg-emerald-500/5',
           action.status === 'failed'    && 'border-red-500/30 bg-red-500/5',
           action.status === 'pending'   && 'border-zinc-800 bg-zinc-950',
@@ -166,12 +166,12 @@ function RuleCard({ rule, lastRun, onRun, onToggle, running }: {
       transition={{ duration: 0.2 }}
       className={cn(
         'group relative overflow-hidden rounded-xl border bg-zinc-950/60 p-4 transition-all',
-        rule.enabled ? 'border-zinc-800 hover:border-violet-500/30' : 'border-zinc-900 opacity-60'
+        rule.enabled ? 'border-zinc-800 hover:border-cyan-500/30' : 'border-zinc-900 opacity-60'
       )}
     >
       {running && (
         <motion.span
-          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-violet-400 to-transparent"
+          className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-300 to-transparent"
           animate={{ x: ['-100%', '100%'] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
         />
@@ -232,7 +232,7 @@ function RuleCard({ rule, lastRun, onRun, onToggle, running }: {
                 onClick={onToggle}
                 className={cn(
                   'relative w-9 h-5 rounded-full transition-colors',
-                  rule.enabled ? 'bg-violet-500' : 'bg-zinc-800'
+                  rule.enabled ? 'bg-cyan-500' : 'bg-zinc-800'
                 )}
               >
                 <motion.span
@@ -247,7 +247,7 @@ function RuleCard({ rule, lastRun, onRun, onToggle, running }: {
         </div>
       </div>
 
-      <div className="mt-3 pt-3 border-t border-zinc-800/50 flex items-center justify-end gap-2">
+      <div className="mt-3 pt-3 border-t border-cyan-500/15 flex items-center justify-end gap-2">
         <Button
           size="sm"
           variant="secondary"
@@ -439,30 +439,30 @@ export function AutopilotView() {
   const awaitingApproval = runs.filter(r => r.status === 'needs-approval').length
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#09090B]">
+    <div className="flex h-full flex-col overflow-hidden bg-transparent">
       {/* Hero header */}
-      <header className="border-b border-zinc-800/50 px-6 py-5 flex-shrink-0 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-blue-500/5 pointer-events-none" />
+      <header className="border-b border-cyan-500/15 px-6 py-5 flex-shrink-0 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,_rgba(34,211,238,0.10),_transparent_55%),radial-gradient(ellipse_at_bottom_right,_rgba(217,119,6,0.08),_transparent_55%)] pointer-events-none" />
         <div className="relative flex items-center gap-4">
           <div className="relative">
             <motion.div
               animate={{
                 boxShadow: activelyRunning > 0
-                  ? ['0 0 0 0 rgba(139,92,246,0.4)', '0 0 0 12px rgba(139,92,246,0)', '0 0 0 0 rgba(139,92,246,0)']
-                  : ['0 0 8px rgba(139,92,246,0.15)', '0 0 12px rgba(139,92,246,0.3)', '0 0 8px rgba(139,92,246,0.15)'],
+                  ? ['0 0 0 0 rgba(34,211,238,0.5)', '0 0 0 14px rgba(34,211,238,0)', '0 0 0 0 rgba(34,211,238,0)']
+                  : ['0 0 10px rgba(217,119,6,0.2)', '0 0 22px rgba(34,211,238,0.35)', '0 0 10px rgba(217,119,6,0.2)'],
               }}
               transition={{ duration: activelyRunning > 0 ? 1.5 : 3, repeat: Infinity }}
-              className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-600/80 to-blue-600/80 flex items-center justify-center border border-violet-500/30"
+              className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 via-cyan-700 to-amber-600 flex items-center justify-center border border-cyan-400/40"
             >
-              <Power className="w-5 h-5 text-white" />
+              <Power className="w-5 h-5 text-white drop-shadow" />
             </motion.div>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold tracking-tight text-zinc-50">BertOS Autopilot</h1>
-              <Badge variant="info" className="text-[10px]">Mission Control</Badge>
+              <h1 className="text-xl font-black tracking-tight text-cyan-50">Autopilot</h1>
+              <span className="text-[10px] font-bold text-amber-300/80 uppercase tracking-[0.2em] border border-amber-500/30 bg-amber-500/10 rounded px-1.5 py-0.5">Mission Control</span>
             </div>
-            <p className="text-xs text-zinc-500 mt-0.5">
+            <p className="text-xs text-cyan-100/50 mt-0.5">
               Visible, permissioned automation. Every action is logged. Nothing applies without your approval.
             </p>
           </div>
@@ -477,9 +477,9 @@ export function AutopilotView() {
       {/* Main split */}
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_460px]">
         {/* Rules list */}
-        <section className="border-r border-zinc-800/50 min-h-0">
-          <div className="flex items-center gap-2 px-6 py-3 border-b border-zinc-800/50">
-            <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+        <section className="border-r border-cyan-500/15 min-h-0">
+          <div className="flex items-center gap-2 px-6 py-3 border-b border-cyan-500/15">
+            <Sparkles className="w-3.5 h-3.5 text-cyan-300" />
             <h2 className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Automation Rules</h2>
             <span className="text-[10px] text-zinc-600 ml-auto">{rules.length} total</span>
           </div>
@@ -517,7 +517,7 @@ export function AutopilotView() {
                       onClick={() => setActiveRun(run.id)}
                       className={cn(
                         'w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/4 transition-colors',
-                        activeRunId === run.id && 'bg-violet-500/10'
+                        activeRunId === run.id && 'bg-cyan-500/10'
                       )}
                     >
                       <StatusOrb status={run.status} />
@@ -540,7 +540,7 @@ export function AutopilotView() {
         <aside className="hidden lg:flex flex-col min-h-0 bg-gradient-to-b from-zinc-950/40 to-zinc-950/0">
           {activeRun ? (
             <>
-              <div className="px-5 py-3 border-b border-zinc-800/50 flex items-center gap-2">
+              <div className="px-5 py-3 border-b border-cyan-500/15 flex items-center gap-2">
                 <StatusOrb status={activeRun.status} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-zinc-200 truncate">{activeRun.title}</p>
@@ -592,8 +592,8 @@ export function AutopilotView() {
             </>
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center px-8">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500/10 to-blue-500/10 border border-violet-500/20 flex items-center justify-center">
-                <Activity className="w-5 h-5 text-violet-400" />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 flex items-center justify-center">
+                <Activity className="w-5 h-5 text-cyan-300" />
               </div>
               <div>
                 <p className="text-sm font-medium text-zinc-300">No active run</p>
@@ -611,7 +611,7 @@ export function AutopilotView() {
 
 function Stat({ label, value, total, tone = 'zinc' }: { label: string; value: number; total?: number; tone?: 'violet' | 'amber' | 'zinc' }) {
   const colors: Record<string, string> = {
-    violet: 'text-violet-300',
+    violet: 'text-cyan-200',
     amber:  'text-amber-300',
     zinc:   'text-zinc-300',
   }

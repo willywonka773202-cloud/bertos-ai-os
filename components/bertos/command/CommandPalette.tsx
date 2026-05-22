@@ -174,7 +174,7 @@ export function CommandPalette() {
       id: 'use-claude-code',
       label: 'Switch to Claude Code',
       description: 'Set Claude Code CLI as primary model',
-      icon: <Cpu className="w-4 h-4 text-violet-400" />,
+      icon: <Cpu className="w-4 h-4 text-cyan-300" />,
       category: 'Model',
       keywords: ['claude', 'anthropic', 'model', 'cli'],
       action: () => { setSelectedModel('claude-code'); setCommandPaletteOpen(false) },
@@ -290,7 +290,7 @@ export function CommandPalette() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -20 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden pointer-events-auto"
+              className="w-full max-w-xl bg-[#05080F] border border-zinc-800 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden pointer-events-auto"
             >
               {/* Search input */}
               <div className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800">
@@ -328,11 +328,11 @@ export function CommandPalette() {
                                 className={cn(
                                   'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all duration-100',
                                   isSelected
-                                    ? 'bg-violet-500/15 border border-violet-500/20 text-zinc-100'
+                                    ? 'bg-cyan-500/15 border border-cyan-500/20 text-zinc-100'
                                     : 'text-zinc-400 hover:bg-white/5 border border-transparent'
                                 )}
                               >
-                                <span className={cn(isSelected ? 'text-violet-400' : 'text-zinc-500')}>
+                                <span className={cn(isSelected ? 'text-cyan-300' : 'text-zinc-500')}>
                                   {cmd.icon}
                                 </span>
                                 <div className="flex-1 min-w-0">
@@ -341,7 +341,7 @@ export function CommandPalette() {
                                     <p className="text-[11px] text-zinc-600 truncate">{cmd.description}</p>
                                   )}
                                 </div>
-                                {isSelected && <ArrowRight className="w-3.5 h-3.5 text-violet-400" />}
+                                {isSelected && <ArrowRight className="w-3.5 h-3.5 text-cyan-300" />}
                               </button>
                             )
                           })}
@@ -353,7 +353,7 @@ export function CommandPalette() {
               </div>
 
               {/* Footer */}
-              <div className="flex items-center gap-3 px-4 py-2 border-t border-zinc-800 bg-zinc-950/50">
+              <div className="flex items-center gap-3 px-4 py-2 border-t border-zinc-800 bg-[#05080F]/50">
                 <div className="flex items-center gap-1.5 text-[10px] text-zinc-600">
                   <kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[9px]">↑↓</kbd>
                   <span>Navigate</span>

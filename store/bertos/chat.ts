@@ -10,8 +10,13 @@ interface ChatStore {
   isStreaming: boolean
 
   createSession: (model?: AIModel, projectId?: string) => ChatSession
+  // Reuse the current active session if it's empty (no user messages);
+  // otherwise spawn a new one. Always returns the session the caller
+  // should treat as active.
+  getOrCreateSession: (model?: AIModel, projectId?: string) => ChatSession
   setActiveSession: (id: string) => void
   deleteSession: (id: string) => void
+  deleteEmptySessions: () => void
   updateSessionTitle: (id: string, title: string) => void
 
   addMessage: (sessionId: string, message: Omit<Message, 'id' | 'timestamp'>) => Message
@@ -52,7 +57,38 @@ export const useChatStore = create<ChatStore>()(
         return session
       },
 
+      getOrCreateSession: (model = 'auto', projectId) => {
+        const { sessions, activeSessionId } = get()
+        const active = sessions.find(s => s.id === activeSessionId)
+        // Reuse current active session if it has zero user messages
+        if (active && !active.messages.some(m => m.role === 'user')) {
+          if (model && active.model !== model) {
+            set(state => ({
+              sessions: state.sessions.map(s =>
+                s.id === active.id ? { ...s, model, updatedAt: Date.now() } : s
+              ),
+            }))
+            return { ...active, model }
+          }
+          return active
+        }
+        return get().createSession(model, projectId)
+      },
+
       setActiveSession: (id) => set({ activeSessionId: id }),
+
+      deleteEmptySessions: () =>
+        set(state => {
+          const keep = state.sessions.filter(s =>
+            s.id === state.activeSessionId || s.messages.some(m => m.role === 'user')
+          )
+          // If we dropped the active session (shouldn't), fall back to first
+          const activeStillExists = keep.some(s => s.id === state.activeSessionId)
+          return {
+            sessions: keep,
+            activeSessionId: activeStillExists ? state.activeSessionId : keep[0]?.id ?? null,
+          }
+        }),
 
       deleteSession: (id) =>
         set(state => {

@@ -66,7 +66,7 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
       onClick={() => onChange(!value)}
       className={cn(
         'relative w-9 h-5 rounded-full transition-all duration-200',
-        value ? 'bg-violet-600' : 'bg-zinc-700'
+        value ? 'bg-cyan-600' : 'bg-zinc-700'
       )}
     >
       <div className={cn(
@@ -242,7 +242,7 @@ export function SettingsView() {
   return (
     <div className="flex h-full overflow-hidden">
       {/* Section nav */}
-      <div className="w-48 flex-shrink-0 border-r border-zinc-800/50 p-3 space-y-0.5">
+      <div className="w-48 flex-shrink-0 border-r border-cyan-500/15 p-3 space-y-0.5">
         <p className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Settings</p>
         {SECTIONS.map(section => (
           <button
@@ -251,11 +251,11 @@ export function SettingsView() {
             className={cn(
               'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
               activeSection === section.id
-                ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+                ? 'bg-cyan-500/15 text-cyan-200 border border-cyan-500/20'
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5 border border-transparent'
             )}
           >
-            <section.icon className={cn('w-3.5 h-3.5', activeSection === section.id && 'text-violet-400')} />
+            <section.icon className={cn('w-3.5 h-3.5', activeSection === section.id && 'text-cyan-300')} />
             <span className="text-xs font-medium">{section.label}</span>
           </button>
         ))}
@@ -453,7 +453,7 @@ export function SettingsView() {
                   <div className="grid gap-2">
                     {(localDaemonStatus?.tools ?? []).map(tool => (
                       <div key={tool.id} className="flex items-center gap-2 rounded-lg bg-zinc-950/50 border border-zinc-800 px-2.5 py-2">
-                        {tool.id === 'claude-code' ? <Cpu className="w-3.5 h-3.5 text-violet-400" /> :
+                        {tool.id === 'claude-code' ? <Cpu className="w-3.5 h-3.5 text-cyan-300" /> :
                          tool.id === 'codex-cli' ? <Zap className="w-3.5 h-3.5 text-emerald-400" /> :
                          <Globe className="w-3.5 h-3.5 text-blue-400" />}
                         <div className="flex-1 min-w-0">
@@ -490,7 +490,7 @@ export function SettingsView() {
                 {([
                   {
                     id: 'claude-code', label: 'Claude Code', color: '#8B5CF6',
-                    icon: <Cpu className="w-4 h-4 text-violet-400" />,
+                    icon: <Cpu className="w-4 h-4 text-cyan-300" />,
                     desc: 'Anthropic Pro subscription · Claude Code CLI',
                     install: 'npm install -g @anthropic-ai/claude-code',
                     login: 'claude login',
@@ -689,13 +689,13 @@ export function SettingsView() {
                     className={cn(
                       'rounded-xl border p-4 text-center transition-all',
                       settings.theme === t.value
-                        ? 'border-violet-500/40 bg-violet-500/10'
+                        ? 'border-cyan-500/40 bg-cyan-500/10'
                         : 'border-zinc-800 hover:border-zinc-700'
                     )}
                   >
                     <div className={cn('w-full h-16 rounded-lg mb-2 border border-zinc-800', t.preview)} />
                     <p className="text-xs font-medium text-zinc-300">{t.label}</p>
-                    {settings.theme === t.value && <Check className="w-3.5 h-3.5 text-violet-400 mx-auto mt-1" />}
+                    {settings.theme === t.value && <Check className="w-3.5 h-3.5 text-cyan-300 mx-auto mt-1" />}
                   </button>
                 ))}
               </div>
@@ -785,7 +785,7 @@ export function SettingsView() {
                       step={256}
                       value={settings.tokenBudget ?? 4096}
                       onChange={e => updateSettings({ tokenBudget: Number(e.target.value) })}
-                      className="flex-1 accent-violet-500"
+                      className="flex-1 accent-cyan-500"
                     />
                     <span className="text-xs font-mono text-zinc-400 w-20 text-right">
                       {(settings.tokenBudget ?? 4096).toLocaleString()} tok

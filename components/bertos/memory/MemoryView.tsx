@@ -36,7 +36,7 @@ const CATEGORY_COLORS: Record<FactCategory, string> = {
   architecture: 'text-blue-400',
   goals: 'text-emerald-400',
   rules: 'text-red-400',
-  preferences: 'text-violet-400',
+  preferences: 'text-cyan-300',
   decisions: 'text-amber-400',
   bugs: 'text-orange-400',
   ideas: 'text-pink-400',
@@ -81,13 +81,13 @@ function SystemFactsPanel() {
   }, {} as Record<FactCategory, SystemFact[]>)
 
   return (
-    <div className="border-t border-zinc-800/50 px-6 py-4">
+    <div className="border-t border-cyan-500/15 px-6 py-4">
       <div className="max-w-4xl mx-auto">
         <button
           onClick={() => setOpen(!open)}
           className="flex items-center gap-2 w-full text-left mb-3"
         >
-          <Cpu className="w-4 h-4 text-violet-400" />
+          <Cpu className="w-4 h-4 text-cyan-300" />
           <span className="text-sm font-semibold text-zinc-200">BertOS System Facts</span>
           <Badge variant="default" className="text-[10px]">{facts.length}</Badge>
           <span className="ml-auto text-zinc-600">
@@ -221,7 +221,7 @@ export function MemoryView() {
       <SystemFactsPanel />
 
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-5 border-b border-zinc-800/50 bg-zinc-950/40">
+      <div className="flex-shrink-0 px-6 py-5 border-b border-cyan-500/15 bg-[radial-gradient(ellipse_at_top,_rgba(34,211,238,0.07),_transparent_60%)]">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
@@ -245,10 +245,10 @@ export function MemoryView() {
             </div>
             <div className={cn(
               'rounded-xl border px-4 py-3',
-              activeProjectId ? 'border-violet-500/20 bg-violet-500/5' : 'border-zinc-800 bg-zinc-900/40'
+              activeProjectId ? 'border-cyan-500/20 bg-cyan-500/5' : 'border-zinc-800 bg-zinc-900/40'
             )}>
               <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Active</p>
-              <p className="text-sm font-semibold text-violet-300 truncate">
+              <p className="text-sm font-semibold text-cyan-200 truncate">
                 {projects.find(p => p.id === activeProjectId)?.name ?? '—'}
               </p>
             </div>
@@ -417,7 +417,7 @@ export function MemoryView() {
                     </div>
                   ) : (
                     project.context && (
-                      <div className="rounded-lg bg-zinc-950/50 border border-zinc-800/50 p-2.5">
+                      <div className="rounded-lg bg-zinc-950/50 border border-cyan-500/15 p-2.5">
                         <p className="text-[11px] text-zinc-500 leading-relaxed line-clamp-3">{project.context}</p>
                       </div>
                     )

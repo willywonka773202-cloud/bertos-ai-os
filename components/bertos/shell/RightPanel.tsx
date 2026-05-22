@@ -65,10 +65,10 @@ export function RightPanel() {
       initial={{ x: 20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: 20, opacity: 0 }}
-      className="w-64 flex flex-col h-full bg-[#0D0D0F] border-l border-zinc-800/50 flex-shrink-0"
+      className="w-64 flex flex-col h-full bg-[#0D0D0F] border-l border-cyan-500/15 flex-shrink-0"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-800/50">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-cyan-500/15">
         <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Panel</span>
         <button
           onClick={() => setRightPanelOpen(false)}
@@ -87,7 +87,7 @@ export function RightPanel() {
             <TabsTrigger value="tasks" className="text-[9px] py-1 px-1">
               <Activity className="w-3 h-3 mr-0.5" />Tasks
               {activeTasks.length > 0 && (
-                <span className="ml-0.5 bg-violet-500 text-white text-[8px] rounded-full px-1 min-w-3 text-center">
+                <span className="ml-0.5 bg-cyan-500 text-white text-[8px] rounded-full px-1 min-w-3 text-center">
                   {activeTasks.length}
                 </span>
               )}
@@ -107,7 +107,7 @@ export function RightPanel() {
             {/* Project context */}
             <div>
               <div className="flex items-center gap-1.5 mb-2">
-                <div className="w-2 h-2 rounded-full bg-violet-400" />
+                <div className="w-2 h-2 rounded-full bg-cyan-300" />
                 <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">
                   Project Context
                 </span>
@@ -129,14 +129,14 @@ export function RightPanel() {
               </div>
               <div className="space-y-1.5">
                 {!daemonStatus?.online && (
-                  <div className="rounded-lg bg-zinc-900/50 border border-zinc-800/50 px-2 py-2">
+                  <div className="rounded-lg bg-zinc-900/50 border border-cyan-500/15 px-2 py-2">
                     <p className="text-xs text-zinc-400">Daemon offline</p>
                     <p className="text-[10px] text-zinc-600 mt-0.5">Run <code>npm run bertos:daemon</code></p>
                   </div>
                 )}
                 {(daemonStatus?.tools ?? []).map(ai => (
-                  <div key={ai.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50">
-                    {ai.id === 'claude-code' ? <Cpu className="w-3 h-3 text-violet-400" /> :
+                  <div key={ai.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-zinc-900/50 border border-cyan-500/15">
+                    {ai.id === 'claude-code' ? <Cpu className="w-3 h-3 text-cyan-300" /> :
                      ai.id === 'codex-cli' ? <Zap className="w-3 h-3 text-emerald-400" /> :
                      <Globe className="w-3 h-3 text-blue-400" />}
                     <span className="text-xs text-zinc-400 flex-1">{ai.label}</span>
@@ -200,7 +200,7 @@ export function RightPanel() {
             </div>
 
             {/* Stats */}
-            <div className="rounded-lg border border-zinc-800/50 bg-zinc-900/30 p-3 space-y-2">
+            <div className="rounded-lg border border-cyan-500/15 bg-zinc-900/30 p-3 space-y-2">
               <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Session Stats</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
@@ -232,7 +232,7 @@ export function RightPanel() {
                   <div className="flex items-start gap-2">
                     <div className={cn(
                       'w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0',
-                      task.status === 'running' ? 'bg-violet-400 animate-pulse' :
+                      task.status === 'running' ? 'bg-cyan-300 animate-pulse' :
                       task.status === 'done' ? 'bg-emerald-400' :
                       task.status === 'failed' ? 'bg-red-400' : 'bg-zinc-600'
                     )} />

@@ -27,11 +27,11 @@ export function BottomNav() {
               onClick={() => { setActiveView(item.id); router.push(item.href) }}
               className={cn(
                 'flex flex-col items-center gap-0.5 flex-1 py-1.5 rounded-xl transition-all active:scale-95',
-                isActive ? 'text-violet-400' : 'text-zinc-600',
+                isActive ? 'text-cyan-300' : 'text-zinc-600',
               )}
             >
-              <item.icon className={cn('w-5 h-5', isActive && 'text-violet-400')} style={isActive ? { filter: 'drop-shadow(0 0 6px rgba(139,92,246,0.5))' } : undefined} />
-              <span className={cn('text-[9px] font-semibold tracking-wide', isActive ? 'text-violet-400' : 'text-zinc-700')}>
+              <item.icon className={cn('w-5 h-5', isActive && 'text-cyan-300')} style={isActive ? { filter: 'drop-shadow(0 0 6px rgba(34,211,238,0.5))' } : undefined} />
+              <span className={cn('text-[9px] font-semibold tracking-wide', isActive ? 'text-cyan-300' : 'text-zinc-700')}>
                 {item.label}
               </span>
             </button>
