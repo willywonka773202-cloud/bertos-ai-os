@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/bertos/cn'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { RouteHero } from '@/components/bertos/hermes'
 
 const CATEGORY_CONFIG: Record<PromptCategory, { icon: any; label: string; color: string; description: string }> = {
   coding: { icon: Code2, label: 'Coding', color: '#8B5CF6', description: 'Development and debugging prompts' },
@@ -31,7 +32,7 @@ export function PromptLibraryView() {
     prompts, createPrompt, updatePrompt, deletePrompt,
     toggleFavorite, incrementUsage, duplicatePrompt, searchPrompts
   } = usePromptStore()
-  const { createSession, addMessage } = useChatStore()
+  const { getOrCreateSession, addMessage, setActiveSession } = useChatStore()
   const { setActiveView, selectedModel, setPendingWorkspaceTask, setPendingAgentTask } = useUIStore()
   const router = useRouter()
 
@@ -78,7 +79,8 @@ export function PromptLibraryView() {
     }
 
     // Create new chat session
-    const session = createSession(selectedModel)
+    const session = getOrCreateSession(selectedModel)
+    setActiveSession(session.id)
     addMessage(session.id, { role: 'user', content })
     incrementUsage(prompt.id)
 
@@ -132,9 +134,22 @@ export function PromptLibraryView() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#0A0A0B]">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="border-b border-zinc-800/50 px-6 py-4 flex-shrink-0">
+      <div className="border-b border-cyan-300/10 px-6 py-4 flex-shrink-0">
+        <RouteHero
+          eyebrow="oracle scroll library"
+          title="Prompt Library"
+          subtitle="Reusable rituals with variables, workspace handoff, agent task routing, and real chat-session creation. Running a prompt focuses the active Oracle thread immediately."
+          status="nominal"
+          seal={<Library className="h-5 w-5" />}
+          metrics={[
+            { label: 'Prompts', value: prompts.length, detail: `${filteredPrompts.length} visible`, tone: 'cyan' },
+            { label: 'Favorites', value: prompts.filter(prompt => prompt.favorite).length, detail: 'pinned scrolls', tone: 'bronze' },
+            { label: 'Categories', value: Object.keys(CATEGORY_CONFIG).length, detail: selectedCategory, tone: 'emerald' },
+            { label: 'Selected Model', value: selectedModel, detail: 'new prompt runs here', tone: 'zinc' },
+          ]}
+        />
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <Library className="w-6 h-6 text-violet-400 flex-shrink-0" />

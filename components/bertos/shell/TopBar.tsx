@@ -1,275 +1,275 @@
 'use client'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Zap, Cpu, Globe, Sparkles, ChevronDown, PanelRight, PanelRightClose, Command, Bot, Menu, Server } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { Beaker, Bot, ChevronDown, Command, Cpu, Globe, Lock, Menu, PanelRight, PanelRightClose, Server, Sparkles, Zap } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
+import { useAutomationStore } from '@/store/bertos/automations'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import type { AIModel } from '@/lib/bertos/types'
-import { useState, useEffect } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ProviderStatusIndicator } from './ProviderStatusIndicator'
+import { ProviderBadge, RomanDivider, StatusOrb } from '@/components/bertos/hermes'
 
-type ModelOption = { value: AIModel; label: string; description: string; icon: React.ReactNode; color: string }
-
-const GEMINI_NATIVE_MODEL: ModelOption = {
-  value: 'gemini-api-native',
-  label: 'Gemini Native',
-  description: 'Google GenAI API - structured planning',
-  icon: <Globe className="w-3.5 h-3.5" />,
-  color: '#3B82F6',
+type ModelOption = {
+  value: AIModel | string
+  label: string
+  description: string
+  icon: ReactNode
+  color: string
+  section: 'subscription' | 'local' | 'paid' | 'experimental'
+  disabled?: boolean
+  disabledReason?: string
 }
 
-const BASE_SUBSCRIPTION_MODELS: ModelOption[] = [
-  { value: 'auto',        label: 'Auto',        description: 'Smart routing · Subscription only',          icon: <Sparkles className="w-3.5 h-3.5" />, color: '#F59E0B' },
-  { value: 'ollama-pro',  label: 'Ollama Pro',  description: 'Ollama · gpt-oss:120b-cloud · Default',      icon: <Bot className="w-3.5 h-3.5" />,      color: '#F97316' },
-  { value: 'claude-code', label: 'Claude Code', description: 'Anthropic · Claude Code CLI',                icon: <Cpu className="w-3.5 h-3.5" />,      color: '#8B5CF6' },
-  { value: 'gemini-cli',  label: 'Gemini CLI',  description: 'Google · Gemini CLI',                        icon: <Globe className="w-3.5 h-3.5" />,    color: '#3B82F6' },
-  { value: 'codex-cli',   label: 'Codex CLI',   description: 'OpenAI · Codex CLI',                         icon: <Zap className="w-3.5 h-3.5" />,      color: '#10B981' },
+const MODEL_OPTIONS: ModelOption[] = [
+  { value: 'auto', label: 'Auto', description: 'Oracle routing across safe configured providers', icon: <Sparkles className="h-3.5 w-3.5" />, color: '#22D3EE', section: 'subscription' },
+  { value: 'ollama-pro', label: 'Ollama Pro', description: 'Always-on local/cloud fallback, no separate API bill', icon: <Bot className="h-3.5 w-3.5" />, color: '#F97316', section: 'subscription' },
+  { value: 'claude-code', label: 'Claude Code', description: 'CLI subscription for review and refactors', icon: <Cpu className="h-3.5 w-3.5" />, color: '#A78BFA', section: 'subscription' },
+  { value: 'gemini-cli', label: 'Gemini CLI', description: 'CLI subscription for planning and research', icon: <Globe className="h-3.5 w-3.5" />, color: '#60A5FA', section: 'subscription' },
+  { value: 'codex-cli', label: 'Codex CLI', description: 'CLI subscription for implementation work', icon: <Zap className="h-3.5 w-3.5" />, color: '#34D399', section: 'subscription' },
+  { value: 'qwen2.5-coder', label: 'Qwen 2.5 Coder', description: 'Local Ollama coding fallback', icon: <Bot className="h-3.5 w-3.5" />, color: '#FB923C', section: 'local' },
+  { value: 'llama3', label: 'Llama 3', description: 'Local Ollama general model', icon: <Bot className="h-3.5 w-3.5" />, color: '#FB923C', section: 'local' },
+  { value: 'llama3.2', label: 'Llama 3.2', description: 'Local Ollama general model', icon: <Bot className="h-3.5 w-3.5" />, color: '#FB923C', section: 'local' },
+  { value: 'mistral', label: 'Mistral', description: 'Local Ollama concise reasoning', icon: <Bot className="h-3.5 w-3.5" />, color: '#F472B6', section: 'local' },
+  { value: 'deepseek-coder', label: 'DeepSeek Coder', description: 'Local Ollama coding model', icon: <Bot className="h-3.5 w-3.5" />, color: '#22D3EE', section: 'local' },
+  { value: 'hermes3', label: 'Hermes 3', description: 'NousResearch local Ollama model', icon: <Bot className="h-3.5 w-3.5" />, color: '#F6C453', section: 'local' },
+  { value: 'claude-api', label: 'Anthropic API', description: 'Paid metered API, disabled unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#A78BFA', section: 'paid', disabled: true, disabledReason: 'Requires an Anthropic API key in Settings and separate paid billing.' },
+  { value: 'openai-api', label: 'OpenAI API', description: 'Paid metered API, disabled unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#34D399', section: 'paid', disabled: true, disabledReason: 'Requires an OpenAI API key in Settings and separate paid billing.' },
+  { value: 'gemini-api', label: 'Gemini API', description: 'Paid metered API, disabled unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#60A5FA', section: 'paid', disabled: true, disabledReason: 'Requires a Gemini API key in Settings and separate paid billing.' },
+  { value: 'gemini-api-native', label: 'Gemini Native', description: 'Structured planning via API, paid-gated unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#60A5FA', section: 'paid', disabled: true, disabledReason: 'Requires GEMINI_API_KEY or Settings key. It will not route silently.' },
+  { value: 'hermes-nous', label: 'Hermes / Nous Remote', description: 'Paid proxy credits required', icon: <Lock className="h-3.5 w-3.5" />, color: '#F6C453', section: 'paid', disabled: true, disabledReason: 'Hermes/Nous remains paid-gated and needs ENABLE_HERMES_PAID=true plus explicit approval.' },
+  { value: 'fcc-proxy', label: 'FCC Proxy', description: 'Experimental connector', icon: <Beaker className="h-3.5 w-3.5" />, color: '#C084FC', section: 'experimental', disabled: true, disabledReason: 'FCC remains experimental and is not wired as a guaranteed runtime.' },
+  { value: 'anti-gravity', label: 'Anti-Gravity', description: 'Planned Google agent runtime', icon: <Beaker className="h-3.5 w-3.5" />, color: '#FBBF24', section: 'experimental', disabled: true, disabledReason: 'Planned/experimental. BertOS does not assume it is installed or configured.' },
 ]
 
-const LOCAL_MODELS: ModelOption[] = [
-  { value: 'qwen2.5-coder',  label: 'Qwen 2.5 Coder', description: 'Alibaba · Local Ollama fallback',  icon: <Bot className="w-3.5 h-3.5" />, color: '#F97316' },
-  { value: 'llama3',         label: 'Llama 3',         description: 'Meta · Local Ollama',              icon: <Bot className="w-3.5 h-3.5" />, color: '#F97316' },
-  { value: 'llama3.2',       label: 'Llama 3.2',       description: 'Meta · Local Ollama',              icon: <Bot className="w-3.5 h-3.5" />, color: '#F97316' },
-  { value: 'mistral',        label: 'Mistral',          description: 'Mistral AI · Local Ollama',        icon: <Bot className="w-3.5 h-3.5" />, color: '#EC4899' },
-  { value: 'deepseek-coder', label: 'DeepSeek Coder',  description: 'DeepSeek · Local Ollama',          icon: <Bot className="w-3.5 h-3.5" />, color: '#06B6D4' },
-  { value: 'hermes3',        label: 'Hermes 3',         description: 'NousResearch · Local Ollama',      icon: <Bot className="w-3.5 h-3.5" />, color: '#A855F7' },
-]
-
-const ALL_MODEL_OPTIONS: ModelOption[] = [...BASE_SUBSCRIPTION_MODELS, ...LOCAL_MODELS]
+const VIEW_LABELS: Record<string, string> = {
+  dashboard: 'Mission Control',
+  chat: 'Oracle Console',
+  prompts: 'Prompt Arsenal',
+  compare: 'Oracle Tribunal',
+  coding: 'Forge Bay',
+  workspace: 'Command Deck',
+  evolution: 'Experimental Armory',
+  agents: 'Agent Legion',
+  memory: 'Memory Vault',
+  brief: 'Daily Oracle Brief',
+  playbooks: 'Doctrine Library',
+  tasks: 'Task Phalanx',
+  migrations: 'Migration Cartography',
+  github: 'Repo War Room',
+  settings: 'Provider Forge',
+  autopilot: 'Autopilot Praetorium',
+}
 
 export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void }) {
   const { selectedModel, setSelectedModel, activeView, rightPanelOpen, setRightPanelOpen, setCommandPaletteOpen } = useUIStore()
-  const { isStreaming } = useChatStore()
-  const [modelMenuOpen, setModelMenuOpen] = useState(false)
-  const [subscriptionModels, setSubscriptionModels] = useState<ModelOption[]>([...BASE_SUBSCRIPTION_MODELS, GEMINI_NATIVE_MODEL])
+  const { isStreaming, sessions, activeSessionId } = useChatStore()
+  const { runs } = useAutomationStore()
   const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
-  const daemonOnline = Boolean(daemonHealth?.daemonOnline)
+  const [modelMenuOpen, setModelMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [menuRect, setMenuRect] = useState<{ right: number; top: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
 
-  // Fetch deployment mode once on mount to update ollama-pro description
+  useEffect(() => setMounted(true), [])
   useEffect(() => {
-    fetch('/api/bertos/mode')
-      .then(r => r.json())
-      .then((data: { mode: string; provider: string; defaultModel: string }) => {
-        const modeLabel = data.mode === 'cloud' ? 'Cloud' : 'Local'
-        setSubscriptionModels(prev =>
-          prev.map(m =>
-            m.value === 'ollama-pro'
-              ? { ...m, description: `Ollama · ${data.defaultModel} · ${modeLabel}` }
-              : m
-          )
-        )
-      })
-      .catch(() => { /* keep defaults */ })
-  }, [])
+    if (!modelMenuOpen || !triggerRef.current) return
+    const update = () => {
+      const rect = triggerRef.current!.getBoundingClientRect()
+      setMenuRect({ right: Math.max(12, window.innerWidth - rect.right), top: rect.bottom + 8 })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [modelMenuOpen])
 
-  const allModelOptions: ModelOption[] = [...subscriptionModels, ...LOCAL_MODELS]
-  const activeModel = allModelOptions.find(m => m.value === selectedModel) ?? allModelOptions[0]
+  const activeModel = MODEL_OPTIONS.find(option => option.value === selectedModel) ?? MODEL_OPTIONS[0]
+  const activeSession = sessions.find(session => session.id === activeSessionId)
+  const daemonOnline = Boolean(daemonHealth?.daemonOnline)
+  const runningRuns = runs.filter(run => run.status === 'running').length
+  const pendingApprovals = runs.filter(run => run.status === 'needs-approval').length
+  const liveState = pendingApprovals > 0 ? 'approval' : isStreaming ? 'generating' : runningRuns > 0 ? 'autopilot' : daemonOnline ? 'live' : 'setup'
 
-  const viewLabels: Record<string, string> = {
-    dashboard: 'Command Center',
-    chat: 'Chat',
-    prompts: 'Prompt Library',
-    compare: 'Multi-AI Compare',
-    coding: 'Coding Mission Center',
-    workspace: 'Coding Workspace',
-    evolution: 'Evolution Lab',
-    agents: 'Agent Tasks',
-    memory: 'Project Memory',
-    brief: 'Daily Brief',
-    playbooks: 'Playbooks',
-    tasks: 'Tasks',
-    migrations: 'Migrations',
-    github: 'GitHub / Repo',
-    settings: 'Settings',
-    autopilot: 'Autopilot',
+  const selectModel = (option: ModelOption) => {
+    if (option.disabled) return
+    setSelectedModel(option.value as AIModel)
+    setModelMenuOpen(false)
   }
 
+  const grouped = useMemo(() => ({
+    subscription: MODEL_OPTIONS.filter(option => option.section === 'subscription'),
+    local: MODEL_OPTIONS.filter(option => option.section === 'local'),
+    paid: MODEL_OPTIONS.filter(option => option.section === 'paid'),
+    experimental: MODEL_OPTIONS.filter(option => option.section === 'experimental'),
+  }), [])
+
+  const menu = modelMenuOpen && mounted && menuRect ? createPortal(
+    <>
+      <button className="fixed inset-0 z-[80] cursor-default" onClick={() => setModelMenuOpen(false)} aria-label="Close model selector" />
+      <div
+        className="fixed z-[90] max-h-[min(620px,calc(100dvh-80px))] w-[min(420px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/95 shadow-[0_24px_90px_rgba(0,0,0,0.55),0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-xl"
+        style={{ right: menuRect.right, top: menuRect.top }}
+      >
+        <div className="hermes-grid-fine pointer-events-none absolute inset-0 opacity-30" />
+        <div className="relative max-h-[inherit] overflow-y-auto p-2">
+          <ModelSection title="Model Pantheon" items={grouped.subscription} selectedModel={selectedModel} onSelect={selectModel} />
+          <RomanDivider label="local ollama" className="px-2" />
+          <ModelSection title="Local Legion" items={grouped.local} selectedModel={selectedModel} onSelect={selectModel} />
+          <RomanDivider label="paid gates" className="px-2" />
+          <ModelSection title="Paid API / Metered" items={grouped.paid} selectedModel={selectedModel} onSelect={selectModel} />
+          <RomanDivider label="experimental" className="px-2" />
+          <ModelSection title="Experimental / Planned" items={grouped.experimental} selectedModel={selectedModel} onSelect={selectModel} />
+          <div className="m-2 rounded-xl border border-amber-300/20 bg-amber-300/8 p-3 text-[11px] leading-relaxed text-amber-100/75">
+            Paid APIs and planned runtimes do not become enabled silently. Configure Settings and explicitly approve paid usage before routing.
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body,
+  ) : null
+
   return (
-    <div className="relative flex items-center gap-3 px-4 h-12 border-b border-zinc-800/50 bg-[#0A0A0B]/80 backdrop-blur-sm flex-shrink-0">
-      {/* Hamburger — mobile only */}
+    <div className="relative z-30 flex h-12 shrink-0 items-center gap-3 border-b border-cyan-300/10 bg-slate-950/76 px-4 backdrop-blur-xl">
       <button
         onClick={onMobileMenuToggle}
-        className="md:hidden flex-shrink-0 p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-white/5 transition-all"
+        className="shrink-0 rounded-lg border border-cyan-300/10 p-1.5 text-zinc-400 transition hover:border-cyan-300/30 hover:text-cyan-100 md:hidden"
       >
-        <Menu className="w-5 h-5" />
+        <Menu className="h-5 w-5" />
       </button>
-      {/* View title */}
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <span className="text-sm font-semibold text-zinc-200">
-          {viewLabels[activeView] ?? 'BertOS'}
-        </span>
-        <AnimatePresence>
-          {isStreaming && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              className="flex items-center gap-1.5"
-            >
-              <div className="flex gap-0.5">
-                {[0, 1, 2].map(i => (
-                  <motion.div
-                    key={i}
-                    animate={{ scaleY: [1, 2.5, 1] }}
-                    transition={{ duration: 0.6, delay: i * 0.12, repeat: Infinity }}
-                    className="w-0.5 h-2.5 rounded-full bg-violet-400 origin-bottom"
-                  />
-                ))}
-              </div>
-              <span className="text-xs text-violet-400">Generating</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <StatusOrb state={liveState === 'setup' ? 'warning' : liveState === 'approval' ? 'warning' : isStreaming ? 'loading' : 'active'} size="sm" />
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-zinc-100">{VIEW_LABELS[activeView] ?? 'BertOS'}</div>
+          <div className="hidden truncate text-[10px] text-zinc-600 sm:block">
+            {activeSession?.title && activeSession.title !== 'New Chat' ? activeSession.title : 'Jarvis x Roman Hermes command channel'}
+          </div>
+        </div>
       </div>
 
-      {/* Command palette hint */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 transition-all text-zinc-600 hover:text-zinc-400"
+            className="hidden items-center gap-1.5 rounded-lg border border-cyan-300/10 bg-slate-900/70 px-2.5 py-1 text-zinc-500 transition hover:border-cyan-300/30 hover:text-cyan-100 md:flex"
           >
-            <Command className="w-3 h-3" />
-            <span className="text-[10px]">⌘K</span>
+            <Command className="h-3 w-3" />
+            <span className="text-[10px]">CTRL K</span>
           </button>
         </TooltipTrigger>
         <TooltipContent>Command Palette</TooltipContent>
       </Tooltip>
 
-      {/* Provider status */}
-      <div className="hidden md:block">
-        <ProviderStatusIndicator />
-      </div>
+      <div className="hidden md:block"><ProviderStatusIndicator /></div>
 
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             onClick={() => void refreshDaemonHealth()}
             className={cn(
-              'hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-all text-xs',
-              daemonOnline
-                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
-                : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+              'hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition md:flex',
+              daemonOnline ? 'border-emerald-300/20 bg-emerald-300/10 text-emerald-200' : 'border-amber-300/20 bg-amber-300/10 text-amber-200',
             )}
           >
-            <span className={cn('h-1.5 w-1.5 rounded-full', daemonOnline ? 'bg-emerald-400' : 'bg-amber-400', daemonLoading && 'animate-pulse')} />
+            <span className={cn('h-1.5 w-1.5 rounded-full', daemonOnline ? 'bg-emerald-300' : 'bg-amber-300', daemonLoading && 'animate-pulse')} />
             <Server className="h-3.5 w-3.5" />
             <span>{daemonOnline ? 'Daemon' : 'Daemon offline'}</span>
           </button>
         </TooltipTrigger>
-        <TooltipContent>
-          {daemonOnline
-            ? `Local daemon online${daemonHealth?.workspaceRoot ? `: ${daemonHealth.workspaceRoot}` : ''}`
-            : 'Local coding features need npm run bertos:daemon'}
-        </TooltipContent>
+        <TooltipContent>{daemonOnline ? 'Local daemon online' : 'Start npm run bertos:daemon'}</TooltipContent>
       </Tooltip>
 
-      {/* Model selector */}
-      <div className="relative">
-        <button
-          onClick={() => setModelMenuOpen(!modelMenuOpen)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-zinc-700 transition-all duration-150 text-sm"
-        >
-          <span style={{ color: activeModel.color }}>{activeModel.icon}</span>
-          <span className="text-zinc-200 font-medium text-xs">{activeModel.label}</span>
-          <ChevronDown className={cn('w-3 h-3 text-zinc-500 transition-transform duration-150', modelMenuOpen && 'rotate-180')} />
-        </button>
+      <button
+        ref={triggerRef}
+        onClick={() => setModelMenuOpen(open => !open)}
+        className="flex items-center gap-2 rounded-lg border border-cyan-300/15 bg-slate-900/80 px-3 py-1.5 text-sm transition hover:border-cyan-300/35"
+      >
+        <span style={{ color: activeModel.color }}>{activeModel.icon}</span>
+        <span className="hidden text-xs font-medium text-zinc-100 sm:block">{activeModel.label}</span>
+        <ChevronDown className={cn('h-3 w-3 text-zinc-500 transition', modelMenuOpen && 'rotate-180')} />
+      </button>
+      {menu}
 
-        <AnimatePresence>
-          {modelMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setModelMenuOpen(false)} />
-              <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -8, scale: 0.96 }}
-                transition={{ duration: 0.12 }}
-                className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-black/60 overflow-hidden z-50"
-              >
-                <div className="p-1.5 space-y-0.5">
-                  <p className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
-                    Subscription Providers
-                  </p>
-                  {subscriptionModels.map(option => (
-                    <button
-                      key={option.value}
-                      onClick={() => { setSelectedModel(option.value); setModelMenuOpen(false) }}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-100',
-                        selectedModel === option.value
-                          ? 'bg-white/10 text-zinc-100'
-                          : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-                      )}
-                    >
-                      <span style={{ color: option.color }}>{option.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium">{option.label}</p>
-                        <p className="text-[10px] text-zinc-600 truncate">{option.description}</p>
-                      </div>
-                      {selectedModel === option.value && (
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: option.color }} />
-                      )}
-                    </button>
-                  ))}
-
-                  <div className="my-1 border-t border-zinc-800/80" />
-                  <p className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
-                    Local Ollama
-                  </p>
-                  {LOCAL_MODELS.map(option => (
-                    <button
-                      key={option.value}
-                      onClick={() => { setSelectedModel(option.value); setModelMenuOpen(false) }}
-                      className={cn(
-                        'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-100',
-                        selectedModel === option.value
-                          ? 'bg-white/10 text-zinc-100'
-                          : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-                      )}
-                    >
-                      <span style={{ color: option.color }}>{option.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium">{option.label}</p>
-                        <p className="text-[10px] text-zinc-600 truncate">{option.description}</p>
-                      </div>
-                      {selectedModel === option.value && (
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: option.color }} />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+      <div className={cn(
+        'hidden items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] sm:flex',
+        liveState === 'approval' ? 'border-amber-300/20 bg-amber-300/10 text-amber-200' : liveState === 'setup' ? 'border-zinc-700 bg-zinc-900/60 text-zinc-500' : 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100',
+      )}>
+        <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+        {liveState === 'approval' ? `${pendingApprovals} approvals` : isStreaming ? 'Generating' : runningRuns > 0 ? `${runningRuns} runs` : daemonOnline ? 'Live' : 'Setup'}
       </div>
 
-      {/* Live indicator */}
-      <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900/50 border border-zinc-800/50">
-        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[10px] text-zinc-500">Live</span>
-      </div>
-
-      {/* Right panel toggle */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
             className={cn(
-              'p-1.5 rounded-lg border transition-all duration-150',
+              'rounded-lg border p-1.5 transition',
               rightPanelOpen
-                ? 'border-violet-500/30 bg-violet-500/10 text-violet-400'
-                : 'border-zinc-800 bg-zinc-900/50 text-zinc-600 hover:text-zinc-400 hover:border-zinc-700'
+                ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100'
+                : 'border-cyan-300/10 bg-slate-900/60 text-zinc-500 hover:text-cyan-100',
             )}
           >
-            {rightPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRight className="w-4 h-4" />}
+            {rightPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
           </button>
         </TooltipTrigger>
         <TooltipContent>{rightPanelOpen ? 'Hide Panel' : 'Show Panel'}</TooltipContent>
       </Tooltip>
+    </div>
+  )
+}
+
+function ModelSection({
+  title,
+  items,
+  selectedModel,
+  onSelect,
+}: {
+  title: string
+  items: ModelOption[]
+  selectedModel: AIModel
+  onSelect: (option: ModelOption) => void
+}) {
+  return (
+    <div className="p-1.5">
+      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-600">{title}</div>
+      <div className="space-y-1">
+        {items.map(option => {
+          const selected = option.value === selectedModel
+          return (
+            <button
+              key={option.value}
+              onClick={() => onSelect(option)}
+              disabled={option.disabled}
+              title={option.disabledReason}
+              className={cn(
+                'w-full rounded-xl border px-3 py-2 text-left transition',
+                selected ? 'border-cyan-300/35 bg-cyan-300/12' : 'border-transparent hover:border-cyan-300/20 hover:bg-cyan-300/6',
+                option.disabled && 'cursor-not-allowed opacity-55 hover:border-transparent hover:bg-transparent',
+              )}
+            >
+              <div className="flex items-center gap-2.5">
+                <span style={{ color: option.color }}>{option.icon}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-zinc-100">{option.label}</span>
+                    {option.disabled && <ProviderBadge model={String(option.value)} label="gated" disabled />}
+                  </div>
+                  <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-zinc-500">
+                    {option.disabled ? option.disabledReason : option.description}
+                  </p>
+                </div>
+                {selected && <StatusOrb state="active" size="sm" />}
+              </div>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

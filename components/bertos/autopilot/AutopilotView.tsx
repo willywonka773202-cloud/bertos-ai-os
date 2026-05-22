@@ -29,6 +29,7 @@ import { useAutomationStore } from '@/store/bertos/automations'
 import { useUIStore } from '@/store/bertos/ui'
 import type { AutomationAction, AutomationRisk, AutomationRule, AutomationRun } from '@/lib/bertos/types'
 import { useRouter } from 'next/navigation'
+import { RouteHero } from '@/components/bertos/hermes'
 
 type AutopilotTab = 'overview' | 'rules' | 'queue' | 'logs' | 'safety'
 
@@ -320,8 +321,21 @@ export function AutopilotView() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#09090B]">
-      <header className="shrink-0 border-b border-zinc-800/50 px-6 py-4">
+    <div className="flex h-full flex-col overflow-hidden">
+      <header className="shrink-0 border-b border-cyan-300/10 px-6 py-4">
+        <RouteHero
+          eyebrow="guarded automation oracle"
+          title="Bert OS Autopilot"
+          subtitle="Permissioned background automation with per-action timelines, approval pauses, daemon checks, and explicit logs. Risky actions surface as gates instead of silently running."
+          status={stats.running > 0 ? 'active' : stats.needsApproval > 0 ? 'warning' : autopilotEnabled ? 'nominal' : 'idle'}
+          seal={<Zap className="h-5 w-5" />}
+          metrics={[
+            { label: 'Rules Enabled', value: stats.enabledRules, detail: `${rules.length} total rules`, tone: 'cyan' },
+            { label: 'Running', value: stats.running, detail: 'live automation runs', tone: stats.running ? 'cyan' : 'zinc' },
+            { label: 'Pending Approval', value: stats.needsApproval, detail: 'human gate required', tone: stats.needsApproval ? 'amber' : 'emerald' },
+            { label: 'Daemon', value: daemonOnline ? 'online' : 'offline', detail: health?.workspaceRoot ?? 'local bridge', tone: daemonOnline ? 'emerald' : 'amber' },
+          ]}
+        />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">

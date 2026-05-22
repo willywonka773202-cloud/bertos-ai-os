@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { AIModel } from '@/lib/bertos/types'
+import { RouteHero } from '@/components/bertos/hermes'
 
 type EvolutionCategory = 'bug' | 'feature' | 'ui' | 'code-quality' | 'automation' | 'safety'
 type RecurringMode = 'suggestOnOpen' | 'dailyPlan' | 'backgroundScan'
@@ -356,9 +357,22 @@ export function EvolutionLabView() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-[#09090B]">
+    <div className="flex h-full overflow-hidden">
       <section className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-zinc-800/50 px-6 py-4">
+        <div className="border-b border-cyan-300/10 px-6 py-4">
+          <RouteHero
+            eyebrow="experimental weapons lab"
+            title="Evolution Lab"
+            subtitle="Feature candidates move through scan, risk review, patch proposal, validation, and promotion from experiment to skill to production feature. Nothing applies without an explicit approval gate."
+            status={scanning || generating ? 'active' : safe ? 'nominal' : 'warning'}
+            seal={<FlaskConical className="h-5 w-5" />}
+            metrics={[
+              { label: 'Experiments', value: scan?.backlog.length ?? 0, detail: 'ranked feature candidates', tone: 'cyan' },
+              { label: 'Risk Level', value: selectedItem ? `${selectedItem.risk}/10` : 'unselected', detail: selectedItem?.title ?? 'choose a candidate', tone: selectedItem && selectedItem.risk > 6 ? 'amber' : 'bronze' },
+              { label: 'Model Agent', value: selectedItem?.recommendedProvider ?? 'awaiting scan', detail: 'recommended executor', tone: 'emerald' },
+              { label: 'Promotion Path', value: 'experiment -> skill -> production', detail: safe ? 'repo verified' : 'read-only until safe', tone: safe ? 'cyan' : 'amber' },
+            ]}
+          />
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/25 bg-violet-500/10">
               <FlaskConical className="h-5 w-5 text-violet-300" />

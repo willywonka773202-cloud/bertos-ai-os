@@ -11,6 +11,7 @@ import { useUIStore } from '@/store/bertos/ui'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { RouteHero } from '@/components/bertos/hermes'
 
 interface OllamaStatus {
   online: boolean
@@ -264,6 +265,19 @@ export function SettingsView() {
       {/* Settings content */}
       <ScrollArea className="flex-1">
         <div className="max-w-2xl mx-auto px-6 py-6 space-y-6">
+          <RouteHero
+            eyebrow="systems sanctum"
+            title="Settings"
+            subtitle="Provider gates, local daemon configuration, API-key separation, and honest experimental states. Paid services stay disabled unless explicitly configured."
+            status={saved ? 'nominal' : 'idle'}
+            seal={<Settings className="h-5 w-5" />}
+            metrics={[
+              { label: 'Active Section', value: SECTIONS.find(section => section.id === activeSection)?.label ?? activeSection, detail: 'configuration deck', tone: 'cyan' },
+              { label: 'Subscription', value: 'local-first', detail: 'CLI/provider routes', tone: 'bronze' },
+              { label: 'Paid APIs', value: 'gated', detail: 'keys never printed', tone: 'amber' },
+              { label: 'Save State', value: saved ? 'saved' : 'ready', detail: 'local settings store', tone: saved ? 'emerald' : 'zinc' },
+            ]}
+          />
 
           {/* ── Providers ─────────────────────────────────────────────────── */}
           {activeSection === 'providers' && (

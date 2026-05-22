@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
+import { RouteHero } from '@/components/bertos/hermes'
 
 const PROJECT_COLORS = [
   '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -103,6 +104,19 @@ export function MemoryView() {
       {/* Header */}
       <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
         <div className="max-w-4xl mx-auto">
+          <RouteHero
+            eyebrow="memory temple"
+            title="Memory Vault"
+            subtitle="Local-first project memory, decisions, provider setup notes, and planned markdown vault support. Secret values stay out of memory by design."
+            status={projects.length ? 'nominal' : 'idle'}
+            seal={<Brain className="h-5 w-5" />}
+            metrics={[
+              { label: 'Projects', value: projects.length, detail: projects.find(project => project.id === activeProjectId)?.name ?? 'none active', tone: 'cyan' },
+              { label: 'Chat Threads', value: sessions.length, detail: 'linked local context', tone: 'bronze' },
+              { label: 'Local Categories', value: MEMORY_CATEGORIES.filter(category => category.status === 'local').length, detail: 'wired today', tone: 'emerald' },
+              { label: 'Planned Vaults', value: MEMORY_CATEGORIES.filter(category => category.status === 'planned').length, detail: 'honest roadmap', tone: 'zinc' },
+            ]}
+          />
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">

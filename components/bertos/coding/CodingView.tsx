@@ -42,6 +42,7 @@ import {
   type CommandCenterTaskType,
 } from '@/lib/bertos/command-center'
 import { AGENT_TEAMS, buildAgentTeamPrompt, getAgentTeam, type AgentTeamId } from '@/lib/bertos/agent-teams'
+import { RouteHero } from '@/components/bertos/hermes'
 
 interface RepoStatus {
   online?: boolean
@@ -542,7 +543,7 @@ export function CodingView() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-[#09090B]">
+    <div className="flex h-full overflow-hidden">
       <aside className="hidden w-72 shrink-0 border-r border-zinc-800/50 bg-zinc-950/70 md:block">
         <div className="border-b border-zinc-800/50 p-4">
           <div className="flex items-center gap-2">
@@ -658,6 +659,19 @@ export function CodingView() {
 
           <ScrollArea className="flex-1">
             <div className="space-y-4 p-4">
+              <RouteHero
+                eyebrow="engineering forge"
+                title="Mission Builder 2.0"
+                subtitle="Compile large implementation prompts into safety-scoped missions with explicit files, commands, provider routing, and proof gates before any patch is applied."
+                status={buildingMission || runningMission || applyingPatch || runningChecks ? 'active' : daemonOnline ? 'nominal' : 'warning'}
+                seal={<Code2 className="h-5 w-5" />}
+                metrics={[
+                  { label: 'Daemon', value: daemonLoading ? 'checking' : daemonOnline ? 'online' : 'offline', detail: daemonHealth?.workspaceRoot ?? 'local bridge', tone: daemonOnline ? 'cyan' : 'amber' },
+                  { label: 'Mission', value: mission ? 'compiled' : 'draft', detail: template?.label ?? 'custom prompt', tone: mission ? 'emerald' : 'bronze' },
+                  { label: 'Executor', value: executionShape === 'team' ? 'agent team' : providerOverride, detail: executionShape === 'team' ? selectedTeam.name : 'single provider', tone: 'cyan' },
+                  { label: 'Proof Gate', value: patchResponse ? patchResponse.proposal?.riskLevel ?? 'proposal' : 'pending', detail: 'typecheck/build before commit', tone: patchResponse ? 'amber' : 'zinc' },
+                ]}
+              />
               <DaemonHealthBanner health={daemonHealth} loading={daemonLoading} onRefresh={refreshDaemonHealth} />
 
               <section className="grid gap-3 rounded-xl border border-zinc-800 bg-zinc-950 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">

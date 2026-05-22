@@ -15,6 +15,7 @@ import {
   type CommandCenterMode,
   type CommandCenterTaskType,
 } from '@/lib/bertos/command-center'
+import { RouteHero } from '@/components/bertos/hermes'
 
 type TaskStatus =
   | 'Draft'
@@ -139,7 +140,7 @@ export function TasksView() {
   }
 
   return (
-    <div className="flex h-full bg-[#09090B]">
+    <div className="flex h-full">
       <aside className="hidden w-80 shrink-0 border-r border-zinc-800/50 bg-zinc-950/70 lg:block">
         <div className="border-b border-zinc-800/50 p-4">
           <div className="flex items-center gap-2">
@@ -186,7 +187,20 @@ export function TasksView() {
       </aside>
 
       <main className="min-w-0 flex-1 overflow-hidden">
-        <div className="border-b border-zinc-800/50 p-5">
+        <div className="border-b border-cyan-300/10 p-5">
+          <RouteHero
+            eyebrow="legion task board"
+            title="BertOS Task Board"
+            subtitle="Track self-coding work from draft prompt to external agent handoff, review, validation, and verified completion. Local tasks never execute code by themselves."
+            status="nominal"
+            seal={<KanbanSquare className="h-5 w-5" />}
+            metrics={[
+              { label: 'Tasks', value: tasks.length, detail: `${filtered.length} visible`, tone: 'cyan' },
+              { label: 'Needs Review', value: tasks.filter(task => task.status === 'Needs Review').length, detail: 'awaiting proof', tone: 'amber' },
+              { label: 'Complete', value: tasks.filter(task => task.status === 'Complete').length, detail: 'verified locally', tone: 'emerald' },
+              { label: 'Mode', value: mode, detail: AGENT_ROSTER.find(agent => agent.id === agentId)?.name ?? agentId, tone: 'bronze' },
+            ]}
+          />
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="mb-2 flex items-center gap-2">

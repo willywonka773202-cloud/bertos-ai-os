@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
+import { HologramPanel, RomanDivider, RouteHero, StatusOrb } from '@/components/bertos/hermes'
 
 interface RepoStatus {
   root?: string
@@ -93,8 +94,8 @@ export function GitHubView() {
   const safe = daemonOnline && Boolean(repo?.safeRepo)
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#09090B]">
-      <div className="shrink-0 border-b border-zinc-800/50 px-6 py-4">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-cyan-300/10 bg-slate-950/35 px-6 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-800">
             <Github className="h-4 w-4 text-zinc-300" />
@@ -115,11 +116,29 @@ export function GitHubView() {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="mx-auto max-w-5xl space-y-5 p-6">
+        <div className="mx-auto max-w-6xl space-y-5 p-6">
+          <RouteHero
+            eyebrow="repo command post"
+            title="GitHub Praetorium"
+            subtitle="Local repository operations stay permissioned: no auto-push, no auto-merge, no destructive git rites. The panel separates claimed completion from verified proof before anything leaves the branch."
+            status={safe ? 'nominal' : daemonOnline ? 'warning' : 'idle'}
+            seal={<Github className="h-5 w-5" />}
+            metrics={[
+              { label: 'Repo Safety', value: safe ? 'verified' : 'blocked', detail: repo?.blockedReason ?? 'BertOS safety contract', tone: safe ? 'emerald' : 'amber' },
+              { label: 'Branch', value: repo?.branch ?? 'unknown', detail: repo?.root ?? 'daemon required', tone: 'cyan' },
+              { label: 'Daemon', value: daemonOnline ? 'online' : 'offline', detail: health?.workspaceRoot ?? 'local bridge', tone: daemonOnline ? 'cyan' : 'zinc' },
+              { label: 'Last Proof', value: output ? `exit ${output.result.exitCode ?? 0}` : 'none', detail: output?.command ?? 'run a read-only check', tone: output ? ((output.result.exitCode ?? 0) === 0 && !output.result.error ? 'emerald' : 'red') : 'bronze' },
+            ]}
+          >
+            <div className="flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-2 text-xs text-amber-100">
+              <StatusOrb state={safe ? 'nominal' : 'warning'} size="sm" />
+              proof required before merge
+            </div>
+          </RouteHero>
           <DaemonHealthBanner health={health} loading={healthLoading} onRefresh={refreshHealth} />
 
-          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+          <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <HologramPanel tone="cyan" className="p-4">
               <div className="mb-3 flex items-center gap-2">
                 <GitBranch className="h-4 w-4 text-violet-400" />
                 <h2 className="text-sm font-semibold text-zinc-100">Repository status</h2>
@@ -135,31 +154,42 @@ export function GitHubView() {
               ) : (
                 <p className="text-sm text-zinc-600">Repo status requires the local daemon.</p>
               )}
-            </div>
+            </HologramPanel>
 
             <aside className="space-y-4">
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <HologramPanel tone="bronze" className="p-4">
                 <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-100">
                   <AlertTriangle className="h-4 w-4" />
-                  Guardrails
+                  Claimed complete vs verified complete
                 </div>
                 <div className="space-y-1 text-xs leading-relaxed text-amber-200/75">
-                  <p>No push, no merge, no destructive git commands.</p>
-                  <p>Branch/worktree execution is scaffolded, not automatic.</p>
-                  <p>Sylistly remotes are blocked by BertOS safety checks.</p>
+                  <p>Claimed complete is only a note until typecheck/build/safety output exists.</p>
+                  <p>Merge readiness requires visible proof, branch safety, and user approval.</p>
+                  <p>No push, no merge, no destructive git commands from this panel.</p>
                 </div>
-              </div>
+              </HologramPanel>
+              <HologramPanel tone="cyan" className="p-4">
+                <div className="mb-3 text-sm font-semibold text-zinc-100">Premium action cards</div>
+                <div className="grid gap-2">
+                  {['Audit branch delta', 'Collect validation proof', 'Prepare PR summary'].map((label) => (
+                    <div key={label} className="rounded-lg border border-cyan-300/10 bg-cyan-300/5 p-3 text-xs text-cyan-100/80">
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              </HologramPanel>
               <Button variant="outline" className="w-full" onClick={() => void copyReport()}>
                 <ClipboardCopy className="h-4 w-4" />Copy repo report
               </Button>
             </aside>
           </section>
 
-          <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+          <HologramPanel tone="cyan" className="p-4">
             <div className="mb-3 flex items-center gap-2">
               <Terminal className="h-4 w-4 text-emerald-400" />
               <h2 className="text-sm font-semibold text-zinc-100">Safe git actions</h2>
             </div>
+            <RomanDivider label="read only rites" />
             <div className="flex flex-wrap gap-2">
               {QUICK_ACTIONS.map(command => (
                 <Button
@@ -180,10 +210,10 @@ export function GitHubView() {
                 Safe git actions require `npm run bertos:daemon` and the verified BertOS remote.
               </p>
             )}
-          </section>
+          </HologramPanel>
 
           {output && (
-            <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+            <HologramPanel tone={(output.result.exitCode ?? 0) === 0 && !output.result.error ? 'cyan' : 'bronze'} className="p-4">
               <div className="mb-2 flex items-center gap-2">
                 {(output.result.exitCode ?? 0) === 0 && !output.result.error
                   ? <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -196,7 +226,7 @@ export function GitHubView() {
               <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-black/40 p-3 text-xs leading-relaxed text-zinc-400">
                 {output.result.error || output.result.stderr || output.result.stdout || '(empty)'}
               </pre>
-            </section>
+            </HologramPanel>
           )}
         </div>
       </ScrollArea>

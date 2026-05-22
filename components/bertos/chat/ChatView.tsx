@@ -10,6 +10,7 @@ import { InputBar } from './InputBar'
 import { RouterBadge } from './RouterBadge'
 import { readAIStream } from '@/lib/bertos/stream-utils'
 import type { AIModel, RouterDecision } from '@/lib/bertos/types'
+import { HologramPanel, ProviderBadge, RomanDivider, StatusOrb } from '@/components/bertos/hermes'
 
 const WELCOME_PROMPTS = [
   { icon: <Cpu className="w-4 h-4 text-violet-400" />, label: 'Explain async/await in TypeScript with examples' },
@@ -39,7 +40,7 @@ function SkeletonMessage() {
 export function ChatView() {
   const {
     sessions, activeSessionId, isStreaming,
-    createSession, addMessage, appendToMessage, updateMessage,
+    getOrCreateSession, deleteEmptySessions, addMessage, appendToMessage, updateMessage,
     setStreaming, updateSessionTitle, getActiveSession, setActiveSession,
   } = useChatStore()
   const { selectedModel, settings } = useUIStore()
@@ -53,16 +54,17 @@ export function ChatView() {
   const session = getActiveSession()
   const messages = session?.messages ?? []
 
-  // Bootstrap first session
+  // Bootstrap existing history only. Prompt submit owns session creation so Enter
+  // opens/focuses the exact chat that receives the user message and generation.
   useEffect(() => {
-    if (!activeSessionId) {
-      if (sessions.length > 0) {
-        useChatStore.getState().setActiveSession(sessions[0].id)
-      } else {
-        createSession(selectedModel)
+    deleteEmptySessions()
+    if (!activeSessionId && sessions.length > 0) {
+      const firstRealSession = sessions.find(s => s.messages.some(message => message.role === 'user')) ?? sessions[0]
+      if (firstRealSession) {
+        useChatStore.getState().setActiveSession(firstRealSession.id)
       }
     }
-  }, [activeSessionId, sessions, createSession, selectedModel])
+  }, [activeSessionId, sessions, deleteEmptySessions])
 
   const scrollToBottom = useCallback((smooth = true) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
@@ -80,18 +82,14 @@ export function ChatView() {
   }, [])
 
   const sendMessage = useCallback(async (content: string) => {
-    // Ensure active session
-    let sessionId = activeSessionId
-    if (!sessionId) {
-      const s = createSession(selectedModel)
-      sessionId = s.id
-    }
+    const targetSession = getOrCreateSession(selectedModel)
+    const sessionId = targetSession.id
     setActiveSession(sessionId)
 
     addMessage(sessionId, { role: 'user', content })
-    const currentSession = useChatStore.getState().sessions.find(s => s.id === sessionId)
-    if (!currentSession || currentSession.messages.length === 0) {
-      updateSessionTitle(sessionId, content.length > 50 ? content.slice(0, 50) + '…' : content)
+    const hasPriorUserMessage = targetSession.messages.some(message => message.role === 'user')
+    if (!hasPriorUserMessage || targetSession.title === 'New Chat') {
+      updateSessionTitle(sessionId, content.length > 60 ? content.slice(0, 60) + '...' : content)
     }
 
     // Create the streaming placeholder
@@ -289,9 +287,9 @@ export function ChatView() {
       setPendingDecision(null)
     }
   }, [
-    activeSessionId, selectedModel, settings.apiKeys,
+    selectedModel, settings.apiKeys,
     addMessage, appendToMessage, updateMessage, setStreaming,
-    createSession, updateSessionTitle, getActiveProject, setActiveSession,
+    getOrCreateSession, updateSessionTitle, getActiveProject, setActiveSession,
   ])
 
   const handleStop = useCallback(() => {
@@ -317,8 +315,29 @@ export function ChatView() {
               transition={{ duration: 0.3 }}
               className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8"
             >
-              {/* Hero */}
-              <div className="space-y-4">
+              <HologramPanel tone="cyan" className="w-full max-w-2xl text-left">
+                <div className="flex flex-col items-center gap-4 text-center">
+                  <StatusOrb state="active" size="xl" />
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-amber-200/70">Legion query console</div>
+                    <h1 className="mt-2 text-3xl font-bold tracking-tight">
+                      <span className="text-zinc-100">What shall the </span>
+                      <span className="text-hermes-gradient">Oracle</span>
+                      <span className="text-zinc-100"> route?</span>
+                    </h1>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-zinc-400">
+                      BertOS routes Claude, Codex, Gemini, Ollama, and local tools through one guarded command channel.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <ProviderBadge model={selectedModel} />
+                    <ProviderBadge model="codex-cli" label="Forge ready" />
+                    <ProviderBadge model="hermes3" label="Hermes local" />
+                  </div>
+                </div>
+              </HologramPanel>
+
+              <div className="hidden space-y-4">
                 <div className="relative inline-flex">
                   <motion.div
                     animate={{ boxShadow: ['0 0 40px rgba(139,92,246,0.3)', '0 0 70px rgba(139,92,246,0.5)', '0 0 40px rgba(139,92,246,0.3)'] }}
@@ -349,7 +368,7 @@ export function ChatView() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.06 + i * 0.04 }}
                     onClick={() => sendMessage(p.label)}
-                    className="flex items-center gap-2.5 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 hover:border-zinc-700 p-3 text-left transition-all duration-150 group"
+                    className="flex items-center gap-2.5 rounded-xl border border-cyan-300/15 bg-slate-950/60 p-3 text-left transition-all duration-150 group hover:border-cyan-300/35 hover:bg-cyan-300/8"
                   >
                     <span className="flex-shrink-0">{p.icon}</span>
                     <span className="text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors leading-snug">{p.label}</span>
@@ -357,7 +376,8 @@ export function ChatView() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-3 text-[11px] text-zinc-700">
+              <RomanDivider label="keyboard rites" className="w-full max-w-lg" />
+              <div className="flex items-center gap-3 text-[11px] text-zinc-600">
                 <div className="flex items-center gap-1.5"><kbd className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-[10px]">⌘K</kbd><span>Commands</span></div>
                 <span className="text-zinc-800">·</span>
                 <div className="flex items-center gap-1.5"><kbd className="bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded text-[10px]">/</kbd><span>Slash menu</span></div>

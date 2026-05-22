@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { PLAYBOOK_TEMPLATES } from '@/lib/bertos/command-center'
 import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
+import { RouteHero } from '@/components/bertos/hermes'
 
 export function PlaybooksView() {
   const router = useRouter()
@@ -21,7 +22,7 @@ export function PlaybooksView() {
   }
 
   return (
-    <div className="flex h-full bg-[#0A0A0B]">
+    <div className="flex h-full">
       <aside className="hidden w-72 shrink-0 border-r border-zinc-800/50 bg-zinc-950/70 md:block">
         <div className="border-b border-zinc-800/50 p-4">
           <div className="flex items-center gap-2">
@@ -56,6 +57,19 @@ export function PlaybooksView() {
       <main className="min-w-0 flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="mx-auto max-w-4xl space-y-5 p-6">
+            <RouteHero
+              eyebrow="tactical playbooks"
+              title="Playbook Armory"
+              subtitle="Copy-safe operating procedures for external agents and local workflows. Each playbook states risk, steps, and proof expectations before execution."
+              status="nominal"
+              seal={<ClipboardList className="h-5 w-5" />}
+              metrics={[
+                { label: 'Playbooks', value: PLAYBOOK_TEMPLATES.length, detail: 'available procedures', tone: 'cyan' },
+                { label: 'Selected', value: selected.title, detail: selected.risk, tone: selected.risk === 'safe' ? 'emerald' : 'amber' },
+                { label: 'Steps', value: selected.steps.length, detail: 'explicit actions', tone: 'bronze' },
+                { label: 'Mode', value: 'copy only', detail: 'no auto-run', tone: 'zinc' },
+              ]}
+            />
             <section className="rounded-2xl border border-zinc-800/50 bg-zinc-900/25 p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>

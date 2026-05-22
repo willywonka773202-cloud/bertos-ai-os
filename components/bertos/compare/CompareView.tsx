@@ -15,6 +15,7 @@ import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
 import { usePromptStore } from '@/store/bertos/prompts'
 import { toast } from 'sonner'
+import { RouteHero } from '@/components/bertos/hermes'
 
 type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'gemini-api-native' | 'codex-cli'
 type CouncilMode = 'compare' | 'judge' | 'build'
@@ -427,12 +428,25 @@ export function CompareView() {
   const canAct = allDone && !isJudging
 
   return (
-    <div className="flex flex-col h-full bg-[#09090B]">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-zinc-800/50 bg-zinc-950/60 px-5 py-4 space-y-3">
+      <div className="flex-shrink-0 border-b border-cyan-300/10 bg-slate-950/35 px-5 py-4 space-y-3">
         <div className="max-w-5xl mx-auto space-y-3">
+          <RouteHero
+            eyebrow="oracle tribunal"
+            title="Model Council"
+            subtitle="Send one prompt through multiple providers, compare the testimony, then let the tribunal synthesize a verified answer with conflicts and risks called out."
+            status={isRunning || isJudging ? 'active' : hasResponses ? 'nominal' : 'idle'}
+            seal={<Scale className="h-5 w-5" />}
+            metrics={[
+              { label: 'Council Mode', value: COUNCIL_MODES.find(mode => mode.id === councilMode)?.label ?? councilMode, detail: 'comparison ritual', tone: 'bronze' },
+              { label: 'Models Armed', value: selectedModels.size, detail: Array.from(selectedModels).join(', '), tone: 'cyan' },
+              { label: 'Responses', value: responses.filter(r => r.done).length, detail: hasResponses ? `${responses.length} total streams` : 'none yet', tone: hasResponses ? 'emerald' : 'zinc' },
+              { label: 'Judge', value: judgeResult ? 'complete' : isJudging ? 'judging' : 'idle', detail: judgeResult?.providerUsed ?? 'awaiting evidence', tone: judgeResult ? 'emerald' : isJudging ? 'cyan' : 'zinc' },
+            ]}
+          />
           {/* Title */}
-          <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
               <GitCompare className="w-4 h-4 text-blue-400" />
             </div>

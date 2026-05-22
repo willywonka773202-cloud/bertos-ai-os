@@ -12,16 +12,16 @@ import { cn } from '@/lib/bertos/cn'
 const STEPS = [
   {
     id: 'welcome',
-    title: 'Welcome to BertOS',
-    subtitle: 'Your AI command center',
-    description: 'Control Claude, Codex, and Gemini from one unified workspace. Built for speed, power, and flow.',
+    title: 'Enter Mission Control',
+    subtitle: 'Jarvis x Roman Hermes',
+    description: 'A dark holographic command center for Oracle chat, provider routing, agents, repo proof, memory, and guarded automation.',
     visual: (
       <div className="relative flex items-center justify-center w-full h-48">
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-32 h-32 rounded-full bg-violet-500/10 border border-violet-500/20 animate-pulse" />
-          <div className="absolute w-48 h-48 rounded-full bg-blue-500/5 border border-blue-500/10 animate-pulse" style={{ animationDelay: '0.5s' }} />
+          <div className="w-32 h-32 rounded-full bg-cyan-400/10 border border-cyan-300/20 animate-pulse" />
+          <div className="absolute w-48 h-48 rounded-full bg-amber-300/5 border border-amber-300/10 animate-pulse" style={{ animationDelay: '0.5s' }} />
         </div>
-        <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center shadow-[0_0_60px_rgba(139,92,246,0.5)]">
+        <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-300 via-blue-500 to-amber-300 flex items-center justify-center shadow-[0_0_60px_rgba(34,211,238,0.35)]">
           <Zap className="w-8 h-8 text-white" />
         </div>
         {[
@@ -164,16 +164,16 @@ export function OnboardingModal({ onComplete }: OnboardingModalProps) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+        className="absolute inset-0 bg-slate-950/86 backdrop-blur-md hermes-grid"
       />
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-        className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl shadow-black"
+        className="relative w-full max-w-md overflow-hidden rounded-3xl border border-cyan-300/20 bg-slate-950/88 shadow-2xl shadow-cyan-950/30 backdrop-blur-xl"
       >
         {/* Top gradient bar */}
-        <div className="h-1 w-full bg-gradient-to-r from-violet-600 via-blue-500 to-emerald-500" />
+        <div className="h-1 w-full bg-gradient-to-r from-cyan-300 via-blue-500 to-amber-300" />
 
         {/* Step indicator */}
         <div className="flex items-center gap-1.5 px-6 pt-5">
@@ -182,7 +182,7 @@ export function OnboardingModal({ onComplete }: OnboardingModalProps) {
               key={i}
               className={cn(
                 'h-1 rounded-full transition-all duration-300',
-                i === step ? 'bg-violet-500 flex-1' : i < step ? 'bg-violet-500/40 w-4' : 'bg-zinc-800 w-4'
+                i === step ? 'bg-cyan-300 flex-1 shadow-[0_0_12px_rgba(34,211,238,0.45)]' : i < step ? 'bg-amber-300/45 w-4' : 'bg-zinc-800 w-4'
               )}
             />
           ))}
@@ -199,11 +199,11 @@ export function OnboardingModal({ onComplete }: OnboardingModalProps) {
             className="px-6 pt-5 pb-2"
           >
             <div className="mb-1">
-              <span className="text-[10px] font-semibold text-violet-400 uppercase tracking-widest">
+              <span className="text-[10px] font-semibold text-amber-200/80 uppercase tracking-[0.26em]">
                 {currentStep.subtitle}
               </span>
             </div>
-            <h2 className="text-2xl font-bold text-zinc-100 mb-2 tracking-tight">
+            <h2 className="text-2xl font-bold text-hermes-gradient mb-2 tracking-tight">
               {currentStep.title}
             </h2>
             <p className="text-sm text-zinc-500 leading-relaxed mb-6">
@@ -219,13 +219,13 @@ export function OnboardingModal({ onComplete }: OnboardingModalProps) {
         <div className="flex items-center justify-between px-6 pb-6 pt-4">
           <button
             onClick={onComplete}
-            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="text-xs text-zinc-600 transition-colors hover:text-cyan-200"
           >
             Skip intro
           </button>
           <Button
             onClick={() => isLast ? onComplete() : setStep(s => s + 1)}
-            className="gap-2"
+            className="gap-2 border border-cyan-300/25 bg-cyan-300/10 text-cyan-50 hover:bg-cyan-300/20"
           >
             {isLast ? (
               <><Check className="w-4 h-4" />Launch BertOS</>

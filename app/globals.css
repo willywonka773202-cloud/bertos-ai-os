@@ -29,6 +29,10 @@
     --accent-cyan: #06B6D4;
     --accent-green: #10B981;
     --accent-amber: #F59E0B;
+    --hermes-cyan: #22D3EE;
+    --hermes-blue: #2563EB;
+    --hermes-bronze: #B8894B;
+    --hermes-gold: #F6C453;
   }
 
   * {
@@ -94,6 +98,57 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+
+  .hermes-grid {
+    background-image:
+      linear-gradient(rgba(34, 211, 238, 0.07) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 211, 238, 0.07) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  .hermes-grid-fine {
+    background-image:
+      linear-gradient(rgba(251, 191, 36, 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+
+  .hermes-scanlines {
+    background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 100% 4px;
+    mix-blend-mode: screen;
+  }
+
+  .hermes-holo {
+    background:
+      radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.18), transparent 32%),
+      radial-gradient(circle at 90% 10%, rgba(246, 196, 83, 0.12), transparent 30%),
+      linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.78));
+    border: 1px solid rgba(34, 211, 238, 0.18);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 20px 80px rgba(0,0,0,0.32);
+  }
+
+  .hermes-bronze {
+    background:
+      radial-gradient(circle at 10% 0%, rgba(251, 191, 36, 0.16), transparent 34%),
+      linear-gradient(135deg, rgba(120, 77, 32, 0.16), rgba(2, 6, 23, 0.68));
+    border: 1px solid rgba(251, 191, 36, 0.2);
+  }
+
+  .text-hermes-gradient {
+    background: linear-gradient(120deg, #E0F2FE 0%, #22D3EE 32%, #60A5FA 62%, #F6C453 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .animate-hermes-pulse {
+    animation: hermesPulse 3s ease-in-out infinite;
+  }
+
+  .animate-hermes-bronze-pulse {
+    animation: hermesBronzePulse 3.6s ease-in-out infinite;
+  }
 }
 
 [data-radix-popper-content-wrapper] {
@@ -109,4 +164,14 @@
   background: linear-gradient(90deg, #1a1a1f 0px, #27272a 40px, #1a1a1f 80px);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
+}
+
+@keyframes hermesPulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(34, 211, 238, 0.18); }
+  50% { box-shadow: 0 0 42px rgba(34, 211, 238, 0.38); }
+}
+
+@keyframes hermesBronzePulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(251, 191, 36, 0.14); }
+  50% { box-shadow: 0 0 38px rgba(251, 191, 36, 0.32); }
 }

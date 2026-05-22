@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation'
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { rightPanelOpen, setRightPanelOpen, sidebarCollapsed, setSidebarCollapsed,
           setCommandPaletteOpen, setActiveView } = useUIStore()
-  const { createSession } = useChatStore()
+  const { getOrCreateSession } = useChatStore()
   const { showOnboarding, complete } = useOnboarding()
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (mod && e.key === 'k') { e.preventDefault(); setCommandPaletteOpen(true) }
       if (mod && e.key === 'b') { e.preventDefault(); setSidebarCollapsed(!sidebarCollapsed) }
       if (mod && e.key === 'p') { e.preventDefault(); setRightPanelOpen(!rightPanelOpen) }
-      if (mod && e.key === 'n') { e.preventDefault(); createSession(); setActiveView('chat'); router.push('/chat') }
+      if (mod && e.key === 'n') { e.preventDefault(); getOrCreateSession(); setActiveView('chat'); router.push('/chat') }
       if (mod && e.key === ',') { e.preventDefault(); setActiveView('settings'); router.push('/settings') }
       if (mod && e.key === '0') { e.preventDefault(); setActiveView('dashboard'); router.push('/dashboard') }
       if (mod && e.key === '1') { e.preventDefault(); setActiveView('chat'); router.push('/chat') }
@@ -44,14 +44,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [sidebarCollapsed, rightPanelOpen, setCommandPaletteOpen, setSidebarCollapsed,
-      setRightPanelOpen, createSession, setActiveView, router])
+      setRightPanelOpen, getOrCreateSession, setActiveView, router])
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="flex h-dvh bg-[#0A0A0B] overflow-hidden text-zinc-100">
+      <div className="relative flex h-dvh overflow-hidden bg-[#020617] text-zinc-100">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_88%_8%,rgba(251,191,36,0.14),transparent_28%),linear-gradient(135deg,#020617_0%,#050816_44%,#09090B_100%)]" />
+        <div className="hermes-grid pointer-events-none absolute inset-0 opacity-35" />
+        <div className="hermes-scanlines pointer-events-none absolute inset-0 opacity-[0.08]" />
 
         {/* Desktop sidebar */}
-        <div className="hidden md:flex flex-shrink-0 h-full">
+        <div className="relative z-20 hidden md:flex flex-shrink-0 h-full">
           <Sidebar />
         </div>
 
@@ -63,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Sheet>
 
         {/* Main content */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="relative z-10 flex-1 flex flex-col min-w-0 overflow-hidden">
           <DemoBanner />
           <TopBar onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
           <main className="flex-1 overflow-hidden">
@@ -74,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Right panel — desktop only */}
         <AnimatePresence>
           {rightPanelOpen && (
-            <div className="hidden md:block">
+            <div className="relative z-20 hidden md:block">
               <RightPanel />
             </div>
           )}

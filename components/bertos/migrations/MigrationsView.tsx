@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { buildMigrationAuditPrompt } from '@/lib/bertos/command-center'
+import { RouteHero } from '@/components/bertos/hermes'
 
 interface ProviderStatusResponse {
   providers?: Array<{ id: string; name: string; status: string; message?: string }>
@@ -42,10 +43,23 @@ export function MigrationsView() {
   }
 
   return (
-    <div className="flex h-full bg-[#09090B]">
+    <div className="flex h-full">
       <main className="min-w-0 flex-1 overflow-hidden">
         <ScrollArea className="h-full">
           <div className="mx-auto max-w-6xl space-y-5 p-6">
+            <RouteHero
+              eyebrow="migration augury"
+              title="Migration Center"
+              subtitle="Plan provider migrations without breaking BertOS routing. Anti-Gravity remains planned/experimental until docs, local command detection, and billing behavior are verified."
+              status={status ? 'nominal' : 'loading'}
+              seal={<Compass className="h-5 w-5" />}
+              metrics={[
+                { label: 'Gemini CLI', value: geminiCli?.status ?? 'unknown', detail: geminiCli?.message ?? 'current provider path', tone: geminiCli?.status === 'online' ? 'emerald' : 'amber' },
+                { label: 'Anti-Gravity', value: 'planned', detail: 'not default', tone: 'bronze' },
+                { label: 'Checklist', value: CHECKLIST.length, detail: 'pre-flight items', tone: 'cyan' },
+                { label: 'Mode', value: 'audit only', detail: 'copy prompt, no live migration', tone: 'zinc' },
+              ]}
+            />
             <section className="rounded-2xl border border-zinc-800/50 bg-zinc-900/25 p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>

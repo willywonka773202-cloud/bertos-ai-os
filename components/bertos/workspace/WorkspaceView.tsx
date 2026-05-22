@@ -37,6 +37,7 @@ import {
 import { useUIStore } from '@/store/bertos/ui'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import type { AIModel } from '@/lib/bertos/types'
+import { RouteHero } from '@/components/bertos/hermes'
 
 interface FileNode {
   name: string
@@ -975,6 +976,7 @@ export function WorkspaceView() {
   const activeTab = tabs.find(tab => tab.path === activeFile)
   const dirty = Boolean(activeTab && activeTab.content !== activeTab.savedContent)
   const dirtyTabs = tabs.filter(tab => tab.content !== tab.savedContent)
+  const runningTerminal = terminalEntries.some(entry => entry.running)
   const flatFiles = useMemo(() => flattenFiles(files), [files])
   const safe = Boolean(status?.online && status.repo?.safeRepo)
   const changedFiles = getChangedFiles(status?.repo?.status)
@@ -1774,7 +1776,7 @@ export function WorkspaceView() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-[#09090B]">
+    <div className="flex h-full overflow-hidden">
       <aside className="hidden w-72 shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950/60 md:flex">
         <div className="flex items-center justify-between border-b border-zinc-800/50 px-3 py-3">
           <div className="flex items-center gap-2">
@@ -1821,6 +1823,21 @@ export function WorkspaceView() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
+        <div className="p-3 pb-0">
+          <RouteHero
+            eyebrow="active project bay"
+            title="Workspace Command Deck"
+            subtitle="A guarded local workbench for file inspection, patch reliability, terminal proof, and explicit save/apply actions. The daemon and safe-repo gate decide what can run."
+            status={loading || runningTerminal || generatingPatch ? 'active' : safe ? 'nominal' : 'warning'}
+            seal={<FolderOpen className="h-5 w-5" />}
+            metrics={[
+              { label: 'Repo', value: safe ? 'safe' : 'locked', detail: status?.repo?.branch ?? 'daemon pending', tone: safe ? 'emerald' : 'amber' },
+              { label: 'Files Indexed', value: flatFiles.length, detail: activeFile || 'no active file', tone: 'cyan' },
+              { label: 'Dirty Tabs', value: dirtyTabs.length, detail: dirty ? 'unsaved work present' : 'all saved', tone: dirtyTabs.length ? 'amber' : 'zinc' },
+              { label: 'Terminal', value: terminalEntries.length, detail: runningTerminal ? 'command running' : 'local proof log', tone: runningTerminal ? 'cyan' : 'bronze' },
+            ]}
+          />
+        </div>
         <DaemonHealthBanner
           health={daemonHealth}
           loading={daemonHealthLoading}

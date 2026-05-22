@@ -22,6 +22,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { AGENT_ROSTER } from '@/lib/bertos/command-center'
 import { AGENT_TEAMS, buildAgentTeamPrompt, type AgentTeam } from '@/lib/bertos/agent-teams'
 import { useRouter } from 'next/navigation'
+import { RouteHero } from '@/components/bertos/hermes'
 
 const TASK_TEMPLATES = [
   { title: 'Fix TypeScript Errors',   description: 'Scan codebase for type errors and fix them systematically. Report what was fixed.', model: 'codex-cli' as AIModel, mode: 'debug' as AgentTask['mode'] },
@@ -525,7 +526,9 @@ export function AgentsView() {
   }
 
   const running = tasks.filter(t => t.status === 'running').length
+  const pending = tasks.filter(t => t.status === 'pending' || t.status === 'paused').length
   const done    = tasks.filter(t => t.status === 'done').length
+  const failed  = tasks.filter(t => t.status === 'failed').length
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
 
   const copySetupPrompt = async (name: string, prompt: string) => {
@@ -554,6 +557,19 @@ export function AgentsView() {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
         <div className="max-w-6xl mx-auto">
+          <RouteHero
+            eyebrow="agent legion"
+            title="Agent Run Console"
+            subtitle="Structured AI operations with explicit steps, approval gates, CLI/provider status, and a visible run timeline. Paid or planned agents remain clearly gated."
+            status={running > 0 ? 'active' : failed > 0 ? 'warning' : 'nominal'}
+            seal={<Bot className="h-5 w-5" />}
+            metrics={[
+              { label: 'Running', value: running, detail: 'active operations', tone: running ? 'cyan' : 'zinc' },
+              { label: 'Pending', value: pending, detail: 'queued tasks', tone: pending ? 'amber' : 'zinc' },
+              { label: 'Complete', value: done, detail: 'verified reports', tone: 'emerald' },
+              { label: 'Legion Roster', value: AGENT_ROSTER.length, detail: `${AGENT_TEAMS.length} teams`, tone: 'bronze' },
+            ]}
+          />
           <DaemonHealthBanner
             health={daemonHealth}
             loading={daemonHealthLoading}

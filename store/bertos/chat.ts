@@ -10,6 +10,8 @@ interface ChatStore {
   isStreaming: boolean
 
   createSession: (model?: AIModel, projectId?: string) => ChatSession
+  getOrCreateSession: (model?: AIModel, projectId?: string) => ChatSession
+  deleteEmptySessions: () => void
   setActiveSession: (id: string) => void
   deleteSession: (id: string) => void
   updateSessionTitle: (id: string, title: string) => void
@@ -50,6 +52,47 @@ export const useChatStore = create<ChatStore>()(
         }))
         return session
       },
+
+      getOrCreateSession: (model = 'auto', projectId) => {
+        const { sessions, activeSessionId } = get()
+        const active = sessions.find(s => s.id === activeSessionId)
+        if (active && active.messages.length === 0) {
+          set(state => ({
+            sessions: state.sessions.map(s =>
+              s.id === active.id
+                ? { ...s, model, projectId: projectId ?? s.projectId, updatedAt: Date.now() }
+                : s
+            ),
+            activeSessionId: active.id,
+          }))
+          return { ...active, model, projectId: projectId ?? active.projectId, updatedAt: Date.now() }
+        }
+        const reusableDraft = sessions.find(s => s.messages.length === 0 && (!projectId || s.projectId === projectId))
+        if (reusableDraft) {
+          set(state => ({
+            sessions: state.sessions.map(s =>
+              s.id === reusableDraft.id
+                ? { ...s, model, projectId: projectId ?? s.projectId, updatedAt: Date.now() }
+                : s
+            ),
+            activeSessionId: reusableDraft.id,
+          }))
+          return { ...reusableDraft, model, projectId: projectId ?? reusableDraft.projectId, updatedAt: Date.now() }
+        }
+        return get().createSession(model, projectId)
+      },
+
+      deleteEmptySessions: () =>
+        set(state => {
+          const sessions = state.sessions.filter(s => s.messages.length > 0 || s.id === state.activeSessionId)
+          if (sessions.length === state.sessions.length) return state
+          return {
+            sessions,
+            activeSessionId: state.activeSessionId && sessions.some(s => s.id === state.activeSessionId)
+              ? state.activeSessionId
+              : sessions[0]?.id ?? null,
+          }
+        }),
 
       setActiveSession: (id) => set({ activeSessionId: id }),
 

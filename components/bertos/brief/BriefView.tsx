@@ -9,6 +9,7 @@ import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { RouteHero } from '@/components/bertos/hermes'
 
 interface ProviderStatus {
   id: string
@@ -47,8 +48,21 @@ export function BriefView() {
   ]
 
   return (
-    <div className="flex h-full flex-col bg-[#0A0A0B]">
-      <div className="border-b border-zinc-800/50 px-6 py-4">
+    <div className="flex h-full flex-col">
+      <div className="border-b border-cyan-300/10 px-6 py-4">
+        <RouteHero
+          eyebrow="daily oracle brief"
+          title="Daily Brief"
+          subtitle="A chief-of-staff command view for the active project, provider readiness, Autopilot status, and the safest next action. No calendar or email data is implied unless wired."
+          status={loading ? 'loading' : health?.daemonOnline ? 'nominal' : 'warning'}
+          seal={<CalendarDays className="h-5 w-5" />}
+          metrics={[
+            { label: 'Active Project', value: activeProject?.name ?? 'none', detail: activeProject?.description ?? 'select in Memory', tone: activeProject ? 'cyan' : 'zinc' },
+            { label: 'Providers', value: `${onlineProviders.length}/${providers.length || 0}`, detail: missingProviders.length ? `${missingProviders.length} need setup` : 'available', tone: onlineProviders.length ? 'emerald' : 'amber' },
+            { label: 'Daemon', value: health?.daemonOnline ? 'online' : 'offline', detail: health?.workspaceRoot ?? 'local bridge', tone: health?.daemonOnline ? 'cyan' : 'amber' },
+            { label: 'Recent Autopilot', value: recentRun?.status ?? 'unknown', detail: recentRun?.title ?? 'no recent run', tone: recentRun ? 'bronze' : 'zinc' },
+          ]}
+        />
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10">
             <CalendarDays className="h-4 w-4 text-amber-400" />

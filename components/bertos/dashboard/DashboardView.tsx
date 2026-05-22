@@ -28,6 +28,8 @@ import type { AutomationRun } from '@/lib/bertos/types'
 import { AGENT_ROSTER } from '@/lib/bertos/command-center'
 import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
 import { AGENT_TEAMS } from '@/lib/bertos/agent-teams'
+import { HERMES_ROUTE_STATUS } from '@/lib/bertos/hermes-theme'
+import { HologramPanel, ProofOfWorkPanel, ProviderBadge, RouteHero, StatusOrb } from '@/components/bertos/hermes'
 
 interface ProviderStatus {
   id: string
@@ -39,7 +41,7 @@ interface ProviderStatus {
 
 export function DashboardView() {
   const { projects, activeProjectId, setActiveProject } = useProjectStore()
-  const { sessions, createSession } = useChatStore()
+  const { sessions, getOrCreateSession } = useChatStore()
   const { setActiveView, selectedModel, setPendingAgentTask } = useUIStore()
   const { tasks: agentTasks } = useAgentStore()
   const { prompts } = usePromptStore()
@@ -80,7 +82,9 @@ export function DashboardView() {
   }
 
   const activeProject = projects.find(p => p.id === activeProjectId)
-  const recentSessions = sessions.slice(-5).reverse()
+  const realSessions = sessions.filter(session => session.messages.some(message => message.role === 'user'))
+  const recentSessions = realSessions.slice(-5).reverse()
+  const chatStreaming = sessions.some(session => session.messages.some(message => message.streaming))
   const onlineProviders = providers.filter(p => p.status === 'online')
   const offlineProviders = providers.filter(p => p.status === 'offline')
   const doneAgentTasks = agentTasks.filter(t => t.status === 'done').length
@@ -97,7 +101,7 @@ export function DashboardView() {
     : 'Start npm run bertos:daemon to unlock local CLI agents, validation checks, and workspace file operations.'
 
   const handleNewChat = () => {
-    createSession(selectedModel)
+    getOrCreateSession(selectedModel)
     setActiveView('chat')
     router.push('/chat')
   }
@@ -145,7 +149,7 @@ export function DashboardView() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#0A0A0B]">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-zinc-800/50 px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -167,6 +171,126 @@ export function DashboardView() {
 
       <ScrollArea className="flex-1">
         <div className="p-6 space-y-6">
+          <RouteHero
+            eyebrow="bertos mission control"
+            title="Jarvis x Roman Hermes Command Center"
+            subtitle="A live operational cockpit for the daemon, provider pantheon, oracle threads, agent legion, and Autopilot approvals. Every tile below is either wired to an existing store/API or plainly marked by its state."
+            status={automationNeedsApproval > 0 ? 'warning' : runningAgentTasks > 0 || automationRunning > 0 ? 'active' : daemonOnline ? 'nominal' : 'warning'}
+            seal={<ShieldCheck className="h-5 w-5" />}
+            metrics={[
+              {
+                label: 'Active Oracle',
+                value: chatStreaming ? 'streaming' : 'ready',
+                detail: recentSessions[0]?.title ?? 'No active user thread yet',
+                tone: chatStreaming ? 'cyan' : 'zinc',
+              },
+              {
+                label: 'Provider Pantheon',
+                value: `${onlineProviders.length}/${providers.length || 0}`,
+                detail: providers.length ? 'live providers online' : 'status endpoint pending',
+                tone: onlineProviders.length > 0 ? 'emerald' : 'amber',
+              },
+              {
+                label: 'Daemon Health',
+                value: daemonOnline ? 'online' : 'offline',
+                detail: daemonHealth?.workspaceRoot ?? 'local bridge not verified',
+                tone: daemonOnline ? 'cyan' : 'amber',
+              },
+              {
+                label: 'Autopilot',
+                value: automationNeedsApproval > 0 ? `${automationNeedsApproval} approval` : automationRunning > 0 ? `${automationRunning} running` : `${enabledAutomationRules} rules`,
+                detail: `${automationRuns.length} recorded runs`,
+                tone: automationNeedsApproval > 0 ? 'amber' : automationRunning > 0 ? 'cyan' : 'bronze',
+              },
+            ]}
+          >
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <ProviderBadge model={selectedModel} />
+              <Button onClick={handleNewChat} className="gap-2 border border-cyan-300/30 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20">
+                <Sparkles className="w-4 h-4" />
+                Open Oracle
+              </Button>
+            </div>
+          </RouteHero>
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+            <HologramPanel tone="cyan" className="p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/70">live oracle stream</p>
+                  <h2 className="mt-1 text-lg font-semibold text-zinc-100">Recent threads with real titles</h2>
+                </div>
+                <StatusOrb state={chatStreaming ? 'active' : 'nominal'} />
+              </div>
+              <div className="space-y-2">
+                {recentSessions.length > 0 ? recentSessions.map(session => {
+                  const lastMessage = session.messages.at(-1)
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => { useChatStore.getState().setActiveSession(session.id); setActiveView('chat'); router.push('/chat') }}
+                      className="w-full rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3 text-left transition hover:border-cyan-300/35 hover:bg-cyan-300/5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-zinc-100">{session.title && session.title !== 'New Chat' ? session.title : 'Untitled oracle thread'}</span>
+                        {session.messages.some(message => message.streaming) && <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.75)]" />}
+                        <ProviderBadge model={session.model} className="ml-auto" />
+                      </div>
+                      <p className="mt-1 line-clamp-1 text-xs text-zinc-500">{lastMessage?.content || 'Draft ready for first prompt'}</p>
+                    </button>
+                  )
+                }) : (
+                  <div className="rounded-xl border border-amber-300/15 bg-amber-300/5 p-4 text-sm text-amber-100/75">
+                    No user-authored chat sessions yet. Open Oracle and send a prompt to create the first live thread.
+                  </div>
+                )}
+              </div>
+            </HologramPanel>
+
+            <HologramPanel tone="bronze" className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-amber-200/70">proof gate</p>
+                  <h2 className="mt-1 text-lg font-semibold text-zinc-100">Theme verification matrix</h2>
+                </div>
+                <ShieldCheck className="h-5 w-5 text-amber-200" />
+              </div>
+              <div className="grid max-h-72 gap-2 overflow-auto pr-1">
+                {HERMES_ROUTE_STATUS.map(route => (
+                  <div key={route.route} className="rounded-lg border border-amber-300/10 bg-slate-950/45 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-amber-100">{route.route}</span>
+                      <span className="rounded-full border border-cyan-300/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-100">
+                        {route.status}
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-1 text-[11px] text-zinc-500">{route.components.join(' · ')}</p>
+                  </div>
+                ))}
+              </div>
+            </HologramPanel>
+          </div>
+
+          <ProofOfWorkPanel
+            filesChanged={[
+              'components/bertos/shell/AppShell.tsx',
+              'components/bertos/shell/Sidebar.tsx',
+              'components/bertos/shell/TopBar.tsx',
+              'components/bertos/chat/ChatView.tsx',
+              'components/bertos/dashboard/DashboardView.tsx',
+              'components/bertos/hermes/*',
+              'lib/bertos/hermes-theme.ts',
+            ]}
+            affectedRoutes={HERMES_ROUTE_STATUS.map(route => route.route)}
+            commands={[
+              { label: 'npm run typecheck', status: 'passed' },
+              { label: 'npm run build', status: 'not-run' },
+              { label: 'npm run bertos:safety', status: 'not-run' },
+            ]}
+            screenshots={{ available: false, detail: 'pending browser verification in this local pass' }}
+            limitations={['Screenshots not captured yet in this in-progress tree.', 'Route status is a visible verification panel, not a deployment claim.']}
+          />
+
           <DaemonHealthBanner health={daemonHealth} loading={daemonHealthLoading} onRefresh={refreshDaemonHealth} />
 
           {/* System Status */}
