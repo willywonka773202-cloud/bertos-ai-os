@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
   Activity, Zap, Clock, CheckCircle2, XCircle, AlertCircle,
@@ -19,11 +19,9 @@ import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/bertos/cn'
 import { useRouter } from 'next/navigation'
-import type { ProviderHealth } from '@/lib/bertos/providers/types'
 import type { AutomationRun } from '@/lib/bertos/types'
 import { AGENT_ROSTER } from '@/lib/bertos/command-center'
 import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
@@ -55,47 +53,65 @@ export function DashboardView() {
   const [cmdResult, setCmdResult] = useState<{ cmd: string; ok: boolean; output: string } | null>(null)
 
   useEffect(() => {
+    let mounted = true
+    async function loadDashboardData() {
+      setLoading(true)
+      try {
+        const [providersRes, repoRes] = await Promise.allSettled([
+          fetch('/api/providers/status'),
+          fetch('/api/local-daemon/repo/status')
+        ])
+
+        if (!mounted) return
+
+        if (providersRes.status === 'fulfilled' && providersRes.value.ok) {
+          const data = await providersRes.value.json()
+          setProviders(data.providers || [])
+        }
+        
+        if (repoRes.status === 'fulfilled' && repoRes.value.ok) {
+          const repoData = await repoRes.value.json()
+          setRepoStatus(repoData)
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
     loadDashboardData()
+    return () => { mounted = false }
   }, [])
 
-  async function loadDashboardData() {
-    setLoading(true)
-    try {
-      // Load provider status
-      const res = await fetch('/api/providers/status')
-      if (res.ok) {
-        const data = await res.json()
-        setProviders(data.providers || [])
-      }
+  const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId])
+  const realSessions = useMemo(() => sessions.filter(session => session.messages.some(message => message.role === 'user')), [sessions])
+  const recentSessions = useMemo(() => realSessions.slice(-5).reverse(), [realSessions])
+  const chatStreaming = useMemo(() => sessions.some(session => session.messages.some(message => message.streaming)), [sessions])
+  
+  const providerStats = useMemo(() => {
+    const online = providers.filter(p => p.status === 'online')
+    const offline = providers.filter(p => p.status === 'offline')
+    const byId = new Map(providers.map(provider => [provider.id, provider]))
+    return { online, offline, byId }
+  }, [providers])
 
-      // Load repo status
-      const repoRes = await fetch('/api/local-daemon/repo/status')
-      if (repoRes.ok) {
-        const repoData = await repoRes.json()
-        setRepoStatus(repoData)
-      }
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const agentStats = useMemo(() => {
+    const done = agentTasks.filter(t => t.status === 'done').length
+    const running = agentTasks.filter(t => t.status === 'running').length
+    return { done, running, total: agentTasks.length }
+  }, [agentTasks])
 
-  const activeProject = projects.find(p => p.id === activeProjectId)
-  const realSessions = sessions.filter(session => session.messages.some(message => message.role === 'user'))
-  const recentSessions = realSessions.slice(-5).reverse()
-  const chatStreaming = sessions.some(session => session.messages.some(message => message.streaming))
-  const onlineProviders = providers.filter(p => p.status === 'online')
-  const offlineProviders = providers.filter(p => p.status === 'offline')
-  const doneAgentTasks = agentTasks.filter(t => t.status === 'done').length
-  const runningAgentTasks = agentTasks.filter(t => t.status === 'running').length
-  const enabledAutomationRules = automationRules.filter(rule => rule.enabled).length
-  const automationNeedsApproval = automationRuns.filter(run => run.status === 'needs-approval').length
-  const automationRunning = automationRuns.filter(run => run.status === 'running').length
-  const recentAutomationRuns = automationRuns.slice(0, 5)
+  const automationStats = useMemo(() => {
+    const enabled = automationRules.filter(rule => rule.enabled).length
+    const needsApproval = automationRuns.filter(run => run.status === 'needs-approval').length
+    const running = automationRuns.filter(run => run.status === 'running').length
+    return { enabled, needsApproval, running, total: automationRuns.length, recent: automationRuns.slice(0, 5) }
+  }, [automationRules, automationRuns])
+
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
-  const providerById = new Map(providers.map(provider => [provider.id, provider]))
-  const hermesProvider = providerById.get('hermes-nous')
+  const hermesProvider = providerStats.byId.get('hermes-nous')
+  
   const nextAction = daemonOnline
     ? 'Open Builder and compile a scoped mission, then run typecheck/build from the safe daemon.'
     : 'Start npm run bertos:daemon to unlock local CLI agents, validation checks, and workspace file operations.'
@@ -175,7 +191,7 @@ export function DashboardView() {
             eyebrow="bertos mission control"
             title="Jarvis x Roman Hermes Command Center"
             subtitle="A live operational cockpit for the daemon, provider pantheon, oracle threads, agent legion, and Autopilot approvals. Every tile below is either wired to an existing store/API or plainly marked by its state."
-            status={automationNeedsApproval > 0 ? 'warning' : runningAgentTasks > 0 || automationRunning > 0 ? 'active' : daemonOnline ? 'nominal' : 'warning'}
+            status={automationStats.needsApproval > 0 ? 'warning' : agentStats.running > 0 || automationStats.running > 0 ? 'active' : daemonOnline ? 'nominal' : 'warning'}
             seal={<ShieldCheck className="h-5 w-5" />}
             metrics={[
               {
@@ -186,9 +202,9 @@ export function DashboardView() {
               },
               {
                 label: 'Provider Pantheon',
-                value: `${onlineProviders.length}/${providers.length || 0}`,
+                value: `${providerStats.online.length}/${providers.length || 0}`,
                 detail: providers.length ? 'live providers online' : 'status endpoint pending',
-                tone: onlineProviders.length > 0 ? 'emerald' : 'amber',
+                tone: providerStats.online.length > 0 ? 'emerald' : 'amber',
               },
               {
                 label: 'Daemon Health',
@@ -198,9 +214,9 @@ export function DashboardView() {
               },
               {
                 label: 'Autopilot',
-                value: automationNeedsApproval > 0 ? `${automationNeedsApproval} approval` : automationRunning > 0 ? `${automationRunning} running` : `${enabledAutomationRules} rules`,
-                detail: `${automationRuns.length} recorded runs`,
-                tone: automationNeedsApproval > 0 ? 'amber' : automationRunning > 0 ? 'cyan' : 'bronze',
+                value: automationStats.needsApproval > 0 ? `${automationStats.needsApproval} approval` : automationStats.running > 0 ? `${automationStats.running} running` : `${automationStats.enabled} rules`,
+                detail: `${automationStats.total} recorded runs`,
+                tone: automationStats.needsApproval > 0 ? 'amber' : automationStats.running > 0 ? 'cyan' : 'bronze',
               },
             ]}
           >
@@ -302,17 +318,17 @@ export function DashboardView() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <StatusCard
                 label="Providers Online"
-                value={`${onlineProviders.length}/${providers.length}`}
+                value={`${providerStats.online.length}/${providers.length}`}
                 icon={<Zap className="w-5 h-5" />}
-                status={onlineProviders.length > 0 ? 'success' : 'error'}
-                subtitle={onlineProviders.length > 0 ? 'System ready' : 'No providers available'}
+                status={providerStats.online.length > 0 ? 'success' : 'error'}
+                subtitle={providerStats.online.length > 0 ? 'System ready' : 'No providers available'}
               />
               <StatusCard
                 label="Agent Tasks"
-                value={runningAgentTasks > 0 ? `${runningAgentTasks} running` : `${doneAgentTasks} done`}
+                value={agentStats.running > 0 ? `${agentStats.running} running` : `${agentStats.done} done`}
                 icon={<Bot className="w-5 h-5" />}
-                status={runningAgentTasks > 0 ? 'warning' : doneAgentTasks > 0 ? 'success' : 'info'}
-                subtitle={`${agentTasks.length} total tasks`}
+                status={agentStats.running > 0 ? 'warning' : agentStats.done > 0 ? 'success' : 'info'}
+                subtitle={`${agentStats.total} total tasks`}
               />
               <StatusCard
                 label="Prompt Library"
@@ -323,10 +339,10 @@ export function DashboardView() {
               />
               <StatusCard
                 label="Autopilot"
-                value={automationNeedsApproval > 0 ? `${automationNeedsApproval} approval` : automationRunning > 0 ? `${automationRunning} running` : `${enabledAutomationRules} rules`}
+                value={automationStats.needsApproval > 0 ? `${automationStats.needsApproval} approval` : automationStats.running > 0 ? `${automationStats.running} running` : `${automationStats.enabled} rules`}
                 icon={<Cpu className="w-5 h-5" />}
-                status={automationNeedsApproval > 0 ? 'warning' : automationRunning > 0 ? 'info' : enabledAutomationRules > 0 ? 'success' : 'warning'}
-                subtitle={`${automationRuns.length} recent runs`}
+                status={automationStats.needsApproval > 0 ? 'warning' : automationStats.running > 0 ? 'info' : automationStats.enabled > 0 ? 'success' : 'warning'}
+                subtitle={`${automationStats.total} recent runs`}
               />
               <StatusCard
                 label="Active Projects"
@@ -428,7 +444,7 @@ export function DashboardView() {
                 <div className="text-sm font-medium text-zinc-200">{activeProject?.name ?? 'No project selected'}</div>
                 <p className="mt-1 text-xs text-zinc-500">{activeProject?.description || 'Use Memory to create project context and keep the active mission focused.'}</p>
                 <div className="mt-3 text-[11px] text-zinc-600">
-                  Recent task: {recentAutomationRuns[0]?.title ?? agentTasks[0]?.title ?? 'No recent task yet.'}
+                  Recent task: {automationStats.recent[0]?.title ?? agentTasks[0]?.title ?? 'No recent task yet.'}
                 </div>
               </div>
             </div>
@@ -484,7 +500,7 @@ export function DashboardView() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {AGENT_ROSTER.slice(1, 10).map(agent => {
-                const provider = providerById.get(agent.id) ?? (agent.id === 'ollama-local' ? providerById.get('ollama-pro') : undefined)
+                const provider = providerStats.byId.get(agent.id) ?? (agent.id === 'ollama-local' ? providerStats.byId.get('ollama-pro') : undefined)
                 const configured = provider?.status === 'online'
                 const statusLabel = provider ? (configured ? 'configured' : 'not configured') : agent.status
                 return (
@@ -599,14 +615,14 @@ export function DashboardView() {
             </TabsContent>
 
             <TabsContent value="activity" className="space-y-4 mt-4">
-              {agentTasks.length === 0 && recentSessions.length === 0 && recentAutomationRuns.length === 0 ? (
+              {agentStats.total === 0 && recentSessions.length === 0 && automationStats.total === 0 ? (
                 <div className="p-12 rounded-xl border border-zinc-800/50 bg-zinc-900/20 text-center">
                   <Clock className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
                   <p className="text-zinc-400">No recent activity</p>
                 </div>
               ) : (
                 <>
-                  {agentTasks.length > 0 && (
+                  {agentStats.total > 0 && (
                     <div>
                       <h3 className="text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
                         <Bot className="w-4 h-4" />
@@ -619,14 +635,14 @@ export function DashboardView() {
                       </div>
                     </div>
                   )}
-                  {recentAutomationRuns.length > 0 && (
+                  {automationStats.total > 0 && (
                     <div>
                       <h3 className="text-sm font-medium text-zinc-400 mb-2 flex items-center gap-2">
                         <Cpu className="w-4 h-4" />
                         Recent Autopilot Runs
                       </h3>
                       <div className="space-y-2">
-                        {recentAutomationRuns.map((run) => (
+                        {automationStats.recent.map((run) => (
                           <AutomationActivityCard key={run.id} run={run} />
                         ))}
                       </div>
@@ -714,7 +730,7 @@ export function DashboardView() {
                   Project health checks are available after the local daemon is running. Use the banner above to copy the start command.
                 </div>
               )}
-              <div>
+              <div className="mt-6">
                 <h3 className="text-sm font-medium text-zinc-400 mb-3 flex items-center gap-2">
                   <Terminal className="w-4 h-4" />
                   Dev Commands

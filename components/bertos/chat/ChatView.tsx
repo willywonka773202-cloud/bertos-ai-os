@@ -54,8 +54,7 @@ export function ChatView() {
   const session = getActiveSession()
   const messages = session?.messages ?? []
 
-  // Bootstrap existing history only. Prompt submit owns session creation so Enter
-  // opens/focuses the exact chat that receives the user message and generation.
+  // Bootstrap existing history and cleanup empty sessions only once on mount
   useEffect(() => {
     deleteEmptySessions()
     if (!activeSessionId && sessions.length > 0) {
@@ -64,7 +63,7 @@ export function ChatView() {
         useChatStore.getState().setActiveSession(firstRealSession.id)
       }
     }
-  }, [activeSessionId, sessions, deleteEmptySessions])
+  }, []) // Empty dependency array to run only once on mount
 
   const scrollToBottom = useCallback((smooth = true) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })

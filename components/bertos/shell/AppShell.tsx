@@ -13,17 +13,30 @@ import { KeyboardShortcuts } from '../panels/KeyboardShortcuts'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
+import { useDaemonStore } from '@/store/bertos/daemon'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useRouter } from 'next/navigation'
+import { ErrorBoundary } from '../shared/ErrorBoundary'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { rightPanelOpen, setRightPanelOpen, sidebarCollapsed, setSidebarCollapsed,
           setCommandPaletteOpen, setActiveView } = useUIStore()
   const { getOrCreateSession } = useChatStore()
+  const { refresh: refreshDaemon } = useDaemonStore()
   const { showOnboarding, complete } = useOnboarding()
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const router = useRouter()
+
+  // Global daemon polling
+  useEffect(() => {
+    void refreshDaemon()
+    const interval = window.setInterval(() => {
+      const state = useDaemonStore.getState()
+      if (!state.loading) void state.refresh()
+    }, 30000)
+    return () => window.clearInterval(interval)
+  }, [refreshDaemon])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -70,7 +83,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <DemoBanner />
           <TopBar onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
           <main className="flex-1 overflow-hidden">
-            {children}
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
           </main>
         </div>
 
