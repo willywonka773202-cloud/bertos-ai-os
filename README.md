@@ -227,3 +227,5 @@ COMPOSIO_API_KEY=
 ```
 
 Those integrations should report missing setup until real credentials and endpoints are configured. Do not hard-code keys in the app.
+
+Hermes / Nous is paid-only for this account right now. No free text/chat model is available, so BertOS does not make Hermes / Nous a default provider and does not include it in auto-routing unless `ENABLE_HERMES_PAID=true` is set intentionally.

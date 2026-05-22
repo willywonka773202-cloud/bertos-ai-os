@@ -1,5 +1,5 @@
-export type ProviderKind = 'ollama' | 'cli-subscription' | 'api-optional' | 'api-native'
-export type BillingMode = 'subscription' | 'local' | 'api'
+export type ProviderKind = 'ollama' | 'cli-subscription' | 'api-optional' | 'api-native' | 'api-paid'
+export type BillingMode = 'subscription' | 'local' | 'api' | 'api-paid'
 export type ProviderId =
   | 'ollama'
   | 'claude-code'
@@ -9,6 +9,7 @@ export type ProviderId =
   | 'openai-api'
   | 'gemini-api'
   | 'gemini-api-native'
+  | 'hermes-nous'
 
 export interface ProviderHealth {
   available: boolean

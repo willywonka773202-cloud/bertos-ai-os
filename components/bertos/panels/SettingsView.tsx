@@ -59,6 +59,17 @@ interface GeminiNativeStatus {
   error?: string
 }
 
+interface HermesNousStatus {
+  configured: boolean
+  paidEnabled: boolean
+  availableForRouting: boolean
+  billing: string
+  statusMessage: string
+  defaultProvider: boolean
+  autoRoutingDisabledUnless: string
+  error?: string
+}
+
 const SECTIONS = [
   { id: 'providers', icon: Bot,      label: 'Providers'   },
   { id: 'api-keys',  icon: Key,      label: 'API Keys'    },
@@ -116,6 +127,7 @@ export function SettingsView() {
   const [localDaemonStatus, setLocalDaemonStatus] = useState<LocalDaemonStatus | null>(null)
   const [composioStatus, setComposioStatus] = useState<ComposioStatus | null>(null)
   const [geminiNativeStatus, setGeminiNativeStatus] = useState<GeminiNativeStatus | null>(null)
+  const [hermesNousStatus, setHermesNousStatus] = useState<HermesNousStatus | null>(null)
   const [ollamaLoading, setOllamaLoading] = useState(false)
   const [daemonLoading, setDaemonLoading] = useState(false)
   const [testingCloud, setTestingCloud] = useState(false)
@@ -181,12 +193,32 @@ export function SettingsView() {
     }
   }
 
+  const fetchProviderStatus = async () => {
+    try {
+      const res = await fetch('/api/providers/status', { cache: 'no-store' })
+      const data = await res.json() as { hermesNous?: HermesNousStatus }
+      setHermesNousStatus(data.hermesNous ?? null)
+    } catch {
+      setHermesNousStatus({
+        configured: false,
+        paidEnabled: false,
+        availableForRouting: false,
+        billing: 'Paid API credits required',
+        statusMessage: 'Proxy reachable, but no free chat models available for this account.',
+        defaultProvider: false,
+        autoRoutingDisabledUnless: 'ENABLE_HERMES_PAID=true',
+        error: 'Could not check Hermes / Nous status.',
+      })
+    }
+  }
+
   useEffect(() => {
     if (activeSection === 'providers') {
       fetchOllamaStatus()
       fetchLocalDaemonStatus()
       fetchComposioStatus()
       fetchGeminiNativeStatus()
+      fetchProviderStatus()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection])
@@ -549,6 +581,38 @@ export function SettingsView() {
                   >
                     <RefreshCw className="w-3 h-3" />
                     Refresh Composio
+                  </button>
+                </div>
+
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <Bot className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-zinc-200">Hermes / Nous Proxy</p>
+                        <Badge variant="warning" className="text-[9px] h-4">Paid API credits required</Badge>
+                        <Badge variant="default" className="text-[9px] h-4">Default: No</Badge>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Proxy reachable, but no free chat models available for this account.
+                      </p>
+                      <p className="text-[11px] text-amber-300/80 mt-2">
+                        Routing is disabled unless <code className="text-amber-200">ENABLE_HERMES_PAID=true</code>.
+                        BertOS will not spend Hermes/Nous credits automatically.
+                      </p>
+                      <div className="mt-2 grid gap-1 text-[10px] text-zinc-600">
+                        <p>Status: {hermesNousStatus?.availableForRouting ? 'Paid routing enabled' : 'Paid routing disabled'}</p>
+                        <p>Required env: <code>HERMES_API_URL</code> and <code>HERMES_API_KEY</code></p>
+                        {hermesNousStatus?.error && <p className="text-amber-300/80">{hermesNousStatus.error}</p>}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={fetchProviderStatus}
+                    className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Refresh Hermes / Nous
                   </button>
                 </div>
               </div>

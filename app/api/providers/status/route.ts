@@ -11,6 +11,10 @@ export async function GET() {
   const localDaemon = await fetchLocalDaemonStatus()
   const composio = await getComposioStatus()
   const geminiNativeConfigured = Boolean(getGeminiNativeApiKey())
+  const hermesUrlConfigured = Boolean(process.env.HERMES_API_URL)
+  const hermesKeyConfigured = Boolean(process.env.HERMES_API_KEY)
+  const hermesPaidEnabled = process.env.ENABLE_HERMES_PAID === 'true'
+  const hermesConfigured = hermesUrlConfigured && hermesKeyConfigured
   const providers = [
     {
       id: 'ollama-pro',
@@ -31,6 +35,14 @@ export async function GET() {
       message: geminiNativeConfigured
         ? 'Structured JSON, long context, council judge'
         : 'Missing GEMINI_API_KEY',
+    },
+    {
+      id: 'hermes-nous',
+      name: 'Hermes / Nous Proxy',
+      status: hermesPaidEnabled && hermesConfigured ? 'online' : 'offline',
+      message: hermesPaidEnabled && hermesConfigured
+        ? 'Paid API credits enabled by ENABLE_HERMES_PAID=true'
+        : 'Paid API credits required; auto-routing disabled',
     },
   ]
 
@@ -66,6 +78,21 @@ export async function GET() {
       error: geminiNativeConfigured ? undefined : 'GEMINI_API_KEY is missing. GOOGLE_API_KEY is also supported as a fallback.',
     },
     composio,
+    hermesNous: {
+      id: 'hermes-nous',
+      configured: hermesConfigured,
+      paidEnabled: hermesPaidEnabled,
+      availableForRouting: hermesConfigured && hermesPaidEnabled,
+      requiredEnvVars: ['HERMES_API_URL', 'HERMES_API_KEY'],
+      gateEnvVar: 'ENABLE_HERMES_PAID',
+      billing: 'Paid API credits required',
+      statusMessage: 'Proxy reachable, but no free chat models available for this account.',
+      defaultProvider: false,
+      autoRoutingDisabledUnless: 'ENABLE_HERMES_PAID=true',
+      error: hermesPaidEnabled && !hermesConfigured
+        ? 'Hermes paid routing is enabled, but HERMES_API_URL or HERMES_API_KEY is missing.'
+        : undefined,
+    },
   }, {
     headers: { 'Cache-Control': 'no-store' },
   })

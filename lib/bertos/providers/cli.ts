@@ -10,6 +10,7 @@ export const CLI_COMMANDS: Record<ProviderId, string | undefined> = {
   'openai-api':  undefined,
   'gemini-api':  undefined,
   'gemini-api-native': undefined,
+  'hermes-nous': undefined,
 }
 
 /** User-facing setup instructions for each CLI provider. */

@@ -104,10 +104,25 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
     capabilities: ['chat', 'structured-json', 'long-context', 'planning', 'code-analysis', 'council-judge', 'workspace-planning', 'multimodal-foundation'],
     requiredEnvVars: ['GEMINI_API_KEY'],
   },
+  'hermes-nous': {
+    id: 'hermes-nous',
+    name: 'Hermes / Nous Proxy',
+    kind: 'api-paid',
+    billingMode: 'api-paid',
+    defaultModel: 'none',
+    description: 'Optional Hermes/Nous proxy connector. Paid API credits are required and no free chat model is available on this account.',
+    billingWarning: 'Paid API credits required. BertOS will not auto-route to Hermes/Nous unless ENABLE_HERMES_PAID=true.',
+    setupCommand: 'Set HERMES_API_URL and HERMES_API_KEY, then set ENABLE_HERMES_PAID=true only when paid usage is approved.',
+    docsUrl: 'https://nousresearch.com',
+    models: [],
+    color: '#A855F7',
+    capabilities: ['proxy-status', 'future-agent-runtime'],
+    requiredEnvVars: ['HERMES_API_URL', 'HERMES_API_KEY'],
+  },
 }
 
 export const SUBSCRIPTION_PROVIDERS: ProviderId[] = ['ollama', 'claude-code', 'gemini-cli', 'codex-cli']
-export const API_PROVIDERS: ProviderId[] = ['claude-api', 'openai-api', 'gemini-api', 'gemini-api-native']
+export const API_PROVIDERS: ProviderId[] = ['claude-api', 'openai-api', 'gemini-api', 'gemini-api-native', 'hermes-nous']
 export const DEFAULT_PROVIDER: ProviderId = 'ollama'
 export const DEFAULT_PROVIDER_MODEL = 'gpt-oss:120b-cloud'
 export const LOCAL_FALLBACK_MODEL = 'qwen2.5-coder:latest'
