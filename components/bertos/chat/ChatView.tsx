@@ -1,9 +1,10 @@
 'use client'
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Cpu, Zap, Globe, ArrowDown } from 'lucide-react'
+import { Sparkles, Cpu, Zap, Globe, ArrowDown, Code2 } from 'lucide-react'
 import { useChatStore } from '@/store/bertos/chat'
 import { useUIStore } from '@/store/bertos/ui'
+import { useRouter } from 'next/navigation'
 import { useProjectStore } from '@/store/bertos/projects'
 import { MessageBubble } from './MessageBubble'
 import { InputBar } from './InputBar'
@@ -43,8 +44,9 @@ export function ChatView() {
     getOrCreateSession, deleteEmptySessions, addMessage, appendToMessage, updateMessage,
     setStreaming, updateSessionTitle, getActiveSession, setActiveSession,
   } = useChatStore()
-  const { selectedModel, settings } = useUIStore()
+  const { selectedModel, settings, setActiveView } = useUIStore()
   const { getActiveProject } = useProjectStore()
+  const router = useRouter()
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -426,6 +428,26 @@ export function ChatView() {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Chat-to-coding bridge — appears when there's at least one user message */}
+      {messages.some(m => m.role === 'user') && (
+        <div className="flex-shrink-0 flex justify-end px-4 pb-1 max-w-3xl mx-auto w-full">
+          <button
+            onClick={() => {
+              const lastUser = [...messages].reverse().find(m => m.role === 'user')
+              if (lastUser?.content) {
+                try { window.localStorage.setItem('bertos-coding-draft', lastUser.content) } catch { /* ignore */ }
+              }
+              setActiveView('coding')
+              router.push('/coding')
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/8 px-3 py-1.5 text-[11px] text-violet-300/70 transition hover:border-violet-500/50 hover:text-violet-200"
+          >
+            <Code2 className="h-3 w-3" />
+            Send to /coding
+          </button>
+        </div>
+      )}
 
       {/* Extra bottom padding on mobile so the fixed bottom nav doesn't cover the input */}
       <div className="flex-shrink-0 mb-16 md:mb-0">

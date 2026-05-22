@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { Toaster } from 'sonner'
 import { Sidebar } from './Sidebar'
@@ -13,7 +13,7 @@ import { KeyboardShortcuts } from '../panels/KeyboardShortcuts'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
-import { useDaemonStore } from '@/store/bertos/daemon'
+import { useDaemonStore } from '@/store/bertos/daemon' // accessed via .getState() in polling interval
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useRouter } from 'next/navigation'
 import { ErrorBoundary } from '../shared/ErrorBoundary'
@@ -22,28 +22,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { rightPanelOpen, setRightPanelOpen, sidebarCollapsed, setSidebarCollapsed,
           setCommandPaletteOpen, setActiveView } = useUIStore()
   const { getOrCreateSession } = useChatStore()
-  const { refresh: refreshDaemon } = useDaemonStore()
   const { showOnboarding, complete } = useOnboarding()
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const router = useRouter()
 
-  // Global daemon polling
+  // Use refs so the keyboard handler always reads latest values without re-registering
+  const sidebarCollapsedRef = useRef(sidebarCollapsed)
+  const rightPanelOpenRef = useRef(rightPanelOpen)
+  useEffect(() => { sidebarCollapsedRef.current = sidebarCollapsed }, [sidebarCollapsed])
+  useEffect(() => { rightPanelOpenRef.current = rightPanelOpen }, [rightPanelOpen])
+
+  // Global daemon polling — runs once; interval reads live store state to avoid stale ref
   useEffect(() => {
-    void refreshDaemon()
+    void useDaemonStore.getState().refresh()
     const interval = window.setInterval(() => {
       const state = useDaemonStore.getState()
       if (!state.loading) void state.refresh()
     }, 30000)
     return () => window.clearInterval(interval)
-  }, [refreshDaemon])
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey
       if (mod && e.key === 'k') { e.preventDefault(); setCommandPaletteOpen(true) }
-      if (mod && e.key === 'b') { e.preventDefault(); setSidebarCollapsed(!sidebarCollapsed) }
-      if (mod && e.key === 'p') { e.preventDefault(); setRightPanelOpen(!rightPanelOpen) }
+      if (mod && e.key === 'b') { e.preventDefault(); setSidebarCollapsed(!sidebarCollapsedRef.current) }
+      if (mod && e.key === 'p') { e.preventDefault(); setRightPanelOpen(!rightPanelOpenRef.current) }
       if (mod && e.key === 'n') { e.preventDefault(); getOrCreateSession(); setActiveView('chat'); router.push('/chat') }
       if (mod && e.key === ',') { e.preventDefault(); setActiveView('settings'); router.push('/settings') }
       if (mod && e.key === '0') { e.preventDefault(); setActiveView('dashboard'); router.push('/dashboard') }
@@ -56,8 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [sidebarCollapsed, rightPanelOpen, setCommandPaletteOpen, setSidebarCollapsed,
-      setRightPanelOpen, getOrCreateSession, setActiveView, router])
+  }, [setCommandPaletteOpen, setSidebarCollapsed, setRightPanelOpen, getOrCreateSession, setActiveView, router])
 
   return (
     <TooltipProvider delayDuration={400}>

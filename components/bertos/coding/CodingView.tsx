@@ -57,6 +57,19 @@ interface RepoStatus {
   error?: string
 }
 
+interface DirectRepoStatus {
+  ok: boolean
+  repoRoot?: string
+  branch: string
+  dirty: boolean
+  changedFiles: number
+  lastCommit: string
+  diffStat: string
+  safetyStatus: string
+  selfBuildMode: boolean
+  error?: string
+}
+
 interface PatchFile {
   path: string
   operation: 'modify' | 'create' | 'delete'
@@ -267,6 +280,10 @@ export function CodingView() {
   const [history, setHistory] = useState<BuilderHistoryItem[]>([])
   const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null)
   const activeHistoryIdRef = useRef<string | null>(null)
+  const [directRepo, setDirectRepo] = useState<DirectRepoStatus | null>(null)
+  const [chatDraftLoaded, setChatDraftLoaded] = useState(false)
+  const [directCheckResults, setDirectCheckResults] = useState<Record<string, { ok: boolean; output: string; exitCode: number; durationMs: number }> | null>(null)
+  const [runningDirectChecks, setRunningDirectChecks] = useState(false)
   const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
 
   const template = useMemo(
@@ -308,6 +325,11 @@ export function CodingView() {
 
   useEffect(() => {
     void refreshRepoStatus()
+    // Direct repo status (works without daemon)
+    fetch('/api/bertos/repo/status', { cache: 'no-store' })
+      .then(res => res.json())
+      .then((data: DirectRepoStatus) => setDirectRepo(data))
+      .catch(() => setDirectRepo({ ok: false, branch: 'unknown', dirty: false, changedFiles: 0, lastCommit: 'unknown', diffStat: 'unavailable', safetyStatus: 'unknown', selfBuildMode: false, error: 'Could not read direct repo status.' }))
   }, [])
 
   useEffect(() => {
@@ -332,6 +354,18 @@ export function CodingView() {
       }
     } catch {
       // Ignore malformed handoff data and leave Builder in its default state.
+    }
+
+    // Chat-to-coding bridge: pick up draft from chat if present
+    try {
+      const chatDraft = window.localStorage.getItem('bertos-coding-draft')
+      if (chatDraft) {
+        setPrompt(chatDraft)
+        setChatDraftLoaded(true)
+        window.localStorage.removeItem('bertos-coding-draft')
+      }
+    } catch {
+      // Ignore storage errors.
     }
   }, [])
 
@@ -516,6 +550,29 @@ export function CodingView() {
     }
   }
 
+  const runDirectChecks = async () => {
+    setRunningDirectChecks(true)
+    setDirectCheckResults(null)
+    appendLog('Running direct checks (no daemon required)...')
+    try {
+      const res = await fetch('/api/bertos/repo/run-checks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checks: ['typecheck', 'bertos:safety'] }),
+      })
+      const data = await res.json() as { ok: boolean; results: typeof directCheckResults; summary: string }
+      setDirectCheckResults(data.results)
+      appendLog(data.summary ?? (data.ok ? 'Checks passed.' : 'Some checks failed.'))
+      // Refresh direct repo status after checks
+      fetch('/api/bertos/repo/status', { cache: 'no-store' })
+        .then(r => r.json()).then((d: DirectRepoStatus) => setDirectRepo(d)).catch(() => null)
+    } catch (error) {
+      appendLog(error instanceof Error ? error.message : 'Direct check run failed.')
+    } finally {
+      setRunningDirectChecks(false)
+    }
+  }
+
   const copyMission = async () => {
     const compiled = mission ?? compileBuilderMission()
     await navigator.clipboard.writeText(compiled.suggestedPrompt)
@@ -639,21 +696,47 @@ export function CodingView() {
 
       <main className="grid min-w-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
         <section className="flex min-w-0 flex-col border-r border-zinc-800/50">
-          <div className="flex items-center justify-between border-b border-zinc-800/50 p-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-amber-400" />
-                <h2 className="text-sm font-semibold text-zinc-100">Mission Builder 2.0</h2>
+          <div className="border-b border-zinc-800/50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-400" />
+                  <h2 className="text-sm font-semibold text-zinc-100">Mission Builder 2.0</h2>
+                  <Badge variant="success" className="text-[9px]">Self-Build Mode: Safe</Badge>
+                  {directRepo?.branch && directRepo.branch !== 'unknown' && (
+                    <Badge variant="default" className="text-[9px] font-mono">
+                      <GitBranch className="h-2.5 w-2.5 mr-0.5" />{directRepo.branch}
+                    </Badge>
+                  )}
+                  {directRepo?.dirty && (
+                    <Badge variant="warning" className="text-[9px]">{directRepo.changedFiles} file{directRepo.changedFiles !== 1 ? 's' : ''} dirty</Badge>
+                  )}
+                  {directRepo && !directRepo.dirty && directRepo.ok && (
+                    <Badge variant="success" className="text-[9px]">clean</Badge>
+                  )}
+                  {chatDraftLoaded && (
+                    <Badge variant="warning" className="text-[9px]">Chat draft loaded</Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-zinc-600">
+                  BertOS cockpit — compile, route, patch, validate.
+                  {directRepo?.lastCommit && directRepo.lastCommit !== 'unknown' && (
+                    <span className="ml-1 font-mono opacity-60">{directRepo.lastCommit}</span>
+                  )}
+                </p>
               </div>
-              <p className="mt-1 text-xs text-zinc-600">Paste a rough build prompt. BertOS compiles it into a scoped, provider-routed mission.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={safe ? 'success' : 'warning'} className="text-[10px]">
-                {safe ? 'repo safe' : 'daemon needed'}
-              </Badge>
-              <Button size="sm" variant="outline" onClick={() => void refreshRepoStatus()}>
-                <GitBranch className="h-3.5 w-3.5" />Refresh
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={safe ? 'success' : 'warning'} className="text-[10px]">
+                  {safe ? 'daemon safe' : 'daemon offline'}
+                </Badge>
+                <Button size="sm" variant="outline" onClick={() => void runDirectChecks()} disabled={runningDirectChecks}>
+                  {runningDirectChecks ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  Run Checks
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void refreshRepoStatus()}>
+                  <GitBranch className="h-3.5 w-3.5" />Refresh
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -951,15 +1034,38 @@ export function CodingView() {
           <ScrollArea className="h-full">
             <div className="space-y-4 p-4">
               <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-sky-400" />
-                  <h3 className="text-sm font-semibold text-zinc-100">Git state</h3>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-sky-400" />
+                    <h3 className="text-sm font-semibold text-zinc-100">Repo status</h3>
+                  </div>
+                  <Badge variant="success" className="text-[9px]">Self-Build</Badge>
                 </div>
                 <div className="space-y-1 text-xs text-zinc-500">
-                  <div>Branch: <span className="text-zinc-300">{repoStatus?.repo?.branch ?? 'unknown'}</span></div>
-                  <div>Remote: <span className="break-all text-zinc-300">{repoStatus?.repo?.remote ?? 'unknown'}</span></div>
-                  <div>Root: <span className="break-all text-zinc-300">{repoStatus?.repo?.root ?? 'daemon offline'}</span></div>
-                  {repoStatus?.repo?.blockedReason && <div className="text-red-300">{repoStatus.repo.blockedReason}</div>}
+                  <div>Branch: <span className="font-mono text-zinc-300">{directRepo?.branch ?? repoStatus?.repo?.branch ?? 'unknown'}</span></div>
+                  <div className="flex items-center gap-1">
+                    State:{' '}
+                    {directRepo?.dirty
+                      ? <span className="text-amber-300">{directRepo.changedFiles} file(s) modified</span>
+                      : directRepo?.ok
+                        ? <span className="text-emerald-300">clean</span>
+                        : <span className="text-zinc-400">checking…</span>
+                    }
+                  </div>
+                  <div className="truncate font-mono">Last: <span className="text-zinc-300">{directRepo?.lastCommit ?? 'unknown'}</span></div>
+                  {directRepo?.diffStat && directRepo.diffStat !== 'clean' && directRepo.diffStat !== 'unavailable' && (
+                    <div className="text-zinc-600">{directRepo.diffStat}</div>
+                  )}
+                  {repoStatus?.repo && (
+                    <>
+                      <div className="mt-1 border-t border-zinc-800 pt-1">Remote: <span className="break-all text-zinc-400">{repoStatus.repo.remote}</span></div>
+                      <div>Root: <span className="break-all text-zinc-400">{repoStatus.repo.root}</span></div>
+                      {repoStatus.repo.blockedReason && <div className="text-red-300">{repoStatus.repo.blockedReason}</div>}
+                    </>
+                  )}
+                  {!repoStatus?.repo && !directRepo?.ok && (
+                    <div className="mt-1 text-zinc-600">Start <span className="font-mono">npm run bertos:daemon</span> for full repo bridge.</div>
+                  )}
                 </div>
               </section>
 
@@ -1065,6 +1171,32 @@ export function CodingView() {
                   ))}
                 </div>
               </section>
+
+              {directCheckResults && (
+                <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                    <h3 className="text-sm font-semibold text-zinc-100">Direct check results</h3>
+                  </div>
+                  <div className="space-y-2">
+                    {Object.entries(directCheckResults).map(([name, result]) => (
+                      <div key={name} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono text-zinc-300">{name}</span>
+                          <Badge variant={result.ok ? 'success' : 'error'} className="text-[9px]">
+                            {result.ok ? 'passed' : `exit ${result.exitCode}`}
+                          </Badge>
+                        </div>
+                        {result.output && (
+                          <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-black/40 p-2 text-[10px] text-zinc-500">
+                            {result.output}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {mission?.worktreeRecommended && (
                 <section className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-100">

@@ -111,6 +111,13 @@ export function DashboardView() {
 
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
   const hermesProvider = providerStats.byId.get('hermes-nous')
+
+  const featuredTeams = useMemo(
+    () => AGENT_TEAMS.filter(team =>
+      ['coding-team', 'content-team', 'daily-chief-of-staff-team', 'bertos-maintenance-team'].includes(team.id)
+    ),
+    [],
+  )
   
   const nextAction = daemonOnline
     ? 'Open Builder and compile a scoped mission, then run typecheck/build from the safe daemon.'
@@ -457,7 +464,7 @@ export function DashboardView() {
               Agent Team Readiness
             </h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {AGENT_TEAMS.filter(team => ['coding-team', 'content-team', 'daily-chief-of-staff-team', 'bertos-maintenance-team'].includes(team.id)).map(team => {
+              {featuredTeams.map(team => {
                 const liveCount = team.agents.filter(agent => agent.status === 'live').length
                 const plannedCount = team.agents.filter(agent => agent.status === 'planned').length
                 const copyCount = team.agents.filter(agent => agent.status === 'copy-prompt').length
@@ -807,21 +814,14 @@ function StatusCard({ label, value, icon, status, subtitle }: StatusCardProps) {
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={cn(
-        'p-4 rounded-xl border backdrop-blur-sm',
-        colors[status]
-      )}
-    >
+    <div className={cn('p-4 rounded-xl border', colors[status])}>
       <div className="flex items-start justify-between mb-2">
         <div className="text-sm text-zinc-400">{label}</div>
         <div className="opacity-70">{icon}</div>
       </div>
       <div className="text-2xl font-bold mb-1">{value}</div>
       <div className="text-xs text-zinc-500">{subtitle}</div>
-    </motion.div>
+    </div>
   )
 }
 
@@ -834,11 +834,9 @@ function ProviderCard({ provider }: ProviderCardProps) {
   const StatusIcon = isOnline ? CheckCircle2 : XCircle
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+    <div
       className={cn(
-        'p-4 rounded-xl border backdrop-blur-sm transition-all',
+        'p-4 rounded-xl border transition-colors',
         isOnline
           ? 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40'
           : 'bg-zinc-900/50 border-zinc-800/50 hover:border-zinc-700/50'
@@ -857,7 +855,7 @@ function ProviderCard({ provider }: ProviderCardProps) {
       {provider.message && (
         <div className="text-xs text-zinc-500 mt-2 line-clamp-2">{provider.message}</div>
       )}
-    </motion.div>
+    </div>
   )
 }
 
