@@ -17,6 +17,8 @@ const badgeVariants = cva(
         'claude-api':   'border-violet-500/30 bg-violet-500/10 text-violet-300',
         'openai-api':   'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
         'gemini-api':   'border-blue-500/30 bg-blue-500/10 text-blue-300',
+        // External agents
+        devin:          'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
         // Auto routing
         auto:           'border-amber-500/30 bg-amber-500/10 text-amber-300',
         // Status
