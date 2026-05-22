@@ -221,26 +221,51 @@ export function MemoryView() {
       <SystemFactsPanel />
 
       {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
+      <div className="flex-shrink-0 px-6 py-5 border-b border-zinc-800/50 bg-zinc-950/40">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                <Brain className="w-4 h-4 text-blue-400" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-zinc-200">Project Memory</h2>
-                <p className="text-[11px] text-zinc-500">Persistent context and knowledge for each project</p>
-              </div>
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <Brain className="w-5 h-5 text-blue-400" />
             </div>
-            <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-lg font-bold text-zinc-100 tracking-tight">Project Memory</h1>
+              <p className="text-xs text-zinc-500">Persistent context, facts, and knowledge for each AI project</p>
+            </div>
+            <Button size="sm" onClick={() => setShowCreate(!showCreate)} className="flex-shrink-0">
               <Plus className="w-3.5 h-3.5" />
               New Project
             </Button>
           </div>
 
+          {/* Stat tiles */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Projects</p>
+              <p className="text-xl font-bold font-mono text-blue-300">{projects.length}</p>
+            </div>
+            <div className={cn(
+              'rounded-xl border px-4 py-3',
+              activeProjectId ? 'border-violet-500/20 bg-violet-500/5' : 'border-zinc-800 bg-zinc-900/40'
+            )}>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Active</p>
+              <p className="text-sm font-semibold text-violet-300 truncate">
+                {projects.find(p => p.id === activeProjectId)?.name ?? '—'}
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Chats</p>
+              <p className="text-xl font-bold font-mono text-zinc-300">{sessions.length}</p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-0.5">Files Tracked</p>
+              <p className="text-xl font-bold font-mono text-zinc-300">
+                {projects.reduce((sum, p) => sum + p.files.length, 0)}
+              </p>
+            </div>
+          </div>
+
           {/* Search */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900/50">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-zinc-800 bg-zinc-900/50 focus-within:border-zinc-700 transition-colors">
             <Search className="w-3.5 h-3.5 text-zinc-600 flex-shrink-0" />
             <input
               value={searchQuery}
