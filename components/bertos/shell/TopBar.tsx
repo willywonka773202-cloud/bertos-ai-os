@@ -4,9 +4,9 @@ import { Zap, Cpu, Globe, Sparkles, ChevronDown, PanelRight, PanelRightClose, Co
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
+import { useAutomationsStore } from '@/store/bertos/automations'
 import type { AIModel } from '@/lib/bertos/types'
 import { useState, useEffect } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 type ModelOption = { value: AIModel; label: string; description: string; icon: React.ReactNode; color: string }
@@ -34,8 +34,30 @@ const ALL_MODEL_OPTIONS: ModelOption[] = [...BASE_SUBSCRIPTION_MODELS, ...LOCAL_
 export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void }) {
   const { selectedModel, setSelectedModel, activeView, rightPanelOpen, setRightPanelOpen, setCommandPaletteOpen } = useUIStore()
   const { isStreaming } = useChatStore()
+  const { runs } = useAutomationsStore()
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [subscriptionModels, setSubscriptionModels] = useState<ModelOption[]>(BASE_SUBSCRIPTION_MODELS)
+  const [daemonOnline, setDaemonOnline] = useState<boolean | null>(null)
+
+  // Live system-health poll — cheap (30s interval) and reflects in the status pill
+  useEffect(() => {
+    let cancelled = false
+    const ping = async () => {
+      try {
+        const res = await fetch('/api/local-daemon/status', { cache: 'no-store' })
+        if (cancelled) return
+        if (!res.ok) { setDaemonOnline(false); return }
+        const d = await res.json() as { online?: boolean }
+        setDaemonOnline(Boolean(d.online))
+      } catch { if (!cancelled) setDaemonOnline(false) }
+    }
+    ping()
+    const id = setInterval(ping, 30_000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  const activeAutopilotRuns = runs.filter(r => r.status === 'running').length
+  const pendingApprovals    = runs.filter(r => r.status === 'needs-approval').length
 
   // Fetch deployment mode once on mount to update ollama-pro description
   useEffect(() => {
@@ -64,9 +86,10 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
     coding: 'Coding Lab',
     evolution: 'Evolution Lab',
     agents: 'Agent Tasks',
+    autopilot: 'Autopilot',
     memory: 'Project Memory',
     settings: 'Settings',
-    dashboard: 'Dashboard',
+    dashboard: 'Mission Control',
     github: 'GitHub',
   }
 
@@ -202,11 +225,49 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         </AnimatePresence>
       </div>
 
-      {/* Live indicator */}
-      <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900/50 border border-zinc-800/50">
-        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[10px] text-zinc-500">Live</span>
-      </div>
+      {/* System health pill */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className={cn(
+            'hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-md border transition-colors',
+            daemonOnline === null
+              ? 'bg-zinc-900/50 border-zinc-800/50'
+              : daemonOnline
+                ? 'bg-emerald-500/5 border-emerald-500/20'
+                : 'bg-amber-500/5 border-amber-500/20'
+          )}>
+            <span className="relative inline-flex w-1.5 h-1.5">
+              <span className={cn(
+                'absolute inset-0 rounded-full',
+                daemonOnline === null ? 'bg-zinc-500' : daemonOnline ? 'bg-emerald-400' : 'bg-amber-400'
+              )} />
+              {daemonOnline !== false && (
+                <span className={cn(
+                  'absolute inset-0 rounded-full animate-ping opacity-50',
+                  daemonOnline ? 'bg-emerald-400' : 'bg-zinc-500'
+                )} />
+              )}
+            </span>
+            <span className={cn(
+              'text-[10px] font-medium',
+              daemonOnline === null ? 'text-zinc-500' : daemonOnline ? 'text-emerald-300' : 'text-amber-300'
+            )}>
+              {daemonOnline === null ? '...' : daemonOnline ? 'Live' : 'Daemon off'}
+            </span>
+            {(activeAutopilotRuns > 0 || pendingApprovals > 0) && (
+              <span className="ml-0.5 inline-flex items-center gap-0.5 text-[10px] text-violet-300">
+                <Sparkles className="w-2.5 h-2.5" />
+                {activeAutopilotRuns + pendingApprovals}
+              </span>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          {daemonOnline === null ? 'Checking system health...' : daemonOnline
+            ? `System healthy${activeAutopilotRuns > 0 ? ` · ${activeAutopilotRuns} autopilot running` : ''}${pendingApprovals > 0 ? ` · ${pendingApprovals} need approval` : ''}`
+            : 'Local daemon offline — run: npm run bertos:daemon'}
+        </TooltipContent>
+      </Tooltip>
 
       {/* Right panel toggle */}
       <Tooltip>

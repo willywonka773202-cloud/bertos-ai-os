@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
   Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical,
-  Home, Terminal, Github,
+  Home, Terminal, Github, Power,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -27,7 +27,7 @@ export function CommandPalette() {
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings' | 'dashboard' | 'coding' | 'github', href: string) => {
+  const navigate = (view: 'chat' | 'compare' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'settings' | 'dashboard' | 'coding' | 'github' | 'autopilot', href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
@@ -104,6 +104,27 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['agent', 'task', 'autonomous', 'background'],
       action: () => navigate('agents', '/agents'),
+    },
+    {
+      id: 'open-autopilot',
+      label: 'Autopilot',
+      description: 'Mission control — visible, permissioned automations',
+      icon: <Power className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['autopilot', 'automation', 'rules', 'mission', 'control', 'schedule'],
+      action: () => navigate('autopilot', '/autopilot'),
+    },
+    {
+      id: 'autopilot-health-check',
+      label: 'Run: Provider Health Check',
+      description: 'Trigger the Autopilot provider health rule',
+      icon: <Power className="w-4 h-4 text-emerald-400" />,
+      category: 'Actions',
+      keywords: ['autopilot', 'health', 'providers', 'run', 'check'],
+      action: () => {
+        setCommandPaletteOpen(false)
+        navigate('autopilot', '/autopilot')
+      },
     },
     {
       id: 'open-memory',

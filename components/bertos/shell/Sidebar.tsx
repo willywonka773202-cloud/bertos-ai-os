@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, FlaskConical,
   Plus, ChevronLeft, ChevronRight, Hash, Zap, Command, Trash2,
-  Terminal, Home, Github,
+  Terminal, Home, Github, Power,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { id: 'compare',   icon: GitCompare,    label: 'Compare',   href: '/compare'   },
   { id: 'evolution', icon: FlaskConical,  label: 'Evolution', href: '/evolution' },
   { id: 'agents',    icon: Bot,           label: 'Agents',    href: '/agents'    },
+  { id: 'autopilot', icon: Power,         label: 'Autopilot', href: '/autopilot' },
   { id: 'memory',    icon: Brain,         label: 'Memory',    href: '/memory'    },
   { id: 'github',    icon: Github,        label: 'GitHub',    href: '/github'    },
 ] as const
