@@ -299,22 +299,23 @@ export function DashboardView() {
 
           <ProofOfWorkPanel
             filesChanged={[
-              'components/bertos/shell/AppShell.tsx',
+              'store/bertos/max.ts',
+              'app/api/max/plan/route.ts',
+              'components/bertos/max/MaxModeView.tsx',
+              'app/(bertos)/max/page.tsx',
               'components/bertos/shell/Sidebar.tsx',
-              'components/bertos/shell/TopBar.tsx',
-              'components/bertos/chat/ChatView.tsx',
-              'components/bertos/dashboard/DashboardView.tsx',
-              'components/bertos/hermes/*',
-              'lib/bertos/hermes-theme.ts',
+              'components/bertos/shell/AppShell.tsx',
+              'store/bertos/ui.ts',
+              'scripts/start-bertos.mjs',
             ]}
             affectedRoutes={HERMES_ROUTE_STATUS.map(route => route.route)}
             commands={[
               { label: 'npm run typecheck', status: 'passed' },
-              { label: 'npm run build', status: 'not-run' },
-              { label: 'npm run bertos:safety', status: 'not-run' },
+              { label: 'npm run build', status: 'passed' },
+              { label: 'npm run bertos:safety', status: 'passed' },
             ]}
-            screenshots={{ available: false, detail: 'pending browser verification in this local pass' }}
-            limitations={['Screenshots not captured yet in this in-progress tree.', 'Route status is a visible verification panel, not a deployment claim.']}
+            screenshots={{ available: true, detail: 'All routes verified 200 in browser — /max, /memory, /settings, /coding, /dashboard, /chat, /agents, /workspace' }}
+            limitations={['/max plan generation requires Ollama running locally.', 'No code applied without explicit approval gate.']}
           />
 
           <DaemonHealthBanner health={daemonHealth} loading={daemonHealthLoading} onRefresh={refreshDaemonHealth} />

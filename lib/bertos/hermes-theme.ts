@@ -118,6 +118,13 @@ export const HERMES_ROUTE_STATUS = [
     components: ['HologramPanel', 'MetricTile'],
     remaining: 'Anti-Gravity remains planned/experimental',
   },
+  {
+    route: '/max',
+    name: 'Max Mode / Overnight Forge',
+    status: 'deep-themed',
+    components: ['HologramPanel', 'StatusOrb', 'RouteHero', 'MetricTile'],
+    remaining: 'Plan execution requires Ollama running; all patches stay approval-gated',
+  },
 ] as const
 
 export type HermesTone = 'cyan' | 'bronze' | 'emerald' | 'amber' | 'red' | 'violet' | 'zinc'
