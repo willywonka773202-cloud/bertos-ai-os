@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { AIModel } from '@/lib/bertos/types'
-import { RouteHero } from '@/components/bertos/hermes'
+import { EmptyChamber, LoadingRelay, RouteHero } from '@/components/bertos/hermes'
 
 type EvolutionCategory = 'bug' | 'feature' | 'ui' | 'code-quality' | 'automation' | 'safety'
 type RecurringMode = 'suggestOnOpen' | 'dailyPlan' | 'backgroundScan'
@@ -455,9 +455,9 @@ export function EvolutionLabView() {
                         <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{item.description}</p>
                       </button>
                     )) ?? (
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-xs text-zinc-500">
-                        Run a scan to build the first backlog.
-                      </div>
+                      scanning
+                        ? <LoadingRelay label="Evolution Scan Running" detail="Inspecting repo signals and provider readiness." compact />
+                        : <EmptyChamber icon={<FlaskConical className="h-6 w-6" />} title="Lab Backlog Dormant" description="Run a scan to build the first improvement backlog." />
                     )}
                   </div>
                 </div>

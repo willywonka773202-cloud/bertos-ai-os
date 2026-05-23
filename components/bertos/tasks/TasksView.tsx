@@ -15,7 +15,8 @@ import {
   type CommandCenterMode,
   type CommandCenterTaskType,
 } from '@/lib/bertos/command-center'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
+import { useProgressionStore } from '@/store/bertos/progression'
 
 type TaskStatus =
   | 'Draft'
@@ -80,6 +81,7 @@ export function TasksView() {
   const [taskType, setTaskType] = useState<CommandCenterTaskType>('bug-fix')
   const [agentId, setAgentId] = useState<CommandCenterAgentId>('codex-cli')
   const [mode, setMode] = useState<CommandCenterMode>('external-prompt')
+  const recordAction = useProgressionStore(s => s.recordAction)
 
   useEffect(() => {
     setTasks(loadTasks())
@@ -126,11 +128,14 @@ export function TasksView() {
       prompt,
     }
     persist([task, ...tasks])
+    recordAction('task-created')
     setTitle('')
     toast.success('Task created.')
   }
 
   const updateStatus = (id: string, status: TaskStatus) => {
+    const previous = tasks.find(task => task.id === id)?.status
+    if (status === 'Complete' && previous !== 'Complete') recordAction('task-completed')
     persist(tasks.map(task => task.id === id ? { ...task, status } : task))
   }
 
@@ -234,11 +239,11 @@ export function TasksView() {
                     <Badge variant="default" className="text-[10px]">{group.length}</Badge>
                   </div>
                   <div className="space-y-2">
-                    {group.length === 0 && <div className="rounded-lg border border-dashed border-zinc-800 p-3 text-[11px] text-zinc-700">No tasks</div>}
+                    {group.length === 0 && <div className="rounded-lg border border-dashed border-[rgba(212,180,131,0.14)] p-3 text-[11px] text-[#5A4A2A]">Idle lane</div>}
                     {group.map(task => {
                       const agent = AGENT_ROSTER.find(item => item.id === task.agentId)
                       return (
-                        <article key={task.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+                        <ChamberCard key={task.id} tone={task.status === 'Complete' ? 'emerald' : task.status === 'Blocked' ? 'red' : 'zinc'} className="p-0" interactive>
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <h4 className="text-xs font-semibold text-zinc-100">{task.title}</h4>
                             <button onClick={() => void copyPrompt(task)} className="text-zinc-600 hover:text-zinc-300" title="Copy task prompt">
@@ -258,7 +263,7 @@ export function TasksView() {
                           >
                             {STATUSES.map(item => <option key={item} value={item}>{item}</option>)}
                           </select>
-                        </article>
+                        </ChamberCard>
                       )
                     })}
                   </div>

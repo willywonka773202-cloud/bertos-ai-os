@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { buildMigrationAuditPrompt } from '@/lib/bertos/command-center'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
 
 interface ProviderStatusResponse {
   providers?: Array<{ id: string; name: string; status: string; message?: string }>
@@ -60,7 +60,7 @@ export function MigrationsView() {
                 { label: 'Mode', value: 'audit only', detail: 'copy prompt, no live migration', tone: 'zinc' },
               ]}
             />
-            <section className="rounded-2xl border border-zinc-800/50 bg-zinc-900/25 p-6">
+            <ChamberCard tone="bronze">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="mb-3 flex items-center gap-2">
@@ -74,10 +74,10 @@ export function MigrationsView() {
                 </div>
                 <Badge variant="warning">not default</Badge>
               </div>
-            </section>
+            </ChamberCard>
 
             <section className="grid gap-4 lg:grid-cols-3">
-              <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <ChamberCard tone="cyan">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Globe2 className="h-4 w-4 text-blue-400" />
@@ -91,9 +91,9 @@ export function MigrationsView() {
                   Current/legacy CLI provider. Keep it supported until the migration path is verified.
                 </p>
                 {geminiCli?.message && <p className="mt-2 text-[11px] text-zinc-600">{geminiCli.message}</p>}
-              </div>
+              </ChamberCard>
 
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+              <ChamberCard tone="amber">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Cpu className="h-4 w-4 text-amber-300" />
@@ -104,9 +104,9 @@ export function MigrationsView() {
                 <p className="text-xs leading-relaxed text-amber-200/75">
                   Planned/experimental. BertOS does not assume it is installed and does not route to it by default.
                 </p>
-              </div>
+              </ChamberCard>
 
-              <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <ChamberCard tone="zinc">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ShieldCheck className="h-4 w-4 text-emerald-400" />
@@ -117,11 +117,11 @@ export function MigrationsView() {
                 <p className="text-xs leading-relaxed text-zinc-500">
                   Future cloud sandbox concept. No live paid calls, no default routing, and no replacement for the local daemon.
                 </p>
-              </div>
+              </ChamberCard>
             </section>
 
             <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-              <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+              <ChamberCard tone="cyan">
                 <div className="mb-3 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-300" />
                   <h2 className="text-sm font-semibold text-zinc-100">Migration checklist</h2>
@@ -134,7 +134,7 @@ export function MigrationsView() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </ChamberCard>
 
               <aside className="space-y-4">
                 <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
@@ -155,12 +155,12 @@ export function MigrationsView() {
               </aside>
             </section>
 
-            <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
+            <ChamberCard tone="zinc">
               <div className="mb-2 text-sm font-semibold text-zinc-100">Audit prompt preview</div>
               <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-zinc-800 bg-black/40 p-3 text-xs leading-relaxed text-zinc-500">
                 {prompt}
               </pre>
-            </section>
+            </ChamberCard>
           </div>
         </ScrollArea>
       </main>

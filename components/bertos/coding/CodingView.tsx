@@ -42,7 +42,8 @@ import {
   type CommandCenterTaskType,
 } from '@/lib/bertos/command-center'
 import { AGENT_TEAMS, buildAgentTeamPrompt, getAgentTeam, type AgentTeamId } from '@/lib/bertos/agent-teams'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
+import { useProgressionStore } from '@/store/bertos/progression'
 
 interface RepoStatus {
   online?: boolean
@@ -285,6 +286,7 @@ export function CodingView() {
   const [directCheckResults, setDirectCheckResults] = useState<Record<string, { ok: boolean; output: string; exitCode: number; durationMs: number }> | null>(null)
   const [runningDirectChecks, setRunningDirectChecks] = useState(false)
   const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
+  const recordAction = useProgressionStore(s => s.recordAction)
 
   const template = useMemo(
     () => CODING_MISSION_TEMPLATES.find(item => item.id === templateId),
@@ -563,6 +565,7 @@ export function CodingView() {
       const data = await res.json() as { ok: boolean; results: typeof directCheckResults; summary: string }
       setDirectCheckResults(data.results)
       appendLog(data.summary ?? (data.ok ? 'Checks passed.' : 'Some checks failed.'))
+      if (data.ok) recordAction('validation-passed')
       // Refresh direct repo status after checks
       fetch('/api/bertos/repo/status', { cache: 'no-store' })
         .then(r => r.json()).then((d: DirectRepoStatus) => setDirectRepo(d)).catch(() => null)
@@ -665,9 +668,9 @@ export function CodingView() {
               </div>
               <div className="space-y-1">
                 {history.length === 0 && (
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 text-[11px] text-zinc-600">
-                    Compiled missions will appear here.
-                  </div>
+                  <ChamberCard tone="zinc" className="p-0">
+                    <div className="text-[11px] text-zinc-600">Compiled missions will appear here after the first scoped dispatch.</div>
+                  </ChamberCard>
                 )}
                 {history.map(item => (
                   <button

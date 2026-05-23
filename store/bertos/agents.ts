@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 import type { AgentTask, AgentLog, AgentCheckpoint, AgentStep, AgentReport, AIModel } from '@/lib/bertos/types'
+import { useProgressionStore } from './progression'
 
 interface AgentStore {
   tasks: AgentTask[]
@@ -46,6 +47,7 @@ export const useAgentStore = create<AgentStore>()(
           safeMode,
           maxSteps,
         }
+        useProgressionStore.getState().recordAction('task-created')
         set(state => ({ tasks: [task, ...state.tasks], activeTaskId: task.id }))
         return task
       },
@@ -94,12 +96,16 @@ export const useAgentStore = create<AgentStore>()(
           ),
         })),
 
-      setStatus: (taskId, status) =>
+      setStatus: (taskId, status) => {
+        if (status === 'done') {
+          useProgressionStore.getState().recordAction('agent-completed')
+        }
         set(state => ({
           tasks: state.tasks.map(t =>
             t.id === taskId ? { ...t, status, updatedAt: Date.now() } : t
           ),
-        })),
+        }))
+      },
 
       addStep: (taskId, stepData) => {
         const step: AgentStep = { ...stepData, id: uuidv4() }

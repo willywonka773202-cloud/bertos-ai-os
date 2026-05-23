@@ -14,6 +14,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
 import { useDaemonStore } from '@/store/bertos/daemon' // accessed via .getState() in polling interval
+import { useProgressionStore } from '@/store/bertos/progression'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useRouter } from 'next/navigation'
 import { ErrorBoundary } from '../shared/ErrorBoundary'
@@ -25,7 +26,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { showOnboarding, complete } = useOnboarding()
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const daemonStatus = useDaemonStore(s => s.status)
+  const recordProgression = useProgressionStore(s => s.recordAction)
   const router = useRouter()
+  const daemonProgressionRecordedRef = useRef(false)
 
   // Use refs so the keyboard handler always reads latest values without re-registering
   const sidebarCollapsedRef = useRef(sidebarCollapsed)
@@ -42,6 +46,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }, 30000)
     return () => window.clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if ((daemonStatus === 'connected' || daemonStatus === 'degraded') && !daemonProgressionRecordedRef.current) {
+      daemonProgressionRecordedRef.current = true
+      recordProgression('daemon-online')
+    }
+  }, [daemonStatus, recordProgression])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 import type { Message, ChatSession, AIModel } from '@/lib/bertos/types'
+import { useProgressionStore } from './progression'
 
 interface ChatStore {
   sessions: ChatSession[]
@@ -120,6 +121,9 @@ export const useChatStore = create<ChatStore>()(
           ...messageData,
           id: uuidv4(),
           timestamp: Date.now(),
+        }
+        if (message.role === 'user') {
+          useProgressionStore.getState().recordAction('chat-message')
         }
         set(state => ({
           sessions: state.sessions.map(s =>

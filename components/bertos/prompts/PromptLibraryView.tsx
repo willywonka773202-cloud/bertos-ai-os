@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/bertos/cn'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, EmptyChamber, RouteHero } from '@/components/bertos/hermes'
 
 const CATEGORY_CONFIG: Record<PromptCategory, { icon: any; label: string; color: string; description: string }> = {
   coding: { icon: Code2, label: 'Coding', color: '#8B5CF6', description: 'Development and debugging prompts' },
@@ -237,21 +237,17 @@ export function PromptLibraryView() {
         <ScrollArea className="flex-1">
           <div className="p-6">
             {filteredPrompts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <Library className="w-16 h-16 text-zinc-700 mb-4" />
-                <h3 className="text-lg font-semibold text-zinc-400 mb-2">
-                  {searchQuery ? 'No prompts found' : 'No prompts yet'}
-                </h3>
-                <p className="text-sm text-zinc-600 mb-6">
-                  {searchQuery ? 'Try a different search' : 'Create your first prompt to get started'}
-                </p>
-                {!searchQuery && (
+              <EmptyChamber
+                icon={<Library className="h-6 w-6" />}
+                title={searchQuery ? 'Protocol Not Found' : 'Sealed Prompt Archive'}
+                description={searchQuery ? 'No archived protocols match that search signal.' : 'Create the first reusable protocol for Chat, Workspace, or Agents.'}
+                action={!searchQuery ? (
                   <Button onClick={() => setShowNewPromptDialog(true)}>
                     <Plus className="w-4 h-4 mr-2" />
                     Create Prompt
                   </Button>
-                )}
-              </div>
+                ) : undefined}
+              />
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredPrompts.map(prompt => (
@@ -320,8 +316,9 @@ function PromptCard({ prompt, onRun, onRunInWorkspace, onRunAsAgent, onEdit, onC
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="group p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700/50 transition-all"
+      className="group"
     >
+      <ChamberCard tone="zinc" interactive>
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <categoryConfig.icon
@@ -391,6 +388,7 @@ function PromptCard({ prompt, onRun, onRunInWorkspace, onRunAsAgent, onEdit, onC
         </Button>
       </div>
       <p className="mt-1.5 text-[10px] text-zinc-700">Chat · Workspace · Agent</p>
+      </ChamberCard>
     </motion.div>
   )
 }

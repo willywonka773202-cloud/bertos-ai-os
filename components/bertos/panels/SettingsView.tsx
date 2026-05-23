@@ -11,7 +11,7 @@ import { useUIStore } from '@/store/bertos/ui'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
 
 interface OllamaStatus {
   online: boolean
@@ -64,6 +64,7 @@ interface TelegramBotStatus {
   configured: boolean
   chatEnabled: boolean
   ollamaModel: string
+  webhookSecretConfigured?: boolean
   error?: string
 }
 
@@ -95,11 +96,11 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
       onClick={() => onChange(!value)}
       className={cn(
         'relative w-9 h-5 rounded-full transition-all duration-200',
-        value ? 'bg-violet-600' : 'bg-zinc-700'
+        value ? 'bg-[rgba(212,180,131,0.72)] shadow-[0_0_18px_rgba(212,180,131,0.18)]' : 'bg-[rgba(60,48,32,0.85)]'
       )}
     >
       <div className={cn(
-        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-200',
+        'absolute top-0.5 w-4 h-4 rounded-full bg-[#F0E8D0] shadow transition-all duration-200',
         value ? 'left-4' : 'left-0.5'
       )} />
     </button>
@@ -109,15 +110,15 @@ function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boole
 function SecretInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   const [show, setShow] = useState(false)
   return (
-    <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 focus-within:border-zinc-700 transition-colors">
+    <div className="flex items-center gap-2 rounded-lg border border-[rgba(212,180,131,0.16)] bg-[rgba(10,8,5,0.72)] px-3 py-2 transition-colors focus-within:border-[rgba(212,180,131,0.38)]">
       <input
         type={show ? 'text' : 'password'}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="flex-1 bg-transparent text-sm text-zinc-200 placeholder:text-zinc-700 outline-none font-mono"
+        className="flex-1 bg-transparent text-sm text-[#F0E8D0] placeholder:text-[#5A4A2A] outline-none font-mono"
       />
-      <button onClick={() => setShow(!show)} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+      <button onClick={() => setShow(!show)} className="text-[#5A4A2A] hover:text-[#D4B483] transition-colors">
         {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
       </button>
     </div>
@@ -303,6 +304,13 @@ export function SettingsView() {
               { label: 'Paid APIs', value: 'gated', detail: 'keys never printed', tone: 'amber' },
               { label: 'Save State', value: saved ? 'saved' : 'ready', detail: 'local settings store', tone: saved ? 'emerald' : 'zinc' },
             ]}
+          />
+
+          <ChamberCard
+            tone="bronze"
+            eyebrow="configuration chamber"
+            title="Guarded control plane"
+            description="Subscription CLIs, local daemon status, optional paid APIs, and external integrations remain separated so BertOS never routes paid or experimental systems silently."
           />
 
           {/* ── Providers ─────────────────────────────────────────────────── */}
@@ -908,7 +916,7 @@ export function SettingsView() {
                         </Badge>
                       </div>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Control BertOS via Telegram: /status, /daemon, /providers, /brief, /coding drafts, /run-check.
+                        Control BertOS via Telegram: /status, /daemon, /providers, /hermes, /brief, /coding review notes, /run-check.
                       </p>
                       {!telegramStatus?.configured && !telegramLoading && (
                         <p className="text-[11px] text-amber-300/80 mt-2">
@@ -918,12 +926,13 @@ export function SettingsView() {
                       )}
                       {telegramStatus?.configured && (
                         <div className="mt-2 grid gap-1 text-[10px] text-zinc-600">
-                          <p>Chat commands: /status /daemon /providers /brief /tasks /evolution /memory /coding /run-check /help</p>
+                          <p>Chat commands: /status /daemon /providers /hermes /brief /tasks /evolution /memory /coding /run-check /help</p>
                           <p>
                             AI chat (/chat): {telegramStatus.chatEnabled
                               ? `enabled — model: ${telegramStatus.ollamaModel}`
                               : 'disabled (set TELEGRAM_ALLOW_CHAT=true to enable Ollama-only chat)'}
                           </p>
+                          <p>Webhook secret: {telegramStatus.webhookSecretConfigured ? 'configured' : 'not configured'}</p>
                           <p className="text-zinc-700">File writes, git push, paid API calls, and destructive ops are blocked.</p>
                         </div>
                       )}
@@ -1001,7 +1010,7 @@ export function SettingsView() {
                   <p>No file writes, no git push, no paid API calls from Telegram.</p>
                   <p>Destructive operations require web UI approval.</p>
                   <p>/chat command uses local Ollama only — never paid providers.</p>
-                  <p>/coding queues a draft visible in BertOS /coding — nothing is auto-applied.</p>
+                  <p>/coding returns a review-ready task summary — nothing is auto-applied.</p>
                 </div>
               </div>
             </motion.div>

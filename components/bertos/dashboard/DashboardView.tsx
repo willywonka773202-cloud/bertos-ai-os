@@ -27,7 +27,25 @@ import { AGENT_ROSTER } from '@/lib/bertos/command-center'
 import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
 import { AGENT_TEAMS } from '@/lib/bertos/agent-teams'
 import { HERMES_ROUTE_STATUS } from '@/lib/bertos/hermes-theme'
-import { HologramPanel, ProofOfWorkPanel, ProviderBadge, RouteHero, StatusOrb } from '@/components/bertos/hermes'
+import {
+  AchievementChip,
+  ChamberCard,
+  CommandCore,
+  EmptyChamber,
+  HologramPanel,
+  LoadingRelay,
+  MissionCard,
+  ProofOfWorkPanel,
+  ProviderBadge,
+  RouteHero,
+  StatusOrb,
+} from '@/components/bertos/hermes'
+import {
+  PRAETORIUM_ACHIEVEMENTS,
+  PRAETORIUM_MISSIONS,
+  getRankProgress,
+  useProgressionStore,
+} from '@/store/bertos/progression'
 
 interface ProviderStatus {
   id: string
@@ -51,6 +69,7 @@ export function DashboardView() {
   const [loading, setLoading] = useState(true)
   const [runningCmd, setRunningCmd] = useState<string | null>(null)
   const [cmdResult, setCmdResult] = useState<{ cmd: string; ok: boolean; output: string } | null>(null)
+  const { operatorName, xp, relayStreak, actionCounts, unlockedAchievements, recordAction } = useProgressionStore()
 
   useEffect(() => {
     let mounted = true
@@ -111,6 +130,7 @@ export function DashboardView() {
 
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
   const hermesProvider = providerStats.byId.get('hermes-nous')
+  const rank = getRankProgress(xp)
 
   const featuredTeams = useMemo(
     () => AGENT_TEAMS.filter(team =>
@@ -164,6 +184,7 @@ export function DashboardView() {
         ok: data.exitCode === 0,
         output: (data.stdout || '') + (data.stderr || '') || data.error || 'Done',
       })
+      if (data.exitCode === 0) recordAction('validation-passed')
     } catch (e) {
       setCmdResult({ cmd, ok: false, output: e instanceof Error ? e.message : 'Failed' })
     } finally {
@@ -236,6 +257,60 @@ export function DashboardView() {
             </div>
           </RouteHero>
 
+          <CommandCore
+            operatorName={operatorName}
+            rank={rank.current.title}
+            nextRank={rank.next.title}
+            xp={xp}
+            rankProgress={rank.progress}
+            relayStreak={relayStreak}
+            daemonOnline={daemonOnline}
+          />
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <ChamberCard
+              tone="bronze"
+              eyebrow="active operations"
+              title="Praetorium Missions"
+              description="Progress is recorded from real app actions: messages, tasks, projects, validation, daemon health, and agent completion."
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                {PRAETORIUM_MISSIONS.map(mission => {
+                  const progress = actionCounts[mission.action] ?? 0
+                  return (
+                    <MissionCard
+                      key={mission.id}
+                      title={mission.title}
+                      description={mission.description}
+                      progress={Math.min(progress, mission.target)}
+                      target={mission.target}
+                      xp={mission.xp}
+                      complete={progress >= mission.target}
+                    />
+                  )
+                })}
+              </div>
+            </ChamberCard>
+
+            <ChamberCard
+              tone="cyan"
+              eyebrow="operator honors"
+              title="Achievements"
+              description="Unlocked honors stay attached to the operator panel."
+            >
+              <div className="flex flex-wrap gap-2">
+                {PRAETORIUM_ACHIEVEMENTS.map(achievement => (
+                  <AchievementChip
+                    key={achievement.id}
+                    title={achievement.title}
+                    description={achievement.description}
+                    unlocked={unlockedAchievements.includes(achievement.id)}
+                  />
+                ))}
+              </div>
+            </ChamberCard>
+          </div>
+
           {/* Global Oracle quick-send box */}
           <OracleQuickSend />
 
@@ -266,9 +341,11 @@ export function DashboardView() {
                     </button>
                   )
                 }) : (
-                  <div className="rounded-xl border border-amber-300/15 bg-amber-300/5 p-4 text-sm text-amber-100/75">
-                    No user-authored chat sessions yet. Open Oracle and send a prompt to create the first live thread.
-                  </div>
+                  <EmptyChamber
+                    tone="amber"
+                    title="Idle Oracle Archive"
+                    description="No user-authored chat sessions yet. Open Oracle and send a prompt to create the first live thread."
+                  />
                 )}
               </div>
             </HologramPanel>
@@ -310,11 +387,11 @@ export function DashboardView() {
             ]}
             affectedRoutes={HERMES_ROUTE_STATUS.map(route => route.route)}
             commands={[
-              { label: 'npm run typecheck', status: 'passed' },
-              { label: 'npm run build', status: 'passed' },
-              { label: 'npm run bertos:safety', status: 'passed' },
+              { label: 'npm run typecheck', status: 'not-run', detail: 'available from validation workflow' },
+              { label: 'npm run build', status: 'not-run', detail: 'available from validation workflow' },
+              { label: 'npm run bertos:safety', status: 'not-run', detail: 'available from validation workflow' },
             ]}
-            screenshots={{ available: true, detail: 'All routes verified 200 in browser — /max, /memory, /settings, /coding, /dashboard, /chat, /agents, /workspace' }}
+            screenshots={{ available: false, detail: 'Run visual verification during release checks.' }}
             limitations={['/max plan generation requires Ollama running locally.', 'No code applied without explicit approval gate.']}
           />
 
@@ -575,13 +652,12 @@ export function DashboardView() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-24 rounded-xl bg-zinc-900/50 animate-pulse" />
-                ))
+                <div className="col-span-full">
+                  <LoadingRelay label="Provider Pantheon Scanning" detail="Checking configured provider status without assuming availability." />
+                </div>
               ) : providers.length === 0 ? (
-                <div className="col-span-full p-8 rounded-xl border border-zinc-800/50 bg-zinc-900/20 text-center">
-                  <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                  <p className="text-zinc-400">No provider data available</p>
+                <div className="col-span-full">
+                  <EmptyChamber icon={<AlertCircle className="h-6 w-6" />} title="Provider Relay Dormant" description="No provider data is available from the status endpoint." tone="amber" />
                 </div>
               ) : (
                 providers.map((provider) => (
@@ -601,18 +677,21 @@ export function DashboardView() {
 
             <TabsContent value="projects" className="space-y-3 mt-4">
               {projects.length === 0 ? (
-                <div className="p-12 rounded-xl border border-zinc-800/50 bg-zinc-900/20 text-center">
-                  <FolderOpen className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-                  <p className="text-zinc-400 mb-4">No projects yet</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      useProjectStore.getState().createProject({ name: 'New Project' })
-                    }}
-                  >
-                    Create First Project
-                  </Button>
-                </div>
+                <EmptyChamber
+                  icon={<FolderOpen className="h-6 w-6" />}
+                  title="Sealed Project Vault"
+                  description="Create the first project chamber to anchor Memory, Workspace, and Oracle context."
+                  action={(
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        useProjectStore.getState().createProject({ name: 'New Project' })
+                      }}
+                    >
+                      Create First Project
+                    </Button>
+                  )}
+                />
               ) : (
                 projects.map((project) => (
                   <ProjectCard

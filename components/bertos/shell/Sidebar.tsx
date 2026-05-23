@@ -12,7 +12,8 @@ import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
 import { useProjectStore } from '@/store/bertos/projects'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { StatusOrb } from '@/components/bertos/hermes'
+import { OperatorSigil, StatusOrb, XPMeter } from '@/components/bertos/hermes'
+import { getRankProgress, useProgressionStore } from '@/store/bertos/progression'
 import { useRouter } from 'next/navigation'
 
 const NAV_ITEMS = [
@@ -43,9 +44,11 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
   const { sidebarCollapsed, setSidebarCollapsed, activeView, setActiveView, setCommandPaletteOpen } = useUIStore()
   const { sessions, activeSessionId, setActiveSession, getOrCreateSession, deleteSession } = useChatStore()
   const { projects, activeProjectId, setActiveProject } = useProjectStore()
+  const { operatorName, xp, relayStreak } = useProgressionStore()
   const router = useRouter()
   const [hoveredSession, setHoveredSession] = useState<string | null>(null)
   const collapsed = isMobile ? false : sidebarCollapsed
+  const rank = getRankProgress(xp)
 
   const navigate = (id: typeof NAV_ITEMS[number]['id'], href: string) => {
     setActiveView(id)
@@ -90,6 +93,29 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
             )}
           </AnimatePresence>
         </div>
+      </div>
+
+      <div className="shrink-0 border-b border-[rgba(212,180,131,0.10)] px-2 py-3">
+        {collapsed ? (
+          <div className="flex justify-center">
+            <OperatorSigil name={operatorName} rank={rank.current.title} size="sm" />
+          </div>
+        ) : (
+          <div className="rounded-xl border border-[rgba(212,180,131,0.16)] bg-[rgba(10,8,5,0.52)] p-3">
+            <div className="mb-3 flex items-center gap-3">
+              <OperatorSigil name={operatorName} rank={rank.current.title} size="sm" />
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-[#F0E8D0]">{operatorName}</div>
+                <div className="text-[10px] uppercase tracking-[0.20em] text-[#D4B483]">{rank.current.title}</div>
+              </div>
+              <div className="ml-auto text-right text-[10px] text-[#6A5A3A]">
+                <div>{xp} XP</div>
+                <div>{relayStreak}d relay</div>
+              </div>
+            </div>
+            <XPMeter xp={xp} rank={rank.current.title} nextRank={rank.next.title} progress={rank.progress} compact />
+          </div>
+        )}
       </div>
 
       <ScrollArea className="flex-1">

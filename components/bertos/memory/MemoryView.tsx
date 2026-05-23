@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from 'sonner'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
 
 const PROJECT_COLORS = [
   '#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444',
@@ -173,7 +173,7 @@ export function MemoryView() {
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
             {MEMORY_CATEGORIES.map(category => (
-              <div key={category.label} className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
+              <ChamberCard key={category.label} tone={category.status === 'local' ? 'cyan' : 'zinc'} className="p-0">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs font-medium text-zinc-300">{category.label}</p>
                   <Badge variant={category.status === 'local' ? 'success' : 'default'} className="text-[9px]">
@@ -181,7 +181,7 @@ export function MemoryView() {
                   </Badge>
                 </div>
                 <p className="mt-1 text-[11px] leading-relaxed text-zinc-600">{category.detail}</p>
-              </div>
+              </ChamberCard>
             ))}
           </div>
 

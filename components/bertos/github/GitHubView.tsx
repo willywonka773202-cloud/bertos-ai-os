@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
-import { HologramPanel, RomanDivider, RouteHero, StatusOrb } from '@/components/bertos/hermes'
+import { EmptyChamber, HologramPanel, RomanDivider, RouteHero, StatusOrb } from '@/components/bertos/hermes'
 
 interface RepoStatus {
   root?: string
@@ -152,7 +152,7 @@ export function GitHubView() {
                   {repo.blockedReason && <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-red-300">{repo.blockedReason}</div>}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-600">Repo status requires the local daemon.</p>
+                <EmptyChamber icon={<GitBranch className="h-6 w-6" />} title="Repo Archive Sealed" description="Repo status requires the local daemon and a verified BertOS workspace." />
               )}
             </HologramPanel>
 
