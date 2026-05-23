@@ -3,6 +3,7 @@ import { getOllamaConfig } from '@/lib/bertos/runtime'
 import { fetchLocalDaemonStatus } from '@/lib/bertos/local-daemon'
 import { getComposioStatus } from '@/lib/tools/composio'
 import { getGeminiNativeApiKey } from '@/lib/bertos/providers/gemini-native'
+import { getHermesNousConfig, status as getHermesNousProviderStatus } from '@/lib/bertos/providers/hermes-nous'
 
 export const runtime = 'nodejs'
 
@@ -11,28 +12,29 @@ export async function GET() {
   const localDaemon = await fetchLocalDaemonStatus()
   const composio = await getComposioStatus()
   const geminiNativeConfigured = Boolean(getGeminiNativeApiKey())
-  const hermesUrlConfigured = Boolean(process.env.HERMES_API_URL)
-  const hermesKeyConfigured = Boolean(process.env.HERMES_API_KEY)
-  const hermesPaidEnabled = process.env.ENABLE_HERMES_PAID === 'true'
-  const hermesConfigured = hermesUrlConfigured && hermesKeyConfigured
+  const hermesCfg = getHermesNousConfig()
+  const hermesProviderStatus = await getHermesNousProviderStatus()
+  const hermesConfigured = Boolean(hermesCfg.apiUrl && hermesCfg.apiKey)
   const fccEnabled = process.env.ENABLE_FCC_PROXY === 'true'
   const devinConfigured = Boolean(process.env.DEVIN_API_KEY)
   const qwenConfigured = Boolean(process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY)
   const hermesStatus = {
     id: 'hermes-nous',
     configured: hermesConfigured,
-    proxyReachable: hermesConfigured,
-    paidEnabled: hermesPaidEnabled,
-    availableForRouting: hermesConfigured && hermesPaidEnabled,
+    proxyReachable: hermesProviderStatus.online,
+    paidEnabled: hermesCfg.paidEnabled,
+    availableForRouting: hermesProviderStatus.online,
     requiredEnvVars: ['HERMES_API_URL', 'HERMES_API_KEY'],
+    optionalEnvVars: ['HERMES_MODEL'],
     gateEnvVar: 'ENABLE_HERMES_PAID',
-    billing: 'Paid API credits required',
-    statusMessage: 'Proxy reachable, but no free chat models available for this account.',
+    billing: 'Paid API credits may be used by remote Hermes Agent',
+    statusMessage: hermesProviderStatus.online
+      ? 'Hermes API server is reachable and available for manual routing.'
+      : hermesProviderStatus.error ?? 'Hermes is not available for routing.',
     defaultProvider: false,
-    autoRoutingDisabledUnless: 'ENABLE_HERMES_PAID=true',
-    error: hermesPaidEnabled && !hermesConfigured
-      ? 'Hermes paid routing is enabled, but HERMES_API_URL or HERMES_API_KEY is missing.'
-      : undefined,
+    autoRoutingDisabledUnless: 'manual selection plus ENABLE_HERMES_PAID=true',
+    model: hermesProviderStatus.modelOrTool,
+    error: hermesProviderStatus.error,
   }
   const providers = [
     {
@@ -57,11 +59,11 @@ export async function GET() {
     },
     {
       id: 'hermes-nous',
-      name: 'Hermes / Nous Proxy',
-      status: hermesPaidEnabled && hermesConfigured ? 'online' : 'offline',
-      message: hermesPaidEnabled && hermesConfigured
-        ? 'Paid API credits enabled by ENABLE_HERMES_PAID=true'
-        : 'Paid API credits required; auto-routing disabled',
+      name: 'Hermes / Nous Remote',
+      status: hermesProviderStatus.online ? 'online' : 'offline',
+      message: hermesProviderStatus.online
+        ? `OpenAI-compatible Hermes API server (${hermesProviderStatus.modelOrTool})`
+        : hermesProviderStatus.error ?? 'Paid API credits required; auto-routing disabled',
     },
   ]
   const externalAgents = {
@@ -192,6 +194,7 @@ export async function GET() {
       openai: Boolean(process.env.OPENAI_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY),
       geminiNative: geminiNativeConfigured,
+      hermesNous: hermesProviderStatus.online,
     },
     geminiNative: {
       id: 'gemini-api-native',
