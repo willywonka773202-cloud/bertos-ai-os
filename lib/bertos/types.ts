@@ -266,4 +266,8 @@ export interface BertOSSettings {
   modelPriority: AIModel[]
   tokenBudget: number
   animationsEnabled: boolean
+  obsidianVaultPath?: string
+  obsidianJournalFolder?: string
+  obsidianProjectNotesFolder?: string
+  obsidianSessionsFolder?: string
 }

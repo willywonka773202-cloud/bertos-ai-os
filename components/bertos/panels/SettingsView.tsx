@@ -60,6 +60,13 @@ interface GeminiNativeStatus {
   error?: string
 }
 
+interface TelegramBotStatus {
+  configured: boolean
+  chatEnabled: boolean
+  ollamaModel: string
+  error?: string
+}
+
 interface HermesNousStatus {
   configured: boolean
   proxyReachable?: boolean
@@ -79,6 +86,7 @@ const SECTIONS = [
   { id: 'memory',    icon: Database, label: 'Memory'      },
   { id: 'performance',icon: Sliders, label: 'Performance' },
   { id: 'security',  icon: Shield,   label: 'Security'    },
+  { id: 'integrations', icon: Wifi,  label: 'Integrations' },
 ]
 
 function ToggleSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
@@ -130,6 +138,8 @@ export function SettingsView() {
   const [composioStatus, setComposioStatus] = useState<ComposioStatus | null>(null)
   const [geminiNativeStatus, setGeminiNativeStatus] = useState<GeminiNativeStatus | null>(null)
   const [hermesNousStatus, setHermesNousStatus] = useState<HermesNousStatus | null>(null)
+  const [telegramStatus, setTelegramStatus] = useState<TelegramBotStatus | null>(null)
+  const [telegramLoading, setTelegramLoading] = useState(false)
   const [ollamaLoading, setOllamaLoading] = useState(false)
   const [daemonLoading, setDaemonLoading] = useState(false)
   const [testingCloud, setTestingCloud] = useState(false)
@@ -195,6 +205,18 @@ export function SettingsView() {
     }
   }
 
+  const fetchTelegramStatus = async () => {
+    setTelegramLoading(true)
+    try {
+      const res = await fetch('/api/telegram/webhook', { cache: 'no-store' })
+      setTelegramStatus(await res.json() as TelegramBotStatus)
+    } catch {
+      setTelegramStatus({ configured: false, chatEnabled: false, ollamaModel: 'llama3', error: 'Could not check Telegram status.' })
+    } finally {
+      setTelegramLoading(false)
+    }
+  }
+
   const fetchProviderStatus = async () => {
     try {
       const res = await fetch('/api/providers/status', { cache: 'no-store' })
@@ -221,6 +243,10 @@ export function SettingsView() {
       fetchLocalDaemonStatus()
       fetchComposioStatus()
       fetchGeminiNativeStatus()
+      fetchProviderStatus()
+    }
+    if (activeSection === 'integrations') {
+      fetchTelegramStatus()
       fetchProviderStatus()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -848,6 +874,135 @@ export function SettingsView() {
                     {settings.theme === t.value && <Check className="w-3.5 h-3.5 text-violet-400 mx-auto mt-1" />}
                   </button>
                 ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Integrations ──────────────────────────────────────────────── */}
+          {activeSection === 'integrations' && (
+            <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+              <div>
+                <h3 className="text-base font-semibold text-zinc-200 mb-1">Integrations</h3>
+                <p className="text-xs text-zinc-500">Messaging control, Hermes Hostinger, and external bridges. No paid calls are made from these status checks.</p>
+              </div>
+
+              {/* Telegram */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Telegram Messaging Bridge</h4>
+                <div className={cn(
+                  'rounded-xl border p-4 space-y-3',
+                  telegramStatus?.configured
+                    ? 'border-cyan-500/20 bg-cyan-500/5'
+                    : 'border-zinc-800 bg-zinc-900/30'
+                )}>
+                  <div className="flex items-start gap-3">
+                    <Bot className={cn('w-4 h-4 mt-0.5 flex-shrink-0', telegramStatus?.configured ? 'text-cyan-400' : 'text-zinc-600')} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-zinc-200">Telegram Bot</p>
+                        <Badge
+                          variant={telegramStatus?.configured ? 'success' : 'default'}
+                          className="text-[9px] h-4"
+                        >
+                          {telegramLoading ? 'Checking…' : telegramStatus?.configured ? 'Configured' : 'Not configured'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Control BertOS via Telegram: /status, /daemon, /providers, /brief, /coding drafts, /run-check.
+                      </p>
+                      {!telegramStatus?.configured && !telegramLoading && (
+                        <p className="text-[11px] text-amber-300/80 mt-2">
+                          Add <code className="text-amber-200">TELEGRAM_BOT_TOKEN</code> and{' '}
+                          <code className="text-amber-200">TELEGRAM_ALLOWED_CHAT_ID</code> to your .env.local.
+                        </p>
+                      )}
+                      {telegramStatus?.configured && (
+                        <div className="mt-2 grid gap-1 text-[10px] text-zinc-600">
+                          <p>Chat commands: /status /daemon /providers /brief /tasks /evolution /memory /coding /run-check /help</p>
+                          <p>
+                            AI chat (/chat): {telegramStatus.chatEnabled
+                              ? `enabled — model: ${telegramStatus.ollamaModel}`
+                              : 'disabled (set TELEGRAM_ALLOW_CHAT=true to enable Ollama-only chat)'}
+                          </p>
+                          <p className="text-zinc-700">File writes, git push, paid API calls, and destructive ops are blocked.</p>
+                        </div>
+                      )}
+                      {telegramStatus?.error && (
+                        <p className="text-[11px] text-red-400/80 mt-1">{telegramStatus.error}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={fetchTelegramStatus}
+                    disabled={telegramLoading}
+                    className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={cn('w-3 h-3', telegramLoading && 'animate-spin')} />
+                    Refresh Telegram Status
+                  </button>
+                </div>
+              </div>
+
+              {/* Hermes Hostinger */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Hermes Hostinger Provider</h4>
+                <div className={cn(
+                  'rounded-xl border p-4 space-y-3',
+                  hermesNousStatus?.availableForRouting
+                    ? 'border-amber-500/20 bg-amber-500/5'
+                    : 'border-zinc-800 bg-zinc-900/30'
+                )}>
+                  <div className="flex items-start gap-3">
+                    <Globe className={cn('w-4 h-4 mt-0.5 flex-shrink-0', hermesNousStatus?.configured ? 'text-amber-400' : 'text-zinc-600')} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-zinc-200">Hermes on Hostinger</p>
+                        <Badge
+                          variant={hermesNousStatus?.availableForRouting ? 'success' : hermesNousStatus?.configured ? 'warning' : 'default'}
+                          className="text-[9px] h-4"
+                        >
+                          {hermesNousStatus?.availableForRouting
+                            ? 'Routing active'
+                            : hermesNousStatus?.configured
+                              ? 'Configured — paid routing gated'
+                              : 'Not configured'}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Your Hermes proxy running on Hostinger. Set <code className="text-zinc-400">HERMES_API_URL</code> and{' '}
+                        <code className="text-zinc-400">HERMES_API_KEY</code> in .env.local.
+                      </p>
+                      <div className="mt-2 grid gap-1 text-[10px] text-zinc-600">
+                        <p>Proxy configured: {hermesNousStatus?.configured ? 'yes' : 'no'}</p>
+                        <p>Proxy reachable: {hermesNousStatus?.proxyReachable === true ? 'yes' : hermesNousStatus?.proxyReachable === false ? 'no' : 'unknown'}</p>
+                        <p>Paid routing: {hermesNousStatus?.paidEnabled ? 'enabled' : 'disabled (set ENABLE_HERMES_PAID=true)'}</p>
+                        <p className="text-zinc-700">Status checks are safe — no chat completions are run from this card.</p>
+                      </div>
+                      {hermesNousStatus?.error && (
+                        <p className="text-[11px] text-amber-300/80 mt-1">{hermesNousStatus.error}</p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={fetchProviderStatus}
+                    className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Test Hermes Connection
+                  </button>
+                </div>
+              </div>
+
+              {/* Messaging bridge summary */}
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 space-y-2">
+                <p className="text-sm font-medium text-zinc-300">Messaging Bridge Safety</p>
+                <div className="grid gap-1 text-[11px] text-zinc-600">
+                  <p>All Telegram commands are read-only or draft-only by default.</p>
+                  <p>No file writes, no git push, no paid API calls from Telegram.</p>
+                  <p>Destructive operations require web UI approval.</p>
+                  <p>/chat command uses local Ollama only — never paid providers.</p>
+                  <p>/coding queues a draft visible in BertOS /coding — nothing is auto-applied.</p>
+                </div>
               </div>
             </motion.div>
           )}

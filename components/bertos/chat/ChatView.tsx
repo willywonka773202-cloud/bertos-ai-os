@@ -65,7 +65,20 @@ export function ChatView() {
         useChatStore.getState().setActiveSession(firstRealSession.id)
       }
     }
-  }, []) // Empty dependency array to run only once on mount
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps -- intentionally once
+
+  // Global Oracle bridge: auto-submit if a draft was sent from another route
+  const sendMessageRef = useRef<((content: string) => Promise<void>) | null>(null)
+  useEffect(() => {
+    try {
+      const draft = window.localStorage.getItem('bertos-chat-draft')
+      if (draft) {
+        window.localStorage.removeItem('bertos-chat-draft')
+        // Defer to next tick so sendMessage ref is stable
+        setTimeout(() => { if (sendMessageRef.current) void sendMessageRef.current(draft) }, 80)
+      }
+    } catch { /* ignore */ }
+  }, []) // intentionally once on mount
 
   const scrollToBottom = useCallback((smooth = true) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
@@ -83,7 +96,13 @@ export function ChatView() {
   }, [])
 
   const sendMessage = useCallback(async (content: string) => {
-    const targetSession = getOrCreateSession(selectedModel)
+    // For follow-up messages: use the already-active session if it has messages.
+    // Only call getOrCreateSession when there is no active session or it is empty.
+    const currentActive = getActiveSession()
+    const targetSession =
+      currentActive && currentActive.messages.length > 0
+        ? currentActive
+        : getOrCreateSession(selectedModel)
     const sessionId = targetSession.id
     setActiveSession(sessionId)
 
@@ -292,6 +311,9 @@ export function ChatView() {
     addMessage, appendToMessage, updateMessage, setStreaming,
     getOrCreateSession, updateSessionTitle, getActiveProject, setActiveSession,
   ])
+
+  // Keep ref current so the mount effect can call sendMessage safely
+  useEffect(() => { sendMessageRef.current = sendMessage }, [sendMessage])
 
   const handleStop = useCallback(() => {
     abortRef.current?.abort()

@@ -7,6 +7,7 @@ import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
 import { useAutomationStore } from '@/store/bertos/automations'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
+import { useDaemonStore } from '@/store/bertos/daemon'
 import type { AIModel } from '@/lib/bertos/types'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ProviderStatusIndicator } from './ProviderStatusIndicator'
@@ -68,6 +69,8 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const { isStreaming, sessions, activeSessionId } = useChatStore()
   const { runs } = useAutomationStore()
   const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
+  const daemonStoreStatus = useDaemonStore(s => s.status)
+  const daemonLastSeenAt = useDaemonStore(s => s.lastSeenAt)
   const [modelMenuOpen, setModelMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [menuRect, setMenuRect] = useState<{ right: number; top: number } | null>(null)
@@ -91,7 +94,10 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
 
   const activeModel = MODEL_OPTIONS.find(option => option.value === selectedModel) ?? MODEL_OPTIONS[0]
   const activeSession = sessions.find(session => session.id === activeSessionId)
-  const daemonOnline = Boolean(daemonHealth?.daemonOnline)
+  const daemonDegraded = daemonStoreStatus === 'degraded'
+  const daemonOnline = Boolean(daemonHealth?.daemonOnline) || daemonDegraded
+  const daemonLabel = daemonStoreStatus === 'checking' ? 'Checking…' : daemonDegraded ? 'Daemon (degraded)' : daemonOnline ? 'Daemon' : 'Daemon offline'
+  const lastSeenLabel = daemonLastSeenAt ? `Last seen ${new Date(daemonLastSeenAt).toLocaleTimeString()}` : daemonOnline ? 'Local daemon online' : 'Start npm run bertos:daemon'
   const runningRuns = runs.filter(run => run.status === 'running').length
   const pendingApprovals = runs.filter(run => run.status === 'needs-approval').length
   const liveState = pendingApprovals > 0 ? 'approval' : isStreaming ? 'generating' : runningRuns > 0 ? 'autopilot' : daemonOnline ? 'live' : 'setup'
@@ -174,15 +180,15 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
             onClick={() => void refreshDaemonHealth()}
             className={cn(
               'hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition md:flex',
-              daemonOnline ? 'border-emerald-300/20 bg-emerald-300/10 text-emerald-200' : 'border-amber-300/20 bg-amber-300/10 text-amber-200',
+              daemonDegraded ? 'border-amber-300/20 bg-amber-300/10 text-amber-200' : daemonOnline ? 'border-emerald-300/20 bg-emerald-300/10 text-emerald-200' : 'border-zinc-700/40 bg-zinc-800/30 text-zinc-500',
             )}
           >
-            <span className={cn('h-1.5 w-1.5 rounded-full', daemonOnline ? 'bg-emerald-300' : 'bg-amber-300', daemonLoading && 'animate-pulse')} />
+            <span className={cn('h-1.5 w-1.5 rounded-full', daemonDegraded ? 'bg-amber-300' : daemonOnline ? 'bg-emerald-300' : 'bg-zinc-600', (daemonLoading || daemonStoreStatus === 'checking') && 'animate-pulse')} />
             <Server className="h-3.5 w-3.5" />
-            <span>{daemonOnline ? 'Daemon' : 'Daemon offline'}</span>
+            <span>{daemonLabel}</span>
           </button>
         </TooltipTrigger>
-        <TooltipContent>{daemonOnline ? 'Local daemon online' : 'Start npm run bertos:daemon'}</TooltipContent>
+        <TooltipContent>{lastSeenLabel}</TooltipContent>
       </Tooltip>
 
       <button

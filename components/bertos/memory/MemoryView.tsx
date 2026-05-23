@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/bertos/cn'
 import { useProjectStore } from '@/store/bertos/projects'
 import { useChatStore } from '@/store/bertos/chat'
+import { useUIStore } from '@/store/bertos/ui'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -32,9 +33,22 @@ const MEMORY_CATEGORIES = [
   { label: 'Roadmap', detail: 'Longer-term BertOS build phases and deferred integrations.', status: 'planned' },
 ]
 
+function buildDailyJournalTemplate(date: string): string {
+  return `# Daily Brief — ${date}\n\n## Focus\n\n- \n\n## Work Log\n\n- \n\n## Decisions\n\n- \n\n## Tomorrow\n\n- \n\n## Notes\n\n`
+}
+
+function buildSessionNoteTemplate(task: string, date: string): string {
+  return `# Agent Session — ${date}\n\n## Task\n\n${task || 'Describe the task here.'}\n\n## Outcome\n\n- \n\n## Files Changed\n\n- \n\n## Safety Notes\n\n- No secrets committed\n- Typecheck: \n- Build: \n\n## Follow-up\n\n- \n`
+}
+
+function buildProjectNoteTemplate(projectName: string): string {
+  return `# ${projectName || 'Project'} — Notes\n\n## Goal\n\n\n\n## Architecture\n\n\n\n## Decisions\n\n| Decision | Reason | Date |\n|----------|--------|------|\n|  |  |  |\n\n## Providers\n\n- \n\n## Roadmap\n\n- [ ] \n\n## Safety Rules\n\n- \n`
+}
+
 export function MemoryView() {
   const { projects, activeProjectId, createProject, updateProject, deleteProject, setActiveProject, updateContext } = useProjectStore()
   const { sessions } = useChatStore()
+  const { settings, updateSettings } = useUIStore()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editCtx, setEditCtx] = useState('')
@@ -44,6 +58,31 @@ export function MemoryView() {
   const [newColor, setNewColor] = useState(PROJECT_COLORS[0])
   const [newIcon, setNewIcon] = useState(PROJECT_ICONS[0])
   const [searchQuery, setSearchQuery] = useState('')
+  const [obsidianExpanded, setObsidianExpanded] = useState(false)
+  const [previewTemplate, setPreviewTemplate] = useState<'journal' | 'session' | 'project' | null>(null)
+  const [vaultPath, setVaultPath] = useState(settings.obsidianVaultPath ?? '')
+  const [journalFolder, setJournalFolder] = useState(settings.obsidianJournalFolder ?? 'Journal')
+  const [projectNotesFolder, setProjectNotesFolder] = useState(settings.obsidianProjectNotesFolder ?? 'Projects')
+  const [sessionsFolder, setSessionsFolder] = useState(settings.obsidianSessionsFolder ?? 'Agent Sessions')
+  const [obsidianSaved, setObsidianSaved] = useState(false)
+
+  const saveObsidianSettings = () => {
+    updateSettings({
+      obsidianVaultPath: vaultPath.trim() || undefined,
+      obsidianJournalFolder: journalFolder.trim() || 'Journal',
+      obsidianProjectNotesFolder: projectNotesFolder.trim() || 'Projects',
+      obsidianSessionsFolder: sessionsFolder.trim() || 'Agent Sessions',
+    })
+    setObsidianSaved(true)
+    setTimeout(() => setObsidianSaved(false), 2000)
+  }
+
+  const copyTemplate = async (template: string) => {
+    await navigator.clipboard.writeText(template)
+    toast.success('Template copied to clipboard.')
+  }
+
+  const today = new Date().toISOString().slice(0, 10)
 
   const filtered = projects.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -156,32 +195,106 @@ export function MemoryView() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-sm font-semibold text-zinc-100">Obsidian / Local Markdown Vault</h3>
-                    <Badge variant="default" className="text-[9px]">planned</Badge>
+                    <Badge variant={vaultPath ? 'success' : 'default'} className="text-[9px]">
+                      {vaultPath ? 'path set' : 'not configured'}
+                    </Badge>
                   </div>
                   <p className="mt-1 max-w-2xl text-xs leading-relaxed text-blue-100/70">
-                    Future agents should save sessions, goals, decisions, daily journals, and project notes as local markdown.
-                    BertOS will not claim Obsidian is connected until a safe vault path and permissioned daemon writer exist.
+                    Configure your vault path and folder structure. BertOS does not write files automatically — use templates below to copy and paste into Obsidian manually, or build a safe daemon writer once a validated path exists.
                   </p>
                 </div>
               </div>
-              <Button size="sm" variant="outline" onClick={() => void copyObsidianPrompt()}>
-                <ClipboardCopy className="h-3.5 w-3.5" />Generate Obsidian Integration Prompt
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setObsidianExpanded(v => !v)}>
+                  <Edit3 className="h-3.5 w-3.5" />{obsidianExpanded ? 'Hide Settings' : 'Configure'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void copyObsidianPrompt()}>
+                  <ClipboardCopy className="h-3.5 w-3.5" />Integration Prompt
+                </Button>
+              </div>
             </div>
-            <div className="mt-4 grid gap-2 md:grid-cols-2">
-              {[
-                ['Vault path', 'Not configured. Future setup should validate a local folder outside secrets.'],
-                ['Memory categories', 'Projects, goals, decisions, daily journal, agent sessions, playbooks.'],
-                ['Daily journal folder', 'Planned markdown notes for daily brief and trend-scout summaries.'],
-                ['Project notes folder', 'Planned architecture, roadmap, and provider setup notes.'],
-                ['Agent sessions folder', 'Planned proof logs, task reports, and validation summaries.'],
-                ['Safety', 'Local files only; no secrets; writes require explicit permission and daemon validation.'],
-              ].map(([label, detail]) => (
-                <div key={label} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-                  <div className="text-[10px] uppercase tracking-widest text-zinc-700">{label}</div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">{detail}</p>
+
+            {obsidianExpanded && (
+              <div className="mt-4 space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                  {[
+                    { label: 'Vault Path', placeholder: 'C:\\Users\\you\\Documents\\Vault', value: vaultPath, setter: setVaultPath, desc: 'Root folder of your Obsidian vault' },
+                    { label: 'Journal Folder', placeholder: 'Journal', value: journalFolder, setter: setJournalFolder, desc: 'Daily brief and trend notes' },
+                    { label: 'Project Notes Folder', placeholder: 'Projects', value: projectNotesFolder, setter: setProjectNotesFolder, desc: 'Architecture and roadmap notes' },
+                    { label: 'Agent Sessions Folder', placeholder: 'Agent Sessions', value: sessionsFolder, setter: setSessionsFolder, desc: 'Proof logs and task summaries' },
+                  ].map(field => (
+                    <div key={field.label} className="space-y-1">
+                      <label className="text-[11px] font-medium text-zinc-400">{field.label}</label>
+                      <input
+                        type="text"
+                        value={field.value}
+                        onChange={e => field.setter(e.target.value)}
+                        placeholder={field.placeholder}
+                        className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-zinc-700 font-mono"
+                      />
+                      <p className="text-[10px] text-zinc-700">{field.desc}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" onClick={saveObsidianSettings}>
+                    {obsidianSaved ? <><Check className="h-3.5 w-3.5" /> Saved</> : 'Save Vault Settings'}
+                  </Button>
+                  <p className="text-[11px] text-zinc-700">Settings are stored locally. BertOS does not write to your vault.</p>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4 space-y-2">
+              <p className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Templates — copy and paste into Obsidian</p>
+              <div className="grid gap-2 md:grid-cols-3">
+                {[
+                  { key: 'journal' as const, label: 'Daily Journal', icon: <FileText className="h-3.5 w-3.5" />, path: `${journalFolder || 'Journal'}/${today}.md` },
+                  { key: 'session' as const, label: 'Agent Session', icon: <MessageSquare className="h-3.5 w-3.5" />, path: `${sessionsFolder || 'Agent Sessions'}/${today}-session.md` },
+                  { key: 'project' as const, label: 'Project Note', icon: <Folder className="h-3.5 w-3.5" />, path: `${projectNotesFolder || 'Projects'}/new-project.md` },
+                ].map(t => (
+                  <div key={t.key} className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-blue-400">{t.icon}</span>
+                        <p className="text-xs font-medium text-zinc-300">{t.label}</p>
+                      </div>
+                      <button
+                        onClick={() => setPreviewTemplate(previewTemplate === t.key ? null : t.key)}
+                        className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                      >
+                        {previewTemplate === t.key ? 'hide' : 'preview'}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-zinc-700 font-mono mb-2 truncate">{t.path}</p>
+                    <button
+                      onClick={() => void copyTemplate(
+                        t.key === 'journal' ? buildDailyJournalTemplate(today)
+                        : t.key === 'session' ? buildSessionNoteTemplate('', today)
+                        : buildProjectNoteTemplate('')
+                      )}
+                      className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                    >
+                      <ClipboardCopy className="h-3 w-3" />
+                      Copy template
+                    </button>
+                    {previewTemplate === t.key && (
+                      <pre className="mt-2 rounded bg-zinc-900 border border-zinc-800 p-2 text-[10px] text-zinc-500 overflow-auto max-h-40 whitespace-pre-wrap">
+                        {t.key === 'journal' ? buildDailyJournalTemplate(today)
+                          : t.key === 'session' ? buildSessionNoteTemplate('', today)
+                          : buildProjectNoteTemplate('')}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                <p className="text-[11px] text-zinc-600">
+                  BertOS does not write to your vault automatically. These templates are copy-only.
+                  To enable safe daemon-based writing, a vault path must be set above and a permissioned writer
+                  must be built with explicit approval gates. No secrets, env files, or repo files are ever written.
+                </p>
+              </div>
             </div>
           </div>
 

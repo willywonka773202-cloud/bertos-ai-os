@@ -1,12 +1,12 @@
 'use client'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   Activity, Zap, Clock, CheckCircle2, XCircle, AlertCircle,
   FolderOpen, MessageSquare, Code2, Server,
   Sparkles, GitBranch, Terminal, Box, Bot, Library, Scale, Cpu,
   CalendarDays, ClipboardList, ShieldCheck, KanbanSquare, Compass,
-  Github,
+  Github, Send,
 } from 'lucide-react'
 import { useProjectStore } from '@/store/bertos/projects'
 import { useChatStore } from '@/store/bertos/chat'
@@ -235,6 +235,9 @@ export function DashboardView() {
               </Button>
             </div>
           </RouteHero>
+
+          {/* Global Oracle quick-send box */}
+          <OracleQuickSend />
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
             <HologramPanel tone="cyan" className="p-4">
@@ -793,6 +796,44 @@ export function DashboardView() {
           </Tabs>
         </div>
       </ScrollArea>
+    </div>
+  )
+}
+
+function OracleQuickSend() {
+  const router = useRouter()
+  const { setActiveView } = useUIStore()
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const submit = () => {
+    const text = draft.trim()
+    if (!text) return
+    setDraft('')
+    try { window.localStorage.setItem('bertos-chat-draft', text) } catch { /* ignore */ }
+    setActiveView('chat')
+    router.push('/chat')
+  }
+
+  return (
+    <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 px-4 py-3">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/50">Oracle quick-send</p>
+      <form
+        onSubmit={e => { e.preventDefault(); submit() }}
+        className="flex items-center gap-2"
+      >
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          placeholder="Ask the Oracle anything — you'll be taken to /chat…"
+          className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-cyan-500/40"
+        />
+        <Button type="submit" size="sm" disabled={!draft.trim()} className="gap-1.5 border border-cyan-300/30 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20">
+          <Send className="h-3.5 w-3.5" />
+          Send
+        </Button>
+      </form>
     </div>
   )
 }
