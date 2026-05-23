@@ -8,6 +8,7 @@ import { resolveOllamaModel, CLI_MODEL_ALIASES, API_MODEL_ALIASES } from '@/lib/
 import { getOllamaConfig } from '@/lib/bertos/runtime'
 import { askLocalDaemon, type LocalCliProvider } from '@/lib/bertos/local-daemon'
 import { callGeminiNative } from '@/lib/bertos/providers/gemini-native'
+import { callHermesNous } from '@/lib/bertos/providers/hermes-nous'
 
 // Node.js runtime required:
 // - reads process.env.VERCEL to detect cloud mode
@@ -19,6 +20,7 @@ const API_MODEL_IDS: Record<string, string> = {
   'openai-api':  'gpt-4o',
   'gemini-api':  'gemini-2.0-flash',
   'gemini-api-native': 'gemini-2.5-flash',
+  'hermes-nous': 'hermes-agent',
 }
 
 interface ClientKeys {
@@ -214,6 +216,25 @@ export async function POST(req: NextRequest) {
               temperature: 0.4,
             })
             if (!result.ok) throw new Error(result.error || 'Gemini Native API request failed.')
+            send({
+              provider: {
+                providerId: result.provider,
+                model: result.model,
+                latencyMs: result.latencyMs,
+              },
+            })
+            send({ text: result.text ?? '' })
+          } else if (effectiveModelAlias === 'hermes-nous') {
+            const result = await callHermesNous({
+              model: API_MODEL_IDS['hermes-nous'],
+              messages: conversationMessages.map(m => ({
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+              })),
+              systemInstruction: systemPrompt,
+              temperature: 0.4,
+            })
+            if (!result.ok) throw new Error(result.error || 'Hermes / Nous request failed.')
             send({
               provider: {
                 providerId: result.provider,
