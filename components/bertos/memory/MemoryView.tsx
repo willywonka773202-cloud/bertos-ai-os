@@ -139,9 +139,8 @@ export function MemoryView() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
+    <ScrollArea className="h-full">
+      <div className="px-6 py-4">
         <div className="max-w-4xl mx-auto">
           <RouteHero
             eyebrow="memory temple"
@@ -379,7 +378,7 @@ export function MemoryView() {
       </div>
 
       {/* Projects grid */}
-      <ScrollArea className="flex-1">
+      <div>
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <AnimatePresence initial={false}>
@@ -499,7 +498,7 @@ export function MemoryView() {
             </AnimatePresence>
           </div>
         </div>
-      </ScrollArea>
-    </div>
+      </div>
+    </ScrollArea>
   )
 }

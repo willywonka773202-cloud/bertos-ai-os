@@ -46,15 +46,17 @@ const ROUTING_RULES: RoutingRule[] = [
     reasoning: 'Using Codex because this is debugging, validation, or repo automation. Claude can review failures; Ollama Pro is the fallback.',
   },
   {
+    // Require coding-specific context to avoid matching "LLM architecture" or "system architecture"
+    // in research/general prompts — those should go to ollama-pro or gemini, not claude-code.
     patterns: [
-      /\b(architecture|architect|ui review|ux review|review this|refactor plan|component design|layout|visual polish)\b/i,
-      /\b(cleanup|stabilize|quality review|risk review|technical debt)\b/i,
+      /\b(architecture review|ui review|ux review|review (this )?(code|component|file|route|pr|patch)|refactor plan|component design|visual polish)\b/i,
+      /\b(code cleanup|code stabilize|technical debt|risk review|quality review)\b/i,
     ],
     taskType: 'analysis',
     primary: 'claude-code',
     secondary: ['gemini-cli', 'codex-cli', 'ollama-pro'],
     strategy: 'single',
-    reasoning: 'Using Claude because this is architecture, UI review, or refactor-quality work. Gemini can broaden the plan; Codex can implement after review.',
+    reasoning: 'Using Claude because this is a code architecture review, UI polish, or refactor-quality task. Gemini can broaden the plan; Codex can implement after review.',
   },
   {
     patterns: [

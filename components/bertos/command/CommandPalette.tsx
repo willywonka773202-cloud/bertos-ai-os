@@ -423,9 +423,11 @@ export function CommandPalette() {
         setCommandPaletteOpen(!commandPaletteOpen)
       }
       if (e.key === 'Escape') setCommandPaletteOpen(false)
+      if (!commandPaletteOpen) return
       if (e.key === 'ArrowDown') setSelectedIdx(i => Math.min(i + 1, filtered.length - 1))
       if (e.key === 'ArrowUp') setSelectedIdx(i => Math.max(i - 1, 0))
       if (e.key === 'Enter' && filtered[selectedIdx]) {
+        e.preventDefault()
         filtered[selectedIdx].action()
       }
     }

@@ -43,7 +43,11 @@ export const useDaemonStore = create<DaemonStore>((set, get) => ({
   setError: (error) => set({ error }),
 
   refresh: async () => {
-    set({ loading: true, status: 'checking' })
+    // Don't flash 'checking' if we already have a confirmed connected status —
+    // that would cause a visible flicker every 30-second poll cycle.
+    const prevStatus = get().status
+    const nextStatus = prevStatus === 'connected' ? 'connected' : 'checking'
+    set({ loading: true, status: nextStatus })
     try {
       const res = await fetch('/api/local-daemon/health', { cache: 'no-store' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)

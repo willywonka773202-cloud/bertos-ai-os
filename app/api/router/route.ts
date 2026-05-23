@@ -12,11 +12,12 @@ const SYSTEM = `You are an AI routing specialist for BertOS. Analyze the user's 
 
 Rules:
 - Default is always "ollama-pro" (always-on subscription provider, no extra billing)
-- Heavy coding / debugging / implementation → "codex-cli" (OpenAI Codex via CLI subscription)
-- Long-form writing / reasoning / nuanced analysis → "claude-code" (Claude via CLI subscription)
+- Heavy coding / debugging / implementation / repo file edits → "codex-cli" (OpenAI Codex via CLI subscription)
+- Code architecture review / UI/UX review / refactor planning / code quality → "claude-code" (Claude via CLI subscription)
 - Structured planning / long context / council judge → "gemini-api-native" when configured
-- Research / large documents / web knowledge → "gemini-api-native" with Gemini CLI fallback
-- Math / general → "ollama-pro"`
+- Research / general questions / writing / reasoning / explanation / large documents / web knowledge → "gemini-api-native" with Gemini CLI fallback, or "ollama-pro" for simple requests
+- Math / general chat / brainstorming → "ollama-pro"
+- IMPORTANT: Never route research, general questions, or explanation prompts to "claude-code" — that is a coding tool, not a chat model`
 
 const MODEL_TO_ALIAS: Record<string, string> = {
   'ollama-pro':  'ollama-pro',
