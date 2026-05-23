@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "bertos": "node cli/bertos.mjs",
     "bertos:daemon": "node scripts/bertos-daemon.mjs",
+    "bertos:launch": "node scripts/start-bertos.mjs",
     "bertos:safety": "node scripts/assert-bertos-repo.mjs",
     "bertos:check": "npm run typecheck && npm run bertos:safety",
     "bertos:build": "next build",

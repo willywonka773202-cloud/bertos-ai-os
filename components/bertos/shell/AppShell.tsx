@@ -55,6 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (mod && e.key === '1') { e.preventDefault(); setActiveView('chat'); router.push('/chat') }
       if (mod && e.key === '2') { e.preventDefault(); setActiveView('compare'); router.push('/compare') }
       if (mod && e.key === '3') { e.preventDefault(); setActiveView('coding'); router.push('/coding') }
+      if (mod && e.key === 'm') { e.preventDefault(); setActiveView('max'); router.push('/max') }
       if (mod && e.key === '4') { e.preventDefault(); setActiveView('workspace'); router.push('/workspace') }
       if (mod && e.key === '5') { e.preventDefault(); setActiveView('evolution'); router.push('/evolution') }
       if (mod && e.key === '?') { e.preventDefault(); setShortcutsOpen(true) }

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bot, Brain, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Code2, Command,
   Compass, Cpu, FlaskConical, Github, GitCompare, Hash, KanbanSquare, LayoutDashboard,
-  Library, MessageSquare, Plus, Settings, Trash2, Zap,
+  Library, MessageSquare, Moon, Plus, Settings, Trash2, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { getModelLabel } from '@/lib/bertos/router'
@@ -21,6 +21,7 @@ const NAV_ITEMS = [
   { id: 'prompts', icon: Library, label: 'Prompts', href: '/prompts' },
   { id: 'compare', icon: GitCompare, label: 'Tribunal', href: '/compare' },
   { id: 'coding', icon: Zap, label: 'Forge', href: '/coding' },
+  { id: 'max', icon: Moon, label: 'Max Mode', href: '/max' },
   { id: 'workspace', icon: Code2, label: 'Deck', href: '/workspace' },
   { id: 'evolution', icon: FlaskConical, label: 'Armory', href: '/evolution' },
   { id: 'agents', icon: Bot, label: 'Legion', href: '/agents' },
