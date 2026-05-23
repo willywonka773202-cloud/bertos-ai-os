@@ -1,6 +1,6 @@
 export type OllamaModel = 'ollama-pro' | 'qwen2.5-coder' | 'llama3' | 'llama3.2' | 'mistral' | 'deepseek-coder' | 'hermes3'
 export type CLIModel = 'claude-code' | 'gemini-cli' | 'codex-cli'
-export type APIModel = 'claude-api' | 'openai-api' | 'gemini-api' | 'gemini-api-native'
+export type APIModel = 'claude-api' | 'openai-api' | 'gemini-api' | 'gemini-api-native' | 'hermes-nous'
 export type AIModel = 'auto' | OllamaModel | CLIModel | APIModel
 
 export type MessageRole = 'user' | 'assistant' | 'system'
@@ -240,7 +240,7 @@ export interface AutomationRun {
   risk: AutomationRisk
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+// ─── Settings ────────────────────────────────────────────────────────────────
 
 export interface BertOSSettings {
   theme: 'dark' | 'darker' | 'midnight'
