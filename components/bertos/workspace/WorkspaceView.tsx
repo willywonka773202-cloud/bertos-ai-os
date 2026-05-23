@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  ShieldCheck,
   Sparkles,
   Terminal,
   X,
@@ -37,7 +38,8 @@ import {
 import { useUIStore } from '@/store/bertos/ui'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import type { AIModel } from '@/lib/bertos/types'
-import { RouteHero } from '@/components/bertos/hermes'
+import { EmptyChamber, RouteHero } from '@/components/bertos/hermes'
+import { useProgressionStore } from '@/store/bertos/progression'
 
 interface FileNode {
   name: string
@@ -246,6 +248,9 @@ const SAFE_COMMANDS = [
   { label: 'git log', executable: 'git', args: ['log', '--oneline', '-5'] },
   { label: 'typecheck', executable: 'npm', args: ['run', 'typecheck'], timeoutMs: 180000 },
   { label: 'build', executable: 'npm', args: ['run', 'build'], timeoutMs: 240000 },
+  { label: 'safety', executable: 'npm', args: ['run', 'bertos:safety'], timeoutMs: 120000 },
+  { label: 'smoke', executable: 'npm', args: ['run', 'smoke'], timeoutMs: 180000 },
+  { label: 'payload', executable: 'npm', args: ['run', 'smoke:payload'], timeoutMs: 120000 },
   { label: 'lint', executable: 'npm', args: ['run', 'lint'], timeoutMs: 180000 },
   { label: 'test', executable: 'npm', args: ['test'], timeoutMs: 180000 },
   { label: 'npm install', executable: 'npm', args: ['install'], timeoutMs: 300000 },
@@ -259,6 +264,11 @@ const CUSTOM_COMMANDS = new Map<string, { executable: string; args: string[]; ti
   ['git log --oneline -5', { executable: 'git', args: ['log', '--oneline', '-5'] }],
   ['npm run typecheck', { executable: 'npm', args: ['run', 'typecheck'], timeoutMs: 180000 }],
   ['npm run build', { executable: 'npm', args: ['run', 'build'], timeoutMs: 240000 }],
+  ['npm run bertos:safety', { executable: 'npm', args: ['run', 'bertos:safety'], timeoutMs: 120000 }],
+  ['npm run smoke', { executable: 'npm', args: ['run', 'smoke'], timeoutMs: 180000 }],
+  ['npm run smoke:payload', { executable: 'npm', args: ['run', 'smoke:payload'], timeoutMs: 120000 }],
+  ['npm run validate', { executable: 'npm', args: ['run', 'validate'], timeoutMs: 300000 }],
+  ['npm run bertos -- providers', { executable: 'npm', args: ['run', 'bertos', '--', 'providers'], timeoutMs: 120000 }],
   ['npm run lint', { executable: 'npm', args: ['run', 'lint'], timeoutMs: 180000 }],
   ['npm test', { executable: 'npm', args: ['test'], timeoutMs: 180000 }],
   ['npm install', { executable: 'npm', args: ['install'], timeoutMs: 300000 }],
@@ -267,6 +277,11 @@ const CUSTOM_COMMANDS = new Map<string, { executable: string; args: string[]; ti
 const VALIDATION_COMMANDS = new Map<string, { executable: string; args: string[]; timeoutMs?: number }>([
   ['npm run typecheck', { executable: 'npm', args: ['run', 'typecheck'], timeoutMs: 180000 }],
   ['npm run build', { executable: 'npm', args: ['run', 'build'], timeoutMs: 240000 }],
+  ['npm run bertos:safety', { executable: 'npm', args: ['run', 'bertos:safety'], timeoutMs: 120000 }],
+  ['npm run smoke', { executable: 'npm', args: ['run', 'smoke'], timeoutMs: 180000 }],
+  ['npm run smoke:payload', { executable: 'npm', args: ['run', 'smoke:payload'], timeoutMs: 120000 }],
+  ['npm run validate', { executable: 'npm', args: ['run', 'validate'], timeoutMs: 300000 }],
+  ['npm run bertos -- providers', { executable: 'npm', args: ['run', 'bertos', '--', 'providers'], timeoutMs: 120000 }],
 ])
 
 const MEMORY_FACTS = [
@@ -350,8 +365,8 @@ const VALIDATION_PROFILES: Record<ValidationProfileId, { label: string; commands
   },
   strict: {
     label: 'STRICT',
-    commands: ['npm run typecheck', 'npm run build', 'npm run bertos:safety', 'npm run bertos -- providers'],
-    description: 'Use for daemon, provider, repo safety, or workflow changes.',
+    commands: ['npm run typecheck', 'npm run build', 'npm run bertos:safety', 'npm run smoke', 'npm run smoke:payload'],
+    description: 'Use for daemon, provider, repo safety, payload, or workflow changes.',
   },
 }
 
@@ -714,6 +729,10 @@ function commandToLabel(executable: string, args: string[]) {
   return [executable, ...args].join(' ')
 }
 
+function commandPassed(result: { ok?: boolean; exitCode?: number | null } | undefined) {
+  return Boolean(result?.ok) || result?.exitCode === 0
+}
+
 function getChangedFiles(statusText?: string) {
   return (statusText ?? '')
     .split(/\r?\n/)
@@ -871,6 +890,21 @@ function Editor({
   safe: boolean
   onChange: (content: string) => void
 }) {
+  if (!tab) {
+    return (
+      <div className="flex h-full items-center justify-center overflow-hidden bg-[#09090B] p-6">
+        <EmptyChamber
+          icon={<FileText className="h-6 w-6" />}
+          title={safe ? 'Idle Code Chamber' : 'Local Forge Locked'}
+          description={safe
+            ? 'Open a file from the archive rail to edit, save, validate, and commit without leaving BertOS.'
+            : 'Start the BertOS daemon and pass repo safety before local files can be edited here.'}
+          tone={safe ? 'cyan' : 'amber'}
+          className="w-full max-w-2xl"
+        />
+      </div>
+    )
+  }
   const lines = (tab?.content ?? '').split(/\r?\n/).length
   return (
     <div className="grid h-full grid-cols-[52px_1fr] overflow-hidden bg-[#09090B]">
@@ -882,9 +916,9 @@ function Editor({
       <textarea
         value={tab?.content ?? ''}
         onChange={event => onChange(event.target.value)}
-        disabled={!safe || !tab}
+        disabled={!safe}
         spellCheck={false}
-        placeholder={safe ? 'Open a file from the explorer.' : 'Workspace unavailable until the local daemon is online and repo safety passes.'}
+        placeholder="Start editing inside the guarded Workspace chamber."
         className="h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-5 text-zinc-200 placeholder:text-zinc-700 outline-none"
       />
     </div>
@@ -939,6 +973,7 @@ function DiffBlock({ file }: { file: PatchFile }) {
 export function WorkspaceView() {
   const { pendingWorkspaceTask, setPendingWorkspaceTask } = useUIStore()
   const { health: daemonHealth, loading: daemonHealthLoading, refresh: refreshDaemonHealth } = useDaemonHealth()
+  const recordAction = useProgressionStore(state => state.recordAction)
   const [status, setStatus] = useState<WorkspaceStatus | null>(null)
   const [files, setFiles] = useState<FileNode[]>([])
   const [tabs, setTabs] = useState<OpenTab[]>([])
@@ -961,6 +996,8 @@ export function WorkspaceView() {
   const [patchControlError, setPatchControlError] = useState('')
   const [patchChecksRunning, setPatchChecksRunning] = useState(false)
   const [patchCheckResults, setPatchCheckResults] = useState<PatchCheckResult[]>([])
+  const [profileChecksRunning, setProfileChecksRunning] = useState<ValidationProfileId | null>(null)
+  const [profileCheckResults, setProfileCheckResults] = useState<PatchCheckResult[]>([])
   const [patchApplied, setPatchApplied] = useState(false)
   const [forceActiveFile, setForceActiveFile] = useState(true)
   const [detectedFiles, setDetectedFiles] = useState<string[]>([])
@@ -970,6 +1007,7 @@ export function WorkspaceView() {
   const [patchHistory, setPatchHistory] = useState<PatchHistoryEntry[]>([])
   const [generatingPatch, setGeneratingPatch] = useState(false)
   const [applyingPatch, setApplyingPatch] = useState(false)
+  const [workflowPanelOpen, setWorkflowPanelOpen] = useState(false)
   const [commitMessage, setCommitMessage] = useState('')
   const [generatingCommit, setGeneratingCommit] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -1280,6 +1318,56 @@ export function WorkspaceView() {
     }
     setTerminalInput('')
     await runCommand({ label: normalized, ...command })
+  }
+
+  const runValidationProfile = async (profileId: ValidationProfileId) => {
+    if (!safe) return toast.error('Validation Forge requires the local daemon and a safe BertOS repo.')
+    if (profileChecksRunning) return
+    const profile = VALIDATION_PROFILES[profileId]
+    setProfileChecksRunning(profileId)
+    setProfileCheckResults([])
+    let ran = 0
+    let passed = 0
+    const results: PatchCheckResult[] = []
+
+    try {
+      for (const commandText of profile.commands) {
+        const command = VALIDATION_COMMANDS.get(commandText)
+        if (!command) {
+          results.push({
+            command: commandText,
+            status: 'skipped',
+            error: 'Command is not allowlisted for Workspace validation.',
+          })
+          setProfileCheckResults([...results])
+          continue
+        }
+
+        ran += 1
+        const result = await runCommand({ label: commandText, ...command })
+        const passedCommand = commandPassed(result)
+        if (passedCommand) passed += 1
+        results.push({
+          command: commandText,
+          status: passedCommand ? 'passed' : 'failed',
+          exitCode: result?.exitCode,
+          error: result?.error || result?.stderr,
+        })
+        setProfileCheckResults([...results])
+        if (!passedCommand) break
+      }
+
+      if (ran > 0 && passed === ran) {
+        recordAction('validation-passed')
+        toast.success(`${profile.label} validation passed.`)
+      } else if (ran > 0) {
+        toast.error(`${profile.label} validation stopped on a failing command.`)
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Validation profile failed to run.')
+    } finally {
+      setProfileChecksRunning(null)
+    }
   }
 
   const generatePatch = async () => {
@@ -1647,7 +1735,10 @@ export function WorkspaceView() {
         })
         setPatchMetrics(readPatchReliabilityMetrics())
       }
-      if (passed === ran) toast.success('Suggested checks passed.')
+      if (passed === ran) {
+        recordAction('validation-passed')
+        toast.success('Suggested checks passed.')
+      }
       else toast.error('One or more suggested checks failed.')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Suggested checks failed to run.'
@@ -1825,6 +1916,7 @@ export function WorkspaceView() {
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="p-3 pb-0">
           <RouteHero
+            compact
             eyebrow="active project bay"
             title="Workspace Command Deck"
             subtitle="A guarded local workbench for file inspection, patch reliability, terminal proof, and explicit save/apply actions. The daemon and safe-repo gate decide what can run."
@@ -1851,7 +1943,31 @@ export function WorkspaceView() {
           <span className="text-xs text-zinc-700">|</span>
           <span className="truncate text-xs text-zinc-500">{activeFile || `${flatFiles.length} files indexed`}</span>
           {dirtyTabs.length > 0 && <Badge variant="warning" className="ml-1 text-[10px]">{dirtyTabs.length} unsaved</Badge>}
+          {profileCheckResults.length > 0 && (
+            <Badge
+              variant={profileCheckResults.every(result => result.status === 'passed') ? 'success' : 'warning'}
+              className="text-[10px]"
+            >
+              {profileCheckResults.filter(result => result.status === 'passed').length}/{profileCheckResults.length} proof
+            </Badge>
+          )}
           <div className="ml-auto flex items-center gap-1.5">
+            {(['fast', 'standard', 'strict'] as const).map(id => (
+              <Button
+                key={id}
+                size="sm"
+                variant="ghost"
+                onClick={() => void runValidationProfile(id)}
+                disabled={!safe || Boolean(profileChecksRunning)}
+                title={`${VALIDATION_PROFILES[id].label}: ${VALIDATION_PROFILES[id].commands.join(' -> ')}`}
+              >
+                {profileChecksRunning === id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                {VALIDATION_PROFILES[id].label}
+              </Button>
+            ))}
+            <Button size="sm" variant="ghost" onClick={() => setWorkflowPanelOpen(value => !value)}>
+              <PanelBottom className="w-3.5 h-3.5" />Workflow
+            </Button>
             <Button size="sm" variant="ghost" onClick={copyActivePath} disabled={!activeFile}><Copy className="w-3.5 h-3.5" />Path</Button>
             <Button size="sm" variant="ghost" onClick={reloadActiveFile} disabled={!activeTab}><RotateCcw className="w-3.5 h-3.5" />Revert</Button>
             <Button size="sm" variant="secondary" onClick={saveActiveFile} disabled={!dirty || !safe}>
@@ -1958,7 +2074,10 @@ export function WorkspaceView() {
             </div>
           </section>
 
-          <aside className="hidden w-[430px] shrink-0 flex-col border-l border-zinc-800/50 bg-zinc-950/50 xl:flex">
+          <aside className={cn(
+            'hidden w-[430px] shrink-0 flex-col border-l border-zinc-800/50 bg-zinc-950/50',
+            workflowPanelOpen ? 'xl:flex' : '2xl:flex',
+          )}>
             <ScrollArea className="flex-1">
               <div className="space-y-4 p-4">
                 <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
