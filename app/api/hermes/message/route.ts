@@ -1,27 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { callHermesNous } from '@/lib/bertos/providers/hermes-nous'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
-  const apiUrl = process.env.HERMES_API_URL
-  const apiKey = process.env.HERMES_API_KEY
-  const paidEnabled = process.env.ENABLE_HERMES_PAID === 'true'
-
-  if (!paidEnabled) {
-    return NextResponse.json({
-      ok: false,
-      error: 'Hermes / Nous message calls are paid-gated. Set ENABLE_HERMES_PAID=true only when you explicitly accept credit usage.',
-    }, { status: 403 })
-  }
-
-  if (!apiUrl || !apiKey) {
-    return NextResponse.json({
-      ok: false,
-      error: 'Hermes is not configured. Set HERMES_API_URL and HERMES_API_KEY server-side.',
-    }, { status: 503 })
-  }
-
-  let body: { message?: string; sessionId?: string }
+  let body: { message?: string; sessionId?: string; systemPrompt?: string }
   try {
     body = await req.json()
   } catch {
@@ -32,25 +15,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'message is required.' }, { status: 400 })
   }
 
-  try {
-    const res = await fetch(`${apiUrl}/message`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ message: body.message, sessionId: body.sessionId }),
-      signal: AbortSignal.timeout(30_000),
-    })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      return NextResponse.json({ ok: false, error: (data as { error?: string }).error || `Hermes returned HTTP ${res.status}` }, { status: 502 })
-    }
-    return NextResponse.json({ ok: true, ...data }, { headers: { 'Cache-Control': 'no-store' } })
-  } catch (error) {
-    return NextResponse.json({
-      ok: false,
-      error: error instanceof Error ? error.message : 'Hermes message failed.',
-    }, { status: 502 })
+  const result = await callHermesNous({
+    prompt: body.message,
+    systemInstruction: body.systemPrompt,
+  })
+
+  if (!result.ok) {
+    const status = result.error?.includes('paid-gated') ? 403 : result.error?.includes('required') ? 503 : 502
+    return NextResponse.json({ ok: false, error: result.error }, { status })
   }
+
+  return NextResponse.json({
+    ok: true,
+    text: result.text ?? '',
+    provider: result.provider,
+    model: result.model,
+    latencyMs: result.latencyMs,
+    usage: result.usage,
+  }, { headers: { 'Cache-Control': 'no-store' } })
 }
