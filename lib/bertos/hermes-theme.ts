@@ -132,18 +132,25 @@ export type HermesTone = 'cyan' | 'bronze' | 'emerald' | 'amber' | 'red' | 'viol
 export function toneClasses(tone: HermesTone = 'cyan') {
   switch (tone) {
     case 'bronze':
-      return 'border-amber-400/25 bg-amber-400/8 text-amber-200 shadow-[0_0_24px_rgba(251,191,36,0.08)]'
+      // Primary imperial gold — sacred registers and main announcement panels
+      return 'border-[rgba(212,180,131,0.28)] bg-[rgba(212,180,131,0.05)] text-amber-100 shadow-[0_0_32px_rgba(212,180,131,0.08),inset_0_1px_0_rgba(240,232,208,0.04)]'
     case 'emerald':
-      return 'border-emerald-400/25 bg-emerald-400/8 text-emerald-200 shadow-[0_0_24px_rgba(52,211,153,0.08)]'
+      // Sage verification — success and validation states
+      return 'border-emerald-400/20 bg-emerald-400/5 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.06)]'
     case 'amber':
-      return 'border-amber-400/25 bg-amber-400/8 text-amber-200 shadow-[0_0_24px_rgba(251,191,36,0.08)]'
+      // Parchment amber — caution and attention
+      return 'border-amber-300/22 bg-amber-300/5 text-amber-100 shadow-[0_0_24px_rgba(251,191,36,0.06)]'
     case 'red':
-      return 'border-red-400/25 bg-red-400/8 text-red-200 shadow-[0_0_24px_rgba(248,113,113,0.08)]'
+      // Crimson alert
+      return 'border-red-400/20 bg-red-400/5 text-red-200 shadow-[0_0_24px_rgba(248,113,113,0.07)]'
     case 'violet':
-      return 'border-violet-400/25 bg-violet-400/8 text-violet-200 shadow-[0_0_24px_rgba(167,139,250,0.08)]'
+      // Deep imperial purple — advanced / mystical
+      return 'border-violet-400/18 bg-violet-400/5 text-violet-200 shadow-[0_0_24px_rgba(167,139,250,0.07)]'
     case 'zinc':
-      return 'border-zinc-700/70 bg-zinc-950/50 text-zinc-300'
+      // Warm stone neutral
+      return 'border-[rgba(60,48,32,0.70)] bg-[rgba(10,8,5,0.50)] text-stone-300'
     default:
-      return 'border-cyan-400/25 bg-cyan-400/8 text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.10)]'
+      // Celestial blue — oracle / signal states (soft, not neon)
+      return 'border-[rgba(122,188,214,0.20)] bg-[rgba(122,188,214,0.05)] text-sky-100 shadow-[0_0_28px_rgba(122,188,214,0.07)]'
   }
 }

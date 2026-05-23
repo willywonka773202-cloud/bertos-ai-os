@@ -17,16 +17,20 @@ export function HologramPanel({
     <section
       className={cn(
         'relative overflow-hidden rounded-2xl border backdrop-blur-xl',
-        'bg-slate-950/62 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_22px_80px_rgba(0,0,0,0.28)]',
+        'bg-[#0D0B07]/72 shadow-[inset_0_1px_0_rgba(240,232,208,0.05),0_24px_80px_rgba(0,0,0,0.32)]',
         toneClasses(tone),
         compact ? 'p-3' : 'p-4 md:p-5',
         className,
       )}
     >
-      <span className="pointer-events-none absolute left-0 top-0 h-px w-24 bg-gradient-to-r from-cyan-300/70 to-transparent" />
-      <span className="pointer-events-none absolute right-0 top-0 h-px w-20 bg-gradient-to-l from-amber-300/60 to-transparent" />
-      <span className="pointer-events-none absolute bottom-0 left-8 h-px w-20 bg-gradient-to-r from-transparent via-cyan-300/40 to-transparent" />
-      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.10),transparent_32%),radial-gradient(circle_at_90%_10%,rgba(251,191,36,0.08),transparent_28%)]" />
+      {/* Top-left gilded trim line */}
+      <span className="pointer-events-none absolute left-0 top-0 h-px w-36 bg-gradient-to-r from-[rgba(212,180,131,0.65)] to-transparent" />
+      {/* Top-right gilded accent */}
+      <span className="pointer-events-none absolute right-0 top-0 h-px w-24 bg-gradient-to-l from-[rgba(212,180,131,0.45)] to-transparent" />
+      {/* Bottom inner glow line */}
+      <span className="pointer-events-none absolute bottom-0 left-6 h-px w-28 bg-gradient-to-r from-transparent via-[rgba(212,180,131,0.22)] to-transparent" />
+      {/* Divine radial halo — warm gold light descending from top */}
+      <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_55%_at_50%_0%,rgba(212,180,131,0.10),transparent),radial-gradient(circle_at_90%_12%,rgba(184,137,75,0.07),transparent_30%)]" />
       <div className="relative z-10">{children}</div>
     </section>
   )
@@ -51,14 +55,20 @@ export function PanelHeader({
     <div className={cn('mb-4 flex flex-wrap items-start justify-between gap-3', className)}>
       <div className="flex min-w-0 items-start gap-3">
         {icon && (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.12)]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[rgba(212,180,131,0.25)] bg-[rgba(212,180,131,0.08)] text-amber-200 shadow-[0_0_24px_rgba(212,180,131,0.12)]">
             {icon}
           </div>
         )}
         <div className="min-w-0">
-          {eyebrow && <div className="text-[10px] font-semibold uppercase tracking-[0.26em] text-amber-200/70">{eyebrow}</div>}
-          <h2 className="text-base font-semibold tracking-tight text-zinc-50">{title}</h2>
-          {subtitle && <p className="mt-1 max-w-3xl text-xs leading-relaxed text-zinc-400">{subtitle}</p>}
+          {eyebrow && (
+            <div className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.34em] text-[rgba(212,180,131,0.75)]">
+              <span className="inline-block h-1 w-1 rotate-45 bg-[rgba(212,180,131,0.60)]" />
+              {eyebrow}
+              <span className="inline-block h-1 w-1 rotate-45 bg-[rgba(212,180,131,0.60)]" />
+            </div>
+          )}
+          <h2 className="mt-0.5 text-base font-semibold tracking-tight text-[#F0E8D0]">{title}</h2>
+          {subtitle && <p className="mt-1 max-w-3xl text-xs leading-relaxed text-[#8A7A5A]">{subtitle}</p>}
         </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}

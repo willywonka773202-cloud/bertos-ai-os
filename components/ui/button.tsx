@@ -5,22 +5,22 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/bertos/cn'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 disabled:pointer-events-none disabled:opacity-40 select-none',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(212,180,131,0.40)] disabled:pointer-events-none disabled:opacity-40 select-none',
   {
     variants: {
       variant: {
         default:
-          'bg-violet-600 text-white hover:bg-violet-500 active:scale-[0.98] shadow-[0_0_20px_rgba(139,92,246,0.3)]',
+          'border border-[rgba(212,180,131,0.35)] bg-[rgba(212,180,131,0.12)] text-[#D4B483] hover:bg-[rgba(212,180,131,0.20)] hover:border-[rgba(212,180,131,0.50)] active:scale-[0.98] shadow-[0_0_18px_rgba(212,180,131,0.12)]',
         secondary:
-          'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700/50',
+          'bg-[rgba(30,24,16,0.80)] text-[#C8B080] hover:bg-[rgba(40,32,20,0.90)] border border-[rgba(212,180,131,0.18)]',
         ghost:
-          'text-zinc-400 hover:text-zinc-100 hover:bg-white/5',
+          'text-[#6A5A3A] hover:text-[#D4B483] hover:bg-[rgba(212,180,131,0.06)]',
         destructive:
           'bg-red-600/20 text-red-400 hover:bg-red-600/30 border border-red-600/20',
         outline:
-          'border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100',
+          'border border-[rgba(212,180,131,0.22)] text-[#9A8060] hover:bg-[rgba(212,180,131,0.06)] hover:text-[#D4B483]',
         glow:
-          'bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-500 hover:to-blue-500 shadow-[0_0_30px_rgba(139,92,246,0.4)]',
+          'bg-[rgba(212,180,131,0.15)] text-[#F0E8D0] hover:bg-[rgba(212,180,131,0.22)] border border-[rgba(212,180,131,0.40)] shadow-[0_0_28px_rgba(212,180,131,0.25)]',
       },
       size: {
         default: 'h-9 px-4 py-2',

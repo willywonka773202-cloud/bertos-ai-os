@@ -73,11 +73,11 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
 
   const inner = (
     <>
-      <div className="shrink-0 border-b border-cyan-300/10 px-3 py-4">
+      <div className="shrink-0 border-b border-[rgba(212,180,131,0.12)] px-3 py-4">
         <div className="flex items-center gap-2.5">
           <div className="relative shrink-0">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.16)]">
-              <Zap className="h-4 w-4 text-cyan-100" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(212,180,131,0.28)] bg-[rgba(212,180,131,0.08)] shadow-[0_0_22px_rgba(212,180,131,0.14)]">
+              <Zap className="h-4 w-4 text-[#D4B483]" />
             </div>
             <span className="absolute -bottom-1 -right-1"><StatusOrb state="active" size="sm" /></span>
           </div>
@@ -85,7 +85,7 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
             {!collapsed && (
               <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} className="min-w-0">
                 <p className="text-sm font-bold leading-none tracking-tight text-hermes-gradient">BertOS</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-amber-200/55">Roman Hermes</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-[rgba(212,180,131,0.55)]">Imperium</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -97,23 +97,29 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
           <button
             title="Command Palette"
             onClick={() => setCommandPaletteOpen(true)}
-            className={cn('flex w-full items-center gap-2.5 rounded-lg border border-cyan-300/10 px-2 py-1.5 text-xs text-zinc-500 transition hover:border-cyan-300/30 hover:text-cyan-100', collapsed && 'justify-center')}
+            className={cn('flex w-full items-center gap-2.5 rounded-lg border border-[rgba(212,180,131,0.12)] px-2 py-1.5 text-xs text-[#6A5A3A] transition hover:border-[rgba(212,180,131,0.28)] hover:text-[#D4B483]', collapsed && 'justify-center')}
           >
             <Command className="h-3.5 w-3.5 shrink-0" />
-            {!collapsed && <><span className="flex-1 text-left">Command search</span><kbd className="rounded border border-cyan-300/10 bg-slate-900 px-1 py-0.5 text-[9px] text-zinc-600">CTRL K</kbd></>}
+            {!collapsed && <><span className="flex-1 text-left">Command search</span><kbd className="rounded border border-[rgba(212,180,131,0.12)] bg-[#0A0806] px-1 py-0.5 text-[9px] text-[#5A4A2A]">CTRL K</kbd></>}
           </button>
 
           <button
             title="New Chat"
             onClick={() => { getOrCreateSession(); setActiveView('chat'); router.push('/chat'); onMobileClose?.() }}
-            className={cn('flex w-full items-center gap-2.5 rounded-lg border border-cyan-300/20 bg-cyan-300/8 px-2 py-2 text-xs font-medium text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-300/12', collapsed && 'justify-center')}
+            className={cn('flex w-full items-center gap-2.5 rounded-lg border border-[rgba(212,180,131,0.25)] bg-[rgba(212,180,131,0.08)] px-2 py-2 text-xs font-medium text-[#D4B483] transition hover:border-[rgba(212,180,131,0.40)] hover:bg-[rgba(212,180,131,0.12)]', collapsed && 'justify-center')}
           >
             <Plus className="h-3.5 w-3.5 shrink-0" />
             {!collapsed && <span>New oracle thread</span>}
           </button>
 
           <div className="space-y-0.5">
-            {!collapsed && <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-amber-200/45">Navigation</p>}
+            {!collapsed && (
+              <div className="flex items-center gap-2 px-2 pb-1.5">
+                <span className="block h-px flex-1 bg-[rgba(212,180,131,0.18)]" />
+                <p className="text-[9px] font-semibold uppercase tracking-[0.32em] text-[rgba(212,180,131,0.50)]">Navigation</p>
+                <span className="block h-px flex-1 bg-[rgba(212,180,131,0.18)]" />
+              </div>
+            )}
             {NAV_ITEMS.map(item => {
               const isActive = activeView === item.id
               return (
@@ -121,11 +127,17 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
                   key={item.id}
                   title={item.label}
                   onClick={() => navigate(item.id, item.href)}
-                  className={cn('flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition', isActive ? 'bg-cyan-300/10 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.18)]' : 'text-zinc-500 hover:bg-white/4 hover:text-cyan-100', collapsed && 'justify-center')}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm transition',
+                    isActive
+                      ? 'bg-[rgba(212,180,131,0.10)] text-[#D4B483] shadow-[inset_0_0_0_1px_rgba(212,180,131,0.22)]'
+                      : 'text-[#6A5A3A] hover:bg-[rgba(212,180,131,0.06)] hover:text-[#D4B483]',
+                    collapsed && 'justify-center',
+                  )}
                 >
-                  <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-cyan-300')} />
+                  <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-[#D4B483]')} />
                   {!collapsed && <span className="text-xs font-medium">{item.label}</span>}
-                  {isActive && !collapsed && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />}
+                  {isActive && !collapsed && <span className="ml-auto h-1 w-1 rotate-45 bg-[#D4B483] shadow-[0_0_8px_rgba(212,180,131,0.80)]" />}
                 </button>
               )
             })}

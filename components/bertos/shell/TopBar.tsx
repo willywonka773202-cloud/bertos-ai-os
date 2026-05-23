@@ -119,7 +119,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
     <>
       <button className="fixed inset-0 z-[80] cursor-default" onClick={() => setModelMenuOpen(false)} aria-label="Close model selector" />
       <div
-        className="fixed z-[90] max-h-[min(620px,calc(100dvh-80px))] w-[min(420px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-cyan-300/20 bg-slate-950/95 shadow-[0_24px_90px_rgba(0,0,0,0.55),0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-xl"
+        className="fixed z-[90] max-h-[min(620px,calc(100dvh-80px))] w-[min(420px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-[rgba(212,180,131,0.22)] bg-[#0A0806]/95 shadow-[0_24px_90px_rgba(0,0,0,0.60),0_0_40px_rgba(212,180,131,0.10)] backdrop-blur-xl"
         style={{ right: menuRect.right, top: menuRect.top }}
       >
         <div className="hermes-grid-fine pointer-events-none absolute inset-0 opacity-30" />
@@ -141,10 +141,10 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   ) : null
 
   return (
-    <div className="relative z-30 flex h-12 shrink-0 items-center gap-3 border-b border-cyan-300/10 bg-slate-950/76 px-4 backdrop-blur-xl">
+    <div className="relative z-30 flex h-12 shrink-0 items-center gap-3 border-b border-[rgba(212,180,131,0.12)] bg-[#0A0806]/76 px-4 backdrop-blur-xl">
       <button
         onClick={onMobileMenuToggle}
-        className="shrink-0 rounded-lg border border-cyan-300/10 p-1.5 text-zinc-400 transition hover:border-cyan-300/30 hover:text-cyan-100 md:hidden"
+        className="shrink-0 rounded-lg border border-[rgba(212,180,131,0.15)] p-1.5 text-[#6A5A3A] transition hover:border-[rgba(212,180,131,0.35)] hover:text-[#D4B483] md:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -152,8 +152,8 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <StatusOrb state={liveState === 'setup' ? 'warning' : liveState === 'approval' ? 'warning' : isStreaming ? 'loading' : 'active'} size="sm" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-zinc-100">{VIEW_LABELS[activeView] ?? 'BertOS'}</div>
-          <div className="hidden truncate text-[10px] text-zinc-600 sm:block">
+          <div className="truncate text-sm font-semibold text-[#E8DDB8]">{VIEW_LABELS[activeView] ?? 'BertOS'}</div>
+          <div className="hidden truncate text-[10px] text-[#4A3C28] sm:block">
             {activeSession?.title && activeSession.title !== 'New Chat' ? activeSession.title : 'Jarvis x Roman Hermes command channel'}
           </div>
         </div>
@@ -163,7 +163,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         <TooltipTrigger asChild>
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="hidden items-center gap-1.5 rounded-lg border border-cyan-300/10 bg-slate-900/70 px-2.5 py-1 text-zinc-500 transition hover:border-cyan-300/30 hover:text-cyan-100 md:flex"
+            className="hidden items-center gap-1.5 rounded-lg border border-[rgba(212,180,131,0.12)] bg-[rgba(212,180,131,0.04)] px-2.5 py-1 text-[#5A4A2A] transition hover:border-[rgba(212,180,131,0.30)] hover:text-[#D4B483] md:flex"
           >
             <Command className="h-3 w-3" />
             <span className="text-[10px]">CTRL K</span>
@@ -194,7 +194,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <button
         ref={triggerRef}
         onClick={() => setModelMenuOpen(open => !open)}
-        className="flex items-center gap-2 rounded-lg border border-cyan-300/15 bg-slate-900/80 px-3 py-1.5 text-sm transition hover:border-cyan-300/35"
+        className="flex items-center gap-2 rounded-lg border border-[rgba(212,180,131,0.20)] bg-[rgba(212,180,131,0.05)] px-3 py-1.5 text-sm transition hover:border-[rgba(212,180,131,0.38)]"
       >
         <span style={{ color: activeModel.color }}>{activeModel.icon}</span>
         <span className="hidden text-xs font-medium text-zinc-100 sm:block">{activeModel.label}</span>
@@ -204,7 +204,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
 
       <div className={cn(
         'hidden items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] sm:flex',
-        liveState === 'approval' ? 'border-amber-300/20 bg-amber-300/10 text-amber-200' : liveState === 'setup' ? 'border-zinc-700 bg-zinc-900/60 text-zinc-500' : 'border-cyan-300/20 bg-cyan-300/10 text-cyan-100',
+        liveState === 'approval' ? 'border-amber-300/20 bg-amber-300/10 text-amber-200' : liveState === 'setup' ? 'border-[rgba(60,48,32,0.70)] bg-[rgba(10,8,5,0.50)] text-[#5A4A2A]' : 'border-[rgba(212,180,131,0.25)] bg-[rgba(212,180,131,0.08)] text-[#D4B483]',
       )}>
         <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
         {liveState === 'approval' ? `${pendingApprovals} approvals` : isStreaming ? 'Generating' : runningRuns > 0 ? `${runningRuns} runs` : daemonOnline ? 'Live' : 'Setup'}
@@ -217,8 +217,8 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
             className={cn(
               'rounded-lg border p-1.5 transition',
               rightPanelOpen
-                ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100'
-                : 'border-cyan-300/10 bg-slate-900/60 text-zinc-500 hover:text-cyan-100',
+                ? 'border-[rgba(212,180,131,0.35)] bg-[rgba(212,180,131,0.10)] text-[#D4B483]'
+                : 'border-[rgba(212,180,131,0.12)] bg-[rgba(212,180,131,0.04)] text-[#5A4A2A] hover:text-[#D4B483]',
             )}
           >
             {rightPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRight className="h-4 w-4" />}
@@ -243,7 +243,7 @@ function ModelSection({
 }) {
   return (
     <div className="p-1.5">
-      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-600">{title}</div>
+      <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-[rgba(212,180,131,0.45)]">{title}</div>
       <div className="space-y-1">
         {items.map(option => {
           const selected = option.value === selectedModel
@@ -255,7 +255,7 @@ function ModelSection({
               title={option.disabledReason}
               className={cn(
                 'w-full rounded-xl border px-3 py-2 text-left transition',
-                selected ? 'border-cyan-300/35 bg-cyan-300/12' : 'border-transparent hover:border-cyan-300/20 hover:bg-cyan-300/6',
+                selected ? 'border-[rgba(212,180,131,0.35)] bg-[rgba(212,180,131,0.08)]' : 'border-transparent hover:border-[rgba(212,180,131,0.18)] hover:bg-[rgba(212,180,131,0.04)]',
                 option.disabled && 'cursor-not-allowed opacity-55 hover:border-transparent hover:bg-transparent',
               )}
             >

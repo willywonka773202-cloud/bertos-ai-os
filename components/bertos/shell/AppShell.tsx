@@ -66,10 +66,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="relative flex h-dvh overflow-hidden bg-[#020617] text-zinc-100">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_88%_8%,rgba(251,191,36,0.14),transparent_28%),linear-gradient(135deg,#020617_0%,#050816_44%,#09090B_100%)]" />
-        <div className="hermes-grid pointer-events-none absolute inset-0 opacity-35" />
-        <div className="hermes-scanlines pointer-events-none absolute inset-0 opacity-[0.08]" />
+      <div className="relative flex h-dvh overflow-hidden bg-[#070503] text-[#F0EAD8]">
+        {/* Divine radial light — warm gold descending from heaven above */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_65%_42%_at_50%_0%,rgba(212,180,131,0.13),transparent),radial-gradient(circle_at_88%_18%,rgba(184,137,75,0.07),transparent_32%),radial-gradient(circle_at_10%_28%,rgba(212,180,131,0.05),transparent_26%),linear-gradient(172deg,#0E0B07_0%,#080604_48%,#040302_100%)]" />
+        {/* Imperial stone grid */}
+        <div className="hermes-grid pointer-events-none absolute inset-0 opacity-30" />
+        {/* Atmospheric depth veil — subtle, not sci-fi */}
+        <div className="hermes-scanlines pointer-events-none absolute inset-0 opacity-[0.06]" />
 
         {/* Desktop sidebar */}
         <div className="relative z-20 hidden md:flex flex-shrink-0 h-full">

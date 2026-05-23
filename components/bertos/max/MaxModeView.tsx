@@ -78,7 +78,7 @@ function StatusBadge({ state }: { state: string }) {
     running:   { color: 'text-emerald-300', bg: 'bg-emerald-900/30' },
     paused:    { color: 'text-amber-400',   bg: 'bg-amber-900/30' },
     stopped:   { color: 'text-zinc-400',    bg: 'bg-zinc-800' },
-    complete:  { color: 'text-cyan-300',    bg: 'bg-cyan-900/30' },
+    complete:  { color: 'text-[#D4B483]',   bg: 'bg-[rgba(212,180,131,0.12)]' },
     pending:   { color: 'text-zinc-400',    bg: 'bg-zinc-900' },
     active:    { color: 'text-emerald-300', bg: 'bg-emerald-900/30' },
     blocked:   { color: 'text-red-300',     bg: 'bg-red-900/30' },
@@ -95,7 +95,7 @@ function StatusBadge({ state }: { state: string }) {
 
 function AgentCard({ role, task }: { role: typeof AGENT_ROLES[number]; task?: MaxTask }) {
   return (
-    <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3 space-y-1.5">
+    <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3 space-y-1.5">
       <div className="flex items-center gap-2">
         <span style={{ color: role.color }}>{role.icon}</span>
         <span className="text-xs font-semibold text-zinc-200">{role.label}</span>
@@ -278,7 +278,7 @@ export function MaxModeView() {
           eyebrow="BertOS Max"
           title="Max Mode"
           subtitle="Overnight Forge — one idea becomes a full research, spec, and code plan"
-          seal={<Moon className="w-6 h-6 text-violet-300" />}
+          seal={<Moon className="w-6 h-6 text-[#D4B483]" />}
         >
           {mission && <StatusBadge state={mission.status} />}
         </RouteHero>
@@ -321,7 +321,7 @@ export function MaxModeView() {
                 <button onClick={handleStop} className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/20 transition">
                   <Square className="w-3 h-3" /><span>Stop</span>
                 </button>
-                <button onClick={handleNewMission} className="flex items-center gap-1.5 rounded-lg border border-cyan-300/20 bg-cyan-300/8 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-300/15 transition">
+                <button onClick={handleNewMission} className="flex items-center gap-1.5 rounded-lg border border-[rgba(212,180,131,0.25)] bg-[rgba(212,180,131,0.06)] px-3 py-1.5 text-xs text-[#D4B483] hover:bg-[rgba(212,180,131,0.12)] transition">
                   <Sparkles className="w-3 h-3" /><span>New</span>
                 </button>
               </div>
@@ -340,7 +340,7 @@ export function MaxModeView() {
         )}
 
         {/* Tabs */}
-        <div className="mb-4 flex gap-1 border-b border-cyan-300/10 overflow-x-auto pb-0.5">
+        <div className="mb-4 flex gap-1 border-b border-[rgba(212,180,131,0.12)] overflow-x-auto pb-0.5">
           {TABS.map(t => (
             <button
               key={t.id}
@@ -348,8 +348,8 @@ export function MaxModeView() {
               className={cn(
                 'flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-t-lg transition flex-shrink-0',
                 tab === t.id
-                  ? 'border border-b-0 border-cyan-300/20 bg-cyan-300/8 text-cyan-100'
-                  : 'text-zinc-500 hover:text-zinc-300',
+                  ? 'border border-b-0 border-[rgba(212,180,131,0.25)] bg-[rgba(212,180,131,0.06)] text-[#D4B483]'
+                  : 'text-[#5A4A2A] hover:text-[#C8B080]',
               )}
             >
               {t.label}
@@ -365,7 +365,7 @@ export function MaxModeView() {
         {/* ── COMPOSE TAB ── */}
         {tab === 'compose' && (
           <div className="space-y-4">
-            <HologramPanel tone="cyan">
+            <HologramPanel tone="bronze">
               <div className="space-y-4">
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-widest text-amber-200/60 mb-2">App idea *</label>
@@ -374,14 +374,14 @@ export function MaxModeView() {
                     onChange={e => setIdea(e.target.value)}
                     placeholder="e.g. Build a gym product recommendation app that could become a TikTok affiliate business"
                     rows={3}
-                    className="w-full rounded-xl border border-cyan-300/15 bg-slate-900/60 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none resize-none focus:border-cyan-300/35"
+                    className="w-full rounded-xl border border-[rgba(212,180,131,0.15)] bg-[rgba(10,8,6,0.60)] px-3 py-2.5 text-sm text-[#E8DDB8] placeholder:text-[#3A2E1A] outline-none resize-none focus:border-[rgba(212,180,131,0.35)]"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold uppercase tracking-widest text-amber-200/60 mb-1.5">App category</label>
                     <select value={appCategory} onChange={e => setAppCategory(e.target.value)}
-                      className="w-full rounded-xl border border-cyan-300/15 bg-slate-900/60 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-cyan-300/35">
+                      className="w-full rounded-xl border border-[rgba(212,180,131,0.15)] bg-[rgba(10,8,6,0.60)] px-3 py-2 text-sm text-[#E8DDB8] outline-none focus:border-[rgba(212,180,131,0.35)]">
                       {APP_CATEGORIES.map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
@@ -389,7 +389,7 @@ export function MaxModeView() {
                     <label className="block text-[11px] font-semibold uppercase tracking-widest text-amber-200/60 mb-1.5">Target user</label>
                     <input value={targetUser} onChange={e => setTargetUser(e.target.value)}
                       placeholder="e.g. gym-goers aged 18-35"
-                      className="w-full rounded-xl border border-cyan-300/15 bg-slate-900/60 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none focus:border-cyan-300/35" />
+                      className="w-full rounded-xl border border-[rgba(212,180,131,0.15)] bg-[rgba(10,8,6,0.60)] px-3 py-2 text-sm text-[#E8DDB8] placeholder:text-[#3A2E1A] outline-none focus:border-[rgba(212,180,131,0.35)]" />
                   </div>
                 </div>
               </div>
@@ -397,13 +397,13 @@ export function MaxModeView() {
 
             <div className="grid grid-cols-2 gap-3">
               {/* Duration */}
-              <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+              <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2.5">Duration</p>
                 <div className="space-y-1.5">
                   {DURATION_OPTIONS.map(d => (
                     <button key={d.value} onClick={() => setDuration(d.value)}
                       className={cn('w-full flex items-center justify-between rounded-lg px-2.5 py-2 text-xs transition',
-                        duration === d.value ? 'bg-violet-500/15 border border-violet-500/25 text-violet-200' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
+                        duration === d.value ? 'bg-[rgba(212,180,131,0.12)] border border-[rgba(212,180,131,0.30)] text-[#D4B483]' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
                       <span className="font-medium">{d.label}</span>
                       <span className="text-[10px] opacity-60">{d.desc}</span>
                     </button>
@@ -420,13 +420,13 @@ export function MaxModeView() {
               </div>
 
               {/* Autonomy */}
-              <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+              <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2.5">Autonomy level</p>
                 <div className="space-y-1.5">
                   {AUTONOMY_OPTIONS.map(a => (
                     <button key={a.value} onClick={() => setAutonomy(a.value)}
                       className={cn('w-full flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs transition',
-                        autonomy === a.value ? 'bg-violet-500/15 border border-violet-500/25 text-violet-200' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
+                        autonomy === a.value ? 'bg-[rgba(212,180,131,0.12)] border border-[rgba(212,180,131,0.30)] text-[#D4B483]' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
                       <div className="flex-1 text-left">
                         <div className="font-medium">{a.label}</div>
                         <div className="text-[10px] opacity-70 leading-snug mt-0.5">{a.desc}</div>
@@ -440,13 +440,13 @@ export function MaxModeView() {
 
             <div className="grid grid-cols-2 gap-3">
               {/* Agent mode */}
-              <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+              <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2.5">Agent mode</p>
                 <div className="space-y-1.5">
                   {AGENT_MODE_OPTIONS.map(m => (
                     <button key={m.value} onClick={() => setAgentMode(m.value)}
                       className={cn('w-full flex items-start gap-2 rounded-lg px-2.5 py-1.5 text-xs transition',
-                        agentMode === m.value ? 'bg-violet-500/15 border border-violet-500/25 text-violet-200' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
+                        agentMode === m.value ? 'bg-[rgba(212,180,131,0.12)] border border-[rgba(212,180,131,0.30)] text-[#D4B483]' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
                       <div className="text-left">
                         <div className="font-medium">{m.label}</div>
                         <div className="text-[10px] opacity-70">{m.desc}</div>
@@ -457,14 +457,14 @@ export function MaxModeView() {
               </div>
 
               {/* Output goal + budget */}
-              <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3 space-y-3">
+              <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3 space-y-3">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">Output goal</p>
                   <div className="space-y-1">
                     {OUTPUT_GOAL_OPTIONS.map(o => (
                       <button key={o.value} onClick={() => setOutputGoal(o.value)}
                         className={cn('w-full text-left rounded-lg px-2.5 py-1.5 text-xs transition',
-                          outputGoal === o.value ? 'bg-violet-500/15 border border-violet-500/25 text-violet-200' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
+                          outputGoal === o.value ? 'bg-[rgba(212,180,131,0.12)] border border-[rgba(212,180,131,0.30)] text-[#D4B483]' : 'border border-transparent text-zinc-500 hover:bg-white/4 hover:text-zinc-300')}>
                         {o.label}
                       </button>
                     ))}
@@ -475,7 +475,7 @@ export function MaxModeView() {
                   <div className="flex items-center gap-2">
                     <input type="range" min={5} max={100} value={maxIterations}
                       onChange={e => setMaxIterations(+e.target.value)}
-                      className="flex-1 accent-violet-500" />
+                      className="flex-1 accent-amber-500" />
                     <span className="text-xs text-zinc-300 w-6 text-right">{maxIterations}</span>
                   </div>
                 </div>
@@ -557,7 +557,7 @@ export function MaxModeView() {
 
                 <div className="grid grid-cols-2 gap-3">
                   {mission.assumptions && mission.assumptions.length > 0 && (
-                    <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+                    <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">Assumptions</p>
                       <ul className="space-y-1">
                         {mission.assumptions.map((a, i) => (
@@ -567,7 +567,7 @@ export function MaxModeView() {
                     </div>
                   )}
                   {mission.featureRoadmap && mission.featureRoadmap.length > 0 && (
-                    <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+                    <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">Feature roadmap</p>
                       <ul className="space-y-1">
                         {mission.featureRoadmap.map((f, i) => (
@@ -579,7 +579,7 @@ export function MaxModeView() {
                 </div>
 
                 {mission.technicalArchitecture && (
-                  <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+                  <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">Technical architecture</p>
                     <p className="text-xs text-zinc-400 leading-relaxed">{mission.technicalArchitecture}</p>
                   </div>
@@ -587,7 +587,7 @@ export function MaxModeView() {
 
                 <div className="grid grid-cols-2 gap-3">
                   {mission.uiRouteMap && mission.uiRouteMap.length > 0 && (
-                    <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+                    <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">UI route map</p>
                       <ul className="space-y-1">
                         {mission.uiRouteMap.map((r, i) => (
@@ -609,7 +609,7 @@ export function MaxModeView() {
                 </div>
 
                 {mission.researchSummary && (
-                  <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+                  <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">Research summary</p>
                     <p className="text-xs text-zinc-400 leading-relaxed">{mission.researchSummary}</p>
                   </div>
@@ -638,7 +638,7 @@ export function MaxModeView() {
                 const assigned = mission?.agentAssignments?.[role.label]
                 const task = mission?.tasks.find(t => t.agentRole === role.label && t.status !== 'done')
                 return (
-                  <div key={role.id} className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3 space-y-2">
+                  <div key={role.id} className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3 space-y-2">
                     <div className="flex items-center gap-2">
                       <span style={{ color: role.color }}>{role.icon}</span>
                       <span className="text-xs font-semibold text-zinc-200">{role.label}</span>
@@ -833,7 +833,7 @@ export function MaxModeView() {
                     )}
                     {mission.morningReport && (
                       <button onClick={() => { navigator.clipboard.writeText(mission.morningReport!); toast.success('Copied') }}
-                        className="flex items-center gap-1.5 rounded-lg border border-cyan-300/20 bg-cyan-300/8 px-2.5 py-1.5 text-[11px] text-cyan-200 hover:bg-cyan-300/15 transition">
+                        className="flex items-center gap-1.5 rounded-lg border border-[rgba(212,180,131,0.25)] bg-[rgba(212,180,131,0.06)] px-2.5 py-1.5 text-[11px] text-[#D4B483] hover:bg-[rgba(212,180,131,0.12)] transition">
                         <Copy className="w-3 h-3" />Copy
                       </button>
                     )}
@@ -846,7 +846,7 @@ export function MaxModeView() {
                 </HologramPanel>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+                  <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">Validation plan</p>
                     <ul className="space-y-1">
                       {(mission.validationPlan ?? ['npm run typecheck', 'npm run build']).map((v, i) => (
@@ -854,7 +854,7 @@ export function MaxModeView() {
                       ))}
                     </ul>
                   </div>
-                  <div className="rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3">
+                  <div className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3">
                     <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-200/55 mb-2">Mission stats</p>
                     <div className="space-y-1 text-xs text-zinc-400">
                       <p>Created: {new Date(mission.createdAt).toLocaleString()}</p>

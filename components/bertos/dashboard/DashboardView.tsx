@@ -174,18 +174,18 @@ export function DashboardView() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-zinc-800/50 px-6 py-4 flex-shrink-0">
+      <div className="border-b border-[rgba(212,180,131,0.12)] px-6 py-4 flex-shrink-0 bg-[rgba(212,180,131,0.03)]">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-100 flex items-center gap-2">
-              <Activity className="w-6 h-6 text-violet-400" />
+            <h1 className="text-2xl font-bold text-hermes-gradient flex items-center gap-2">
+              <Activity className="w-6 h-6 text-[#D4B483]" />
               Bert OS Command Center
             </h1>
-            <p className="text-sm text-zinc-500 mt-0.5">
+            <p className="text-sm text-[#5A4A2A] mt-0.5">
               Local-first AI operating system for coding, providers, playbooks, memory, daily brief, and self-coding workflows.
             </p>
           </div>
-          <Button onClick={handleNewChat} className="gap-2">
+          <Button onClick={handleNewChat} className="gap-2 border border-[rgba(212,180,131,0.35)] bg-[rgba(212,180,131,0.10)] text-[#D4B483] hover:bg-[rgba(212,180,131,0.18)] hover:border-[rgba(212,180,131,0.50)]">
             <Sparkles className="w-4 h-4" />
             New Chat
           </Button>
@@ -229,7 +229,7 @@ export function DashboardView() {
           >
             <div className="flex flex-wrap items-center justify-end gap-2">
               <ProviderBadge model={selectedModel} />
-              <Button onClick={handleNewChat} className="gap-2 border border-cyan-300/30 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20">
+              <Button onClick={handleNewChat} className="gap-2 border border-[rgba(212,180,131,0.35)] bg-[rgba(212,180,131,0.10)] text-[#D4B483] hover:bg-[rgba(212,180,131,0.18)]">
                 <Sparkles className="w-4 h-4" />
                 Open Oracle
               </Button>
@@ -255,11 +255,11 @@ export function DashboardView() {
                     <button
                       key={session.id}
                       onClick={() => { useChatStore.getState().setActiveSession(session.id); setActiveView('chat'); router.push('/chat') }}
-                      className="w-full rounded-xl border border-cyan-300/10 bg-slate-950/50 p-3 text-left transition hover:border-cyan-300/35 hover:bg-cyan-300/5"
+                      className="w-full rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.50)] p-3 text-left transition hover:border-[rgba(212,180,131,0.30)] hover:bg-[rgba(212,180,131,0.05)]"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-semibold text-zinc-100">{session.title && session.title !== 'New Chat' ? session.title : 'Untitled oracle thread'}</span>
-                        {session.messages.some(message => message.streaming) && <span className="h-2 w-2 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.75)]" />}
+                        <span className="truncate text-sm font-semibold text-[#E8DDB8]">{session.title && session.title !== 'New Chat' ? session.title : 'Untitled oracle thread'}</span>
+                        {session.messages.some(message => message.streaming) && <span className="h-2 w-2 rounded-full bg-[#D4B483] shadow-[0_0_12px_rgba(212,180,131,0.75)]" />}
                         <ProviderBadge model={session.model} className="ml-auto" />
                       </div>
                       <p className="mt-1 line-clamp-1 text-xs text-zinc-500">{lastMessage?.content || 'Draft ready for first prompt'}</p>
@@ -286,7 +286,7 @@ export function DashboardView() {
                   <div key={route.route} className="rounded-lg border border-amber-300/10 bg-slate-950/45 p-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-xs text-amber-100">{route.route}</span>
-                      <span className="rounded-full border border-cyan-300/20 px-2 py-0.5 text-[10px] uppercase tracking-wider text-cyan-100">
+                      <span className="rounded-sm border border-[rgba(212,180,131,0.28)] bg-[rgba(212,180,131,0.06)] px-2 py-0.5 text-[10px] uppercase tracking-wider text-[#D4B483]">
                         {route.status}
                       </span>
                     </div>
@@ -322,8 +322,8 @@ export function DashboardView() {
 
           {/* System Status */}
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <Server className="w-5 h-5 text-blue-400" />
+            <h2 className="text-lg font-semibold text-[#E8DDB8] mb-4 flex items-center gap-2">
+              <Server className="w-5 h-5 text-[#D4B483]" />
               System Status
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -401,8 +401,8 @@ export function DashboardView() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-[#E8DDB8] mb-4 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[#D4B483]" />
               Self-Coding Readiness
             </h2>
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -417,12 +417,12 @@ export function DashboardView() {
                   ['Safe verification available', daemonOnline],
                   ['Paid providers gated', hermesProvider?.status !== 'online'],
                 ].map(([label, ok]) => (
-                  <div key={String(label)} className="rounded-xl border border-zinc-800/50 bg-zinc-900/25 p-3">
+                  <div key={String(label)} className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(212,180,131,0.03)] p-3">
                     <div className="mb-2 flex items-center gap-2">
                       {ok ? <CheckCircle2 className="h-4 w-4 text-emerald-400" /> : <AlertCircle className="h-4 w-4 text-amber-400" />}
-                      <span className="text-xs font-semibold text-zinc-200">{label}</span>
+                      <span className="text-xs font-semibold text-[#C8B080]">{label}</span>
                     </div>
-                    <p className="text-[11px] text-zinc-600">{ok ? 'Ready or safely available.' : 'Needs setup or daemon.'}</p>
+                    <p className="text-[11px] text-[#3A2E1A]">{ok ? 'Ready or safely available.' : 'Needs setup or daemon.'}</p>
                   </div>
                 ))}
               </div>
@@ -432,15 +432,15 @@ export function DashboardView() {
 
           {/* Today's Command Center */}
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <CalendarDays className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-semibold text-[#E8DDB8] mb-4 flex items-center gap-2">
+              <CalendarDays className="w-5 h-5 text-[#D4B483]" />
               Today's Command Center
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-4">
-              <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-4">
-                <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Top goal</div>
-                <h3 className="text-base font-semibold text-zinc-100">Keep BertOS local-first, safe, and useful for building itself.</h3>
-                <p className="mt-2 text-sm text-zinc-500">{nextAction}</p>
+              <div className="rounded-xl border border-[rgba(212,180,131,0.15)] bg-[rgba(212,180,131,0.04)] p-4">
+                <div className="text-[10px] uppercase tracking-widest text-[rgba(212,180,131,0.45)] mb-2">Top goal</div>
+                <h3 className="text-base font-semibold text-[#E8DDB8]">Keep BertOS local-first, safe, and useful for building itself.</h3>
+                <p className="mt-2 text-sm text-[#5A4A2A]">{nextAction}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button size="sm" onClick={() => { setActiveView('coding'); router.push('/builder') }}>
                     <Zap className="w-3.5 h-3.5" />Open Builder
@@ -450,11 +450,11 @@ export function DashboardView() {
                   </Button>
                 </div>
               </div>
-              <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-4">
-                <div className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">Active project</div>
-                <div className="text-sm font-medium text-zinc-200">{activeProject?.name ?? 'No project selected'}</div>
-                <p className="mt-1 text-xs text-zinc-500">{activeProject?.description || 'Use Memory to create project context and keep the active mission focused.'}</p>
-                <div className="mt-3 text-[11px] text-zinc-600">
+              <div className="rounded-xl border border-[rgba(212,180,131,0.15)] bg-[rgba(212,180,131,0.04)] p-4">
+                <div className="text-[10px] uppercase tracking-widest text-[rgba(212,180,131,0.45)] mb-2">Active project</div>
+                <div className="text-sm font-medium text-[#E8DDB8]">{activeProject?.name ?? 'No project selected'}</div>
+                <p className="mt-1 text-xs text-[#5A4A2A]">{activeProject?.description || 'Use Memory to create project context and keep the active mission focused.'}</p>
+                <div className="mt-3 text-[11px] text-[#3A2E1A]">
                   Recent task: {automationStats.recent[0]?.title ?? agentTasks[0]?.title ?? 'No recent task yet.'}
                 </div>
               </div>
@@ -463,8 +463,8 @@ export function DashboardView() {
 
           {/* Agent Stack */}
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <Bot className="w-5 h-5 text-amber-400" />
+            <h2 className="text-lg font-semibold text-[#E8DDB8] mb-4 flex items-center gap-2">
+              <Bot className="w-5 h-5 text-[#D4B483]" />
               Agent Team Readiness
             </h2>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -505,8 +505,8 @@ export function DashboardView() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <Bot className="w-5 h-5 text-violet-400" />
+            <h2 className="text-lg font-semibold text-[#E8DDB8] mb-4 flex items-center gap-2">
+              <Bot className="w-5 h-5 text-[#D4B483]" />
               Agent Stack
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -538,8 +538,8 @@ export function DashboardView() {
 
           {/* Quick Launch */}
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-[#E8DDB8] mb-4 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-[#D4B483]" />
               Quick Launch
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
@@ -558,10 +558,10 @@ export function DashboardView() {
                 <button
                   key={item.href}
                   onClick={() => { setActiveView(item.view); router.push(item.href) }}
-                  className="rounded-xl border border-zinc-800/50 bg-zinc-900/20 p-3 text-left hover:border-zinc-700 hover:bg-zinc-900/40 transition"
+                  className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(212,180,131,0.04)] p-3 text-left hover:border-[rgba(212,180,131,0.28)] hover:bg-[rgba(212,180,131,0.07)] transition"
                 >
-                  <div className="mb-2 text-violet-400">{item.icon}</div>
-                  <div className="text-xs font-medium text-zinc-200">{item.label}</div>
+                  <div className="mb-2 text-[#D4B483]">{item.icon}</div>
+                  <div className="text-xs font-medium text-[#C8B080]">{item.label}</div>
                 </button>
               ))}
             </div>
@@ -569,8 +569,8 @@ export function DashboardView() {
 
           {/* Provider Health */}
           <section>
-            <h2 className="text-lg font-semibold text-zinc-100 mb-4 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-[#E8DDB8] mb-4 flex items-center gap-2">
+              <Activity className="w-5 h-5 text-[#D4B483]" />
               Provider Health
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -817,8 +817,8 @@ function OracleQuickSend() {
   }
 
   return (
-    <div className="rounded-xl border border-cyan-300/15 bg-slate-950/60 px-4 py-3">
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/50">Oracle quick-send</p>
+    <div className="rounded-xl border border-[rgba(212,180,131,0.18)] bg-[rgba(212,180,131,0.04)] px-4 py-3">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.28em] text-[rgba(212,180,131,0.55)]">Oracle quick-send</p>
       <form
         onSubmit={e => { e.preventDefault(); submit() }}
         className="flex items-center gap-2"
@@ -828,9 +828,9 @@ function OracleQuickSend() {
           value={draft}
           onChange={e => setDraft(e.target.value)}
           placeholder="Ask the Oracle anything — you'll be taken to /chat…"
-          className="flex-1 rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-cyan-500/40"
+          className="flex-1 rounded-lg border border-[rgba(212,180,131,0.12)] bg-[rgba(10,8,6,0.70)] px-3 py-2 text-sm text-[#E8DDB8] outline-none placeholder:text-[#3A2E1A] focus:border-[rgba(212,180,131,0.35)]"
         />
-        <Button type="submit" size="sm" disabled={!draft.trim()} className="gap-1.5 border border-cyan-300/30 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20">
+        <Button type="submit" size="sm" disabled={!draft.trim()} className="gap-1.5 border border-[rgba(212,180,131,0.35)] bg-[rgba(212,180,131,0.10)] text-[#D4B483] hover:bg-[rgba(212,180,131,0.18)]">
           <Send className="h-3.5 w-3.5" />
           Send
         </Button>
@@ -1068,13 +1068,13 @@ function ActionCard({ icon, label, description, onClick }: ActionCardProps) {
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="p-4 rounded-xl border border-zinc-800/50 bg-zinc-900/20 hover:bg-zinc-900/40 hover:border-zinc-700/50 transition-all text-left"
+      className="p-4 rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(212,180,131,0.04)] hover:bg-[rgba(212,180,131,0.07)] hover:border-[rgba(212,180,131,0.28)] transition-all text-left"
     >
-      <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center mb-3 text-violet-400">
+      <div className="w-10 h-10 rounded-lg border border-[rgba(212,180,131,0.18)] bg-[rgba(212,180,131,0.06)] flex items-center justify-center mb-3 text-[#D4B483]">
         {icon}
       </div>
-      <h4 className="text-sm font-medium text-zinc-200 mb-1">{label}</h4>
-      <p className="text-xs text-zinc-500">{description}</p>
+      <h4 className="text-sm font-medium text-[#C8B080] mb-1">{label}</h4>
+      <p className="text-xs text-[#4A3C28]">{description}</p>
     </motion.button>
   )
 }

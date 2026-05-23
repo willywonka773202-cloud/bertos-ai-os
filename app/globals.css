@@ -16,28 +16,33 @@
 
 @layer base {
   :root {
-    --background: #0A0A0B;
-    --surface: #111113;
-    --surface-elevated: #18181B;
-    --border: #27272A;
-    --border-subtle: #1C1C1F;
-    --text-primary: #FAFAFA;
-    --text-secondary: #A1A1AA;
-    --text-muted: #52525B;
-    --accent-purple: #8B5CF6;
-    --accent-blue: #3B82F6;
-    --accent-cyan: #06B6D4;
-    --accent-green: #10B981;
-    --accent-amber: #F59E0B;
-    --hermes-cyan: #22D3EE;
-    --hermes-blue: #2563EB;
-    --hermes-bronze: #B8894B;
-    --hermes-gold: #F6C453;
+    /* ── Imperial Stone Palette ─────────────────────────────── */
+    --background:        #07050380;
+    --surface:           #0E0C09;
+    --surface-elevated:  #161209;
+    --border:            #2C2418;
+    --border-subtle:     #1E1A12;
+    --text-primary:      #F0EAD8;   /* warm ivory parchment  */
+    --text-secondary:    #9A8A68;   /* warm amber-grey       */
+    --text-muted:        #4A4030;   /* deep warm muted       */
+
+    /* ── Accent tones ───────────────────────────────────────── */
+    --accent-purple:     #8B5CF6;
+    --accent-blue:       #7ABCD6;   /* soft celestial blue   */
+    --accent-cyan:       #7ABCD6;
+    --accent-green:      #86C9A0;   /* sage emerald          */
+    --accent-amber:      #E8B86D;   /* warm gold             */
+
+    /* ── Imperial Hermes tokens ─────────────────────────────── */
+    --hermes-gold:       #D4B483;   /* warm soft gold        */
+    --hermes-gold-bright:#F6C453;   /* bright imperial gold  */
+    --hermes-bronze:     #B8894B;   /* engraved bronze       */
+    --hermes-ivory:      #F0E8D0;   /* parchment ivory       */
+    --hermes-celestial:  #7ABCD6;   /* subdued celestial sky */
+    --hermes-marble:     rgba(212,180,131,0.09);
   }
 
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
 
   html {
     color-scheme: dark;
@@ -47,29 +52,24 @@
   }
 
   body {
-    background: var(--background);
+    background: #070503;
     color: var(--text-primary);
     overflow: hidden;
   }
 
-  ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+  /* ── Imperial Stone Scrollbar ─────────────────────────────── */
+  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  {
+    background: #2E2418;
+    border-radius: 2px;
   }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #27272A;
-    border-radius: 999px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #3F3F46;
-  }
+  ::-webkit-scrollbar-thumb:hover { background: #3E3222; }
 
+  /* ── Gold selection ───────────────────────────────────────── */
   ::selection {
-    background: rgba(139, 92, 246, 0.3);
-    color: #FAFAFA;
+    background: rgba(212, 180, 131, 0.28);
+    color: #F6E8C8;
   }
 }
 
@@ -78,100 +78,139 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
 
+  /* ── Sacred Glass ─────────────────────────────────────────── */
   .glass {
-    background: rgba(18, 18, 20, 0.8);
-    backdrop-filter: blur(20px) saturate(180%);
-    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    background: rgba(14, 12, 9, 0.82);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
   }
 
+  /* ── Legacy glow (kept for compatibility) ─────────────────── */
   .glow-purple {
-    box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.25);
   }
 
+  /* ── Text gradients ───────────────────────────────────────── */
   .text-gradient-bertos {
-    background: linear-gradient(135deg, #8B5CF6, #3B82F6);
+    background: linear-gradient(135deg, #D4B483, #F6C453);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  .hermes-grid {
-    background-image:
-      linear-gradient(rgba(34, 211, 238, 0.07) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(34, 211, 238, 0.07) 1px, transparent 1px);
-    background-size: 48px 48px;
+  /* ── Imperial text gradient — warm ivory → gold → bronze ──── */
+  .text-hermes-gradient {
+    background: linear-gradient(115deg, #F0E8D4 0%, #E8C87A 30%, #D4B483 62%, #F0DEB8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 
+  /* ── Imperial Stone Grid — replaces cold cyan grid ─────────── */
+  .hermes-grid {
+    background-image:
+      linear-gradient(rgba(212,180,131,0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(212,180,131,0.055) 1px, transparent 1px);
+    background-size: 52px 52px;
+  }
+
+  /* ── Fine parchment grid ──────────────────────────────────── */
   .hermes-grid-fine {
     background-image:
-      linear-gradient(rgba(251, 191, 36, 0.055) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(34, 211, 238, 0.05) 1px, transparent 1px);
+      linear-gradient(rgba(212,180,131,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(212,180,131,0.04) 1px, transparent 1px);
     background-size: 18px 18px;
   }
 
+  /* ── Atmospheric depth veil — replaces harsh scanlines ──────── */
+  /* Subtle diagonal hatching suggests depth without sci-fi lines */
   .hermes-scanlines {
-    background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px);
-    background-size: 100% 4px;
-    mix-blend-mode: screen;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(212,180,131,0.015) 0px,
+      rgba(212,180,131,0.015) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+    mix-blend-mode: overlay;
   }
 
+  /* ── Imperial Marble Panel — warm stone + gold halo ──────── */
   .hermes-holo {
     background:
-      radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.18), transparent 32%),
-      radial-gradient(circle at 90% 10%, rgba(246, 196, 83, 0.12), transparent 30%),
-      linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.78));
-    border: 1px solid rgba(34, 211, 238, 0.18);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 20px 80px rgba(0,0,0,0.32);
+      radial-gradient(ellipse 70% 50% at 50% 0%, rgba(212,180,131,0.11), transparent),
+      radial-gradient(circle at 88% 12%, rgba(184,137,75,0.08), transparent 30%),
+      linear-gradient(170deg, rgba(18,14,9,0.90), rgba(8,6,3,0.82));
+    border: 1px solid rgba(212,180,131,0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(240,232,208,0.05),
+      inset 0 -1px 0 rgba(0,0,0,0.20),
+      0 20px 80px rgba(0,0,0,0.35);
   }
 
+  /* ── Bronze Panel — engraved gold register ─────────────────── */
   .hermes-bronze {
     background:
-      radial-gradient(circle at 10% 0%, rgba(251, 191, 36, 0.16), transparent 34%),
-      linear-gradient(135deg, rgba(120, 77, 32, 0.16), rgba(2, 6, 23, 0.68));
-    border: 1px solid rgba(251, 191, 36, 0.2);
+      radial-gradient(ellipse 60% 40% at 50% 0%, rgba(246,196,83,0.11), transparent 45%),
+      linear-gradient(160deg, rgba(90,60,18,0.18), rgba(5,3,1,0.70));
+    border: 1px solid rgba(212,180,131,0.22);
+    box-shadow:
+      inset 0 1px 0 rgba(246,196,83,0.07),
+      0 16px 60px rgba(0,0,0,0.30);
   }
 
-  .text-hermes-gradient {
-    background: linear-gradient(120deg, #E0F2FE 0%, #22D3EE 32%, #60A5FA 62%, #F6C453 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
+  /* ── Pulse animations — warm gold/amber ────────────────────── */
   .animate-hermes-pulse {
     animation: hermesPulse 3s ease-in-out infinite;
   }
-
   .animate-hermes-bronze-pulse {
     animation: hermesBronzePulse 3.6s ease-in-out infinite;
   }
+
+  /* ── Imperial ornament ─────────────────────────────────────── */
+  .imperial-diamond::before {
+    content: '';
+    display: inline-block;
+    width: 6px; height: 6px;
+    background: currentColor;
+    transform: rotate(45deg);
+    opacity: 0.55;
+  }
 }
 
-[data-radix-popper-content-wrapper] {
-  z-index: 999 !important;
-}
-
+/* ── Shimmer ────────────────────────────────────────────────── */
 @keyframes shimmer {
-  0% { background-position: -200px 0; }
+  0%   { background-position: -200px 0; }
   100% { background-position: calc(200px + 100%) 0; }
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, #1a1a1f 0px, #27272a 40px, #1a1a1f 80px);
+  background: linear-gradient(90deg, #1a1509 0px, #272010 40px, #1a1509 80px);
   background-size: 200px 100%;
-  animation: shimmer 1.5s infinite;
+  animation: shimmer 1.6s infinite;
 }
 
+/* ── Warm pulse keyframes ─────────────────────────────────────── */
 @keyframes hermesPulse {
-  0%, 100% { box-shadow: 0 0 18px rgba(34, 211, 238, 0.18); }
-  50% { box-shadow: 0 0 42px rgba(34, 211, 238, 0.38); }
+  0%, 100% { box-shadow: 0 0 18px rgba(212,180,131,0.14); }
+  50%       { box-shadow: 0 0 42px rgba(212,180,131,0.30); }
 }
 
 @keyframes hermesBronzePulse {
-  0%, 100% { box-shadow: 0 0 16px rgba(251, 191, 36, 0.14); }
-  50% { box-shadow: 0 0 38px rgba(251, 191, 36, 0.32); }
+  0%, 100% { box-shadow: 0 0 16px rgba(246,196,83,0.12); }
+  50%       { box-shadow: 0 0 38px rgba(246,196,83,0.26); }
 }
+
+/* ── Halo pulse for orbs ─────────────────────────────────────── */
+@keyframes haloBreath {
+  0%, 100% { opacity: 0.40; transform: scale(1); }
+  50%       { opacity: 0.70; transform: scale(1.12); }
+}
+
+.animate-halo {
+  animation: haloBreath 2.8s ease-in-out infinite;
+}
+
+[data-radix-popper-content-wrapper] { z-index: 999 !important; }

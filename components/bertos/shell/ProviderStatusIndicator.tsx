@@ -65,7 +65,7 @@ export function ProviderStatusIndicator() {
       <TooltipTrigger asChild>
         <button
           onClick={loadProviderStatus}
-          className="relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50 hover:border-zinc-700/50 transition-all group"
+          className="relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[rgba(212,180,131,0.04)] border border-[rgba(212,180,131,0.12)] hover:border-[rgba(212,180,131,0.28)] transition-all group"
         >
           {/* Status orb with glow */}
           <div className="relative">
