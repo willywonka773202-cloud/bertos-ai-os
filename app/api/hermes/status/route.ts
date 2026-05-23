@@ -1,64 +1,43 @@
 import { NextResponse } from 'next/server'
+import { getHermesNousConfig, status as getHermesNousProviderStatus } from '@/lib/bertos/providers/hermes-nous'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
-  const apiUrl = process.env.HERMES_API_URL
-  const apiKey = process.env.HERMES_API_KEY
-  const paidEnabled = process.env.ENABLE_HERMES_PAID === 'true'
-  const configured = Boolean(apiUrl && apiKey)
+  const cfg = getHermesNousConfig()
+  const configured = Boolean(cfg.apiUrl && cfg.apiKey)
+  const providerStatus = await getHermesNousProviderStatus()
 
   if (!configured) {
     return NextResponse.json({
       ok: false,
       configured: false,
-      paidEnabled,
+      paidEnabled: cfg.paidEnabled,
       scaffolded: true,
-      billing: 'Paid API credits required',
+      billing: 'Paid API credits may be used by remote Hermes Agent',
       error: 'HERMES_API_URL and HERMES_API_KEY are not set.',
       setupInstructions: [
-        'Add HERMES_API_URL and HERMES_API_KEY to server environment.',
+        'On Hostinger Hermes, enable API_SERVER_ENABLED=true and set API_SERVER_KEY.',
+        'Expose the Hermes API server /v1 endpoint over a trusted HTTPS URL or tunnel.',
+        'Add HERMES_API_URL and HERMES_API_KEY to the BertOS server environment.',
         'Set ENABLE_HERMES_PAID=true only when you accept paid routing.',
         'Restart the dev server after environment changes.',
-        'Local daemon remains responsible for file editing, terminal, and local CLIs.',
       ],
     }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
-  if (!paidEnabled) {
-    return NextResponse.json({
-      ok: false,
-      configured: true,
-      paidEnabled: false,
-      reachable: null,
-      scaffolded: true,
-      billing: 'Paid API credits required',
-      message: 'Hermes credentials are present, but paid routing is disabled by ENABLE_HERMES_PAID.',
-      safety: 'No Hermes network health call was made because paid routing is disabled.',
-    }, { headers: { 'Cache-Control': 'no-store' } })
-  }
-
-  try {
-    const res = await fetch(`${apiUrl}/health`, {
-      cache: 'no-store',
-      signal: AbortSignal.timeout(5000),
-    })
-    return NextResponse.json({
-      ok: res.ok,
-      configured: true,
-      paidEnabled: true,
-      reachable: res.ok,
-      billing: 'Paid API credits required',
-      message: res.ok ? 'Hermes proxy health endpoint is reachable.' : `Hermes health returned HTTP ${res.status}.`,
-    }, { headers: { 'Cache-Control': 'no-store' } })
-  } catch {
-    return NextResponse.json({
-      ok: false,
-      configured: true,
-      paidEnabled: true,
-      reachable: false,
-      billing: 'Paid API credits required',
-      error: 'Cannot reach Hermes API. Check HERMES_API_URL.',
-    }, { headers: { 'Cache-Control': 'no-store' } })
-  }
+  return NextResponse.json({
+    ok: providerStatus.online,
+    configured: true,
+    paidEnabled: cfg.paidEnabled,
+    reachable: providerStatus.online,
+    model: providerStatus.modelOrTool,
+    billing: 'Paid API credits may be used by remote Hermes Agent',
+    message: providerStatus.online
+      ? 'Hermes API server is reachable and available for manual routing.'
+      : providerStatus.error,
+    safety: cfg.paidEnabled
+      ? 'Health check made only after ENABLE_HERMES_PAID=true; chat calls still require manual provider selection.'
+      : 'No Hermes network health call was made because paid routing is disabled.',
+  }, { headers: { 'Cache-Control': 'no-store' } })
 }
