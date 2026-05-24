@@ -14,7 +14,16 @@ const STARTED_AT = Date.now()
 const REPO_ROOT = process.cwd()
 const LOG_DIR = path.join(REPO_ROOT, 'logs')
 const LOG_FILE = path.join(LOG_DIR, 'bertos-daemon.log')
+const TOOL_VERIFICATION_FILE = path.join(LOG_DIR, 'tool-verification.json')
 const MAX_OUTPUT = 1024 * 1024 * 20
+const EXTRA_PATHS = [
+  '/Applications/Codex.app/Contents/Resources',
+  '/opt/homebrew/bin',
+  '/opt/homebrew/sbin',
+  '/usr/local/bin',
+  path.join(process.env.HOME || '', '.local/bin'),
+  path.join(process.env.HOME || '', '.opencode/bin'),
+].filter(Boolean)
 
 const CLI_TOOLS = {
   'claude-code': { id: 'claude-code', label: 'Claude Code', executable: 'claude' },
@@ -63,6 +72,10 @@ const PROTECTED_PATH_PATTERNS = [
 const logs = []
 let toolsCache = null
 let toolsCacheAt = 0
+const toolVerificationCache = new Map()
+let toolVerificationCacheLoaded = false
+const ASK_VERIFIED_CLI_TOOLS = new Set(['claude-code', 'gemini-cli'])
+const VERSION_VERIFIED_CLI_TOOLS = new Set(['codex-cli'])
 
 function nowIso() {
   return new Date().toISOString()
@@ -182,6 +195,7 @@ function isSafeCommand(executable, args = []) {
 async function execRaw(file, args, options = {}) {
   return execFileAsync(file, args.map(String), {
     cwd: options.cwd || REPO_ROOT,
+    env: commandEnv(),
     timeout: Math.min(Number(options.timeoutMs) || 30000, 300000),
     maxBuffer: MAX_OUTPUT,
     windowsHide: true,
@@ -189,10 +203,35 @@ async function execRaw(file, args, options = {}) {
   })
 }
 
+function commandEnv() {
+  const currentPath = process.env.PATH || ''
+  const pathValue = [
+    ...EXTRA_PATHS,
+    ...currentPath.split(path.delimiter),
+  ].filter(Boolean)
+  return {
+    ...process.env,
+    PATH: [...new Set(pathValue)].join(path.delimiter),
+  }
+}
+
 async function whereExecutable(executable) {
   const exe = normalizeExecutable(executable)
   if (process.platform !== 'win32') {
-    return { command: exe, resolvedPath: exe, viaCmd: false, candidates: [exe] }
+    try {
+      const { stdout } = await execRaw('/usr/bin/env', ['bash', '-lc', `command -v ${exe}`], { timeoutMs: 5000 })
+      const resolvedPath = stdout.trim().split(/\r?\n/).find(Boolean)
+      if (!resolvedPath) throw new Error(`No executable path returned for ${exe}.`)
+      return { command: resolvedPath, resolvedPath, viaCmd: false, candidates: [resolvedPath] }
+    } catch (error) {
+      return {
+        command: exe,
+        resolvedPath: undefined,
+        viaCmd: false,
+        candidates: [],
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
   }
 
   try {
@@ -277,6 +316,7 @@ async function runResolvedCommand({ executable, args = [], input = '', cwd = REP
   try {
     const child = execFileAsync(command, finalArgs, {
       cwd: safeCwd,
+      env: commandEnv(),
       timeout: Math.min(Number(timeoutMs) || 120000, 300000),
       maxBuffer: MAX_OUTPUT,
       windowsHide: true,
@@ -316,11 +356,75 @@ async function runResolvedCommand({ executable, args = [], input = '', cwd = REP
 }
 
 function explainSpawnFailure(message, exe) {
-  if (/ENOENT/i.test(message)) return `${exe} was not found from the daemon process. Run where.exe ${exe} and restart the daemon.`
-  if (/EPERM/i.test(message)) return `${exe} was found but Windows blocked execution. Prefer the .cmd shim, restart PowerShell normally, or check antivirus/App Execution Alias settings.`
+  if (/ENOENT/i.test(message)) {
+    return process.platform === 'win32'
+      ? `${exe} was not found from the daemon process. Run where.exe ${exe} and restart the daemon.`
+      : `${exe} was not found from the daemon process. Run command -v ${exe} and restart the daemon from a shell where it is on PATH.`
+  }
+  if (/EPERM/i.test(message)) {
+    return process.platform === 'win32'
+      ? `${exe} was found but Windows blocked execution. Prefer the .cmd shim, restart PowerShell normally, or check antivirus/App Execution Alias settings.`
+      : `${exe} was found but macOS blocked execution. Check permissions and restart the daemon from a normal shell.`
+  }
   if (/timed out/i.test(message)) return `${exe} timed out. Confirm the CLI is logged in and can answer non-interactively.`
   if (/auth|login|sign in/i.test(message)) return `${exe} appears to need login. Run the CLI login command manually in PowerShell.`
   return undefined
+}
+
+function providerSetupHint(providerId) {
+  if (providerId === 'claude-code') {
+    return 'Claude Code is installed, but BertOS has not verified a non-interactive Claude reply yet. Run claude in Terminal, finish auth/trust, then send a Claude test prompt from BertOS.'
+  }
+  if (providerId === 'gemini-cli') {
+    return 'Gemini CLI is installed, but BertOS has not verified a non-interactive Gemini reply yet. Run gemini in Terminal, choose an auth method, then send a Gemini test prompt from BertOS.'
+  }
+  return 'CLI is installed, but BertOS has not verified a non-interactive reply yet.'
+}
+
+async function loadToolVerificationCache() {
+  if (toolVerificationCacheLoaded) return
+  toolVerificationCacheLoaded = true
+  try {
+    const raw = await readFile(TOOL_VERIFICATION_FILE, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return
+    for (const [providerId, value] of Object.entries(parsed)) {
+      if (!CLI_TOOLS[providerId] || !value || typeof value !== 'object') continue
+      const status = value.loginStatus === 'available' || value.loginStatus === 'error'
+        ? value.loginStatus
+        : 'unknown'
+      toolVerificationCache.set(providerId, {
+        loginStatus: status,
+        checkedAt: typeof value.checkedAt === 'string' ? value.checkedAt : undefined,
+        error: typeof value.error === 'string' ? value.error : undefined,
+        troubleshooting: typeof value.troubleshooting === 'string' ? value.troubleshooting : undefined,
+      })
+    }
+  } catch {
+    // Missing or invalid cache is fine; providers will verify on first successful ask.
+  }
+}
+
+async function persistToolVerificationCache() {
+  await mkdir(LOG_DIR, { recursive: true })
+  const payload = Object.fromEntries(toolVerificationCache.entries())
+  await writeFile(TOOL_VERIFICATION_FILE, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+}
+
+async function rememberToolVerification(providerId, result) {
+  if (!CLI_TOOLS[providerId]) return
+  const message = result.ok
+    ? undefined
+    : result.error || result.stderr || result.stdout || `${CLI_TOOLS[providerId].label} could not answer from BertOS.`
+  toolVerificationCache.set(providerId, {
+    loginStatus: result.ok ? 'available' : 'error',
+    checkedAt: new Date().toISOString(),
+    error: message,
+    troubleshooting: result.troubleshooting,
+  })
+  toolsCache = null
+  toolsCacheAt = 0
+  await persistToolVerificationCache().catch(() => null)
 }
 
 function buildPatchModePrompt(providerId, prompt) {
@@ -371,29 +475,44 @@ function buildAskCommand(providerId, prompt, mode = 'chat') {
   return { providerId: normalized, executable: 'codex', args: ['exec', finalPrompt] }
 }
 
-async function detectTool(tool) {
+async function detectTool(tool, options = {}) {
   const resolved = await whereExecutable(tool.executable)
-  const result = await runResolvedCommand({
-    executable: tool.executable,
-    args: ['--version'],
-    timeoutMs: 10000,
-  })
   const installed = Boolean(resolved.resolvedPath)
+  const verification = toolVerificationCache.get(tool.id)
+  const shouldVerifyVersion = Boolean(options.verifyVersion)
+  const result = shouldVerifyVersion
+    ? await runResolvedCommand({
+      executable: tool.executable,
+      args: ['--version'],
+      timeoutMs: 3000,
+    })
+    : null
+  const versionStatus = result?.ok
+    ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id) ? 'available' : 'unknown'
+    : installed
+      ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id) ? 'available' : 'unknown'
+      : 'missing'
+  const needsAskVerification = installed && result?.ok && ASK_VERIFIED_CLI_TOOLS.has(tool.id) && !verification
   return {
     ...tool,
     installed,
     resolvedPath: resolved.resolvedPath,
     candidates: resolved.candidates,
-    version: result.ok ? result.stdout.trim() || result.stderr.trim() : undefined,
-    loginStatus: result.ok ? 'available' : installed ? 'error' : 'missing',
-    error: result.ok ? undefined : result.error || result.stderr || resolved.error || 'Not found on PATH.',
-    troubleshooting: result.troubleshooting,
+    version: result?.ok ? result.stdout.trim() || result.stderr.trim() : undefined,
+    loginStatus: verification?.loginStatus ?? versionStatus,
+    lastVerifiedAt: verification?.checkedAt,
+    error: verification?.error
+      ?? (needsAskVerification ? providerSetupHint(tool.id) : undefined)
+      ?? (result && !result.ok ? result.error || result.stderr : undefined)
+      ?? (!installed ? resolved.error || 'Not found on PATH.' : undefined),
+    troubleshooting: verification?.troubleshooting ?? result?.troubleshooting,
   }
 }
 
-async function detectTools() {
+async function detectTools(options = {}) {
   if (toolsCache && Date.now() - toolsCacheAt < 10_000) return toolsCache
-  toolsCache = await Promise.all(Object.values(CLI_TOOLS).map(detectTool))
+  await loadToolVerificationCache()
+  toolsCache = await Promise.all(Object.values(CLI_TOOLS).map(tool => detectTool(tool, options)))
   toolsCacheAt = Date.now()
   return toolsCache
 }
@@ -412,7 +531,14 @@ async function repoStatus() {
   const branch = await gitOutput(['branch', '--show-current'])
   const status = await gitOutput(['status', '--short'])
   const root = await gitOutput(['rev-parse', '--show-toplevel'])
-  const safeRepo = /bertos-ai-os/i.test(root) && /bertos-ai-os\.git$/i.test(remote) && !/sylistly/i.test(remote)
+  let packageName = ''
+  try {
+    const pkg = JSON.parse(await readFile(path.join(root || REPO_ROOT, 'package.json'), 'utf8'))
+    packageName = String(pkg.name || '')
+  } catch {}
+  const safeRepo = packageName === 'bertos-ai-os'
+    && remote === 'https://github.com/willywonka773202-cloud/bertos-ai-os.git'
+    && !/sylistly/i.test(remote)
   return {
     root: root || REPO_ROOT,
     daemonCwd: REPO_ROOT,
@@ -420,7 +546,7 @@ async function repoStatus() {
     remote,
     status,
     safeRepo,
-    blockedReason: safeRepo ? undefined : 'Repo safety check failed. Expected bertos-ai-os remote and path with no sylistly remote.',
+    blockedReason: safeRepo ? undefined : 'Repo safety check failed. Expected bertos-ai-os package and remote with no sylistly remote.',
   }
 }
 
@@ -533,7 +659,7 @@ async function statusPayload() {
     host: HOST,
     port: PORT,
     uptimeMs: Date.now() - STARTED_AT,
-    tools: await detectTools(),
+    tools: await detectTools({ verifyVersion: false }),
     repo: await repoStatus(),
     logsCount: logs.length,
     startCommand: 'npm run bertos:daemon',
@@ -546,7 +672,10 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`)
 
     if (req.method === 'GET' && url.pathname === '/status') return json(res, 200, await statusPayload())
-    if (req.method === 'GET' && url.pathname === '/tools') return json(res, 200, { tools: await detectTools() })
+    if (req.method === 'GET' && url.pathname === '/tools') {
+      const verifyVersion = url.searchParams.get('verify') === '1'
+      return json(res, 200, { tools: await detectTools({ verifyVersion }) })
+    }
     if (req.method === 'GET' && url.pathname === '/repo/status') return json(res, 200, await repoStatus())
     if (req.method === 'GET' && url.pathname === '/repo/files') {
       return json(res, 200, { files: await listFiles(url.searchParams.get('dir') || '.') })
@@ -633,6 +762,7 @@ const server = http.createServer(async (req, res) => {
         cwd: body.cwd || REPO_ROOT,
         timeoutMs: body.timeoutMs || 180000,
       })
+      await rememberToolVerification(command.providerId, result)
       return json(res, result.ok ? 200 : 400, { providerId: command.providerId, ...result })
     }
 
