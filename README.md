@@ -20,6 +20,8 @@ Legacy clothing catalog, commerce, outfit-building, and discovery routes from th
 
 ## Quick Start
 
+Double-click `Open BertOS.command` on macOS for the normal local launch. It safely checks GitHub for fast-forward updates, refreshes dependencies when needed, starts the local daemon, starts `localhost:3000`, and opens BertOS in the browser.
+
 ```powershell
 npm install
 Copy-Item .env.example .env.local
@@ -27,6 +29,12 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
+
+Manual all-in-one launch:
+
+```powershell
+npm run bertos:launch -- --port 3000
+```
 
 ## Vercel Environment
 
