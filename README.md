@@ -264,6 +264,43 @@ full or budgeted file content
 
 It fails loudly if a file is marked included but omitted from the serialized prompt. The mission endpoint turns rough requests into scoped missions with provider recommendation, risk, validation commands, likely files, and a copyable prompt.
 
+## Agent OS Patterns
+
+BertOS mission prompts now include an Agent OS execution contract based on patterns from OpenHands, SWE-agent, AutoGPT, CrewAI, LangGraph, Agent Zero, Stagehand, and E2B. Missions apply the relevant subset automatically:
+
+- repository microagent context
+- explicit agent-computer command surfaces
+- trajectory/audit evidence
+- approval checkpoints for risky actions
+- sandbox/runtime boundaries
+- workflow blocks for broad missions
+- browser observe-act verification for UI work
+- memory handoff notes for future agents
+
+See `docs/agent-os-research.md` for the research notes and adopted patterns. The repo also includes `.openhands/microagents/repo.md` so OpenHands-compatible agents get BertOS setup, structure, safety rules, and validation expectations up front.
+
+The router also builds an orchestration plan for each prompt:
+
+- estimates prompt tokens before routing
+- chooses the cheapest safe lane for classification and memory work
+- routes planning/research to Gemini, UI/architecture review to Claude Code, and implementation/verification to Codex
+- marks file-writing, validation, paid calls, push/deploy, and risky operations as approval-gated
+- exposes read-only parallel lanes for broad tasks before sequential implementation
+
+`POST /api/agents/orchestrate` returns the plan by default. Set `run: true` to run only safe online read-only lanes in parallel. CLI-backed lanes require `allowCliAgents: true`, and implementation/verification lanes remain approval-gated.
+
+## Direct Engine Tabs
+
+BertOS keeps `/chat` and `/engines/bertos` as the combined router experience, then exposes direct side tabs for specific engines:
+
+- `/engines/codex` for Codex CLI implementation and verification
+- `/engines/claude` for Claude Code architecture and UI review
+- `/engines/gemini` for Gemini CLI planning and research
+- `/engines/ollama` for cheap/default Ollama chat and summaries
+- `/engines/hermes` for paid-gated Hermes / Nous manual routing
+
+Additional direct routes exist for Gemini Native, Qwen, and OpenAI API. API and paid-gated tabs show missing setup instead of silently spending credits.
+
 ## Builder Workflow
 
 Use Builder when you want to stop bouncing between AI sites:

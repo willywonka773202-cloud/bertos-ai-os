@@ -956,6 +956,33 @@ export function CodingView() {
                       {mission.warnings.map(warning => <div key={warning}>• {warning}</div>)}
                     </div>
                   )}
+                  <div className="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+                    <div className="mb-2 text-[10px] uppercase tracking-widest text-sky-300/80">Agent OS patterns applied</div>
+                    <div className="space-y-1 text-xs text-zinc-400">
+                      {mission.agentOSPatternSummary.map(pattern => <div key={pattern}>• {pattern}</div>)}
+                    </div>
+                  </div>
+                  {mission.orchestrationPlan && (
+                    <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-[10px] uppercase tracking-widest text-emerald-300/80">Orchestration plan</div>
+                        <div className="font-mono text-[10px] text-zinc-500">
+                          ~{mission.orchestrationPlan.estimatedPromptTokens.toLocaleString()} tokens · {mission.orchestrationPlan.tokenPolicy.contextStrategy}
+                        </div>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {mission.orchestrationPlan.lanes.slice(0, 4).map(lane => (
+                          <div key={lane.id} className="rounded-md border border-zinc-800 bg-black/20 p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-xs font-medium text-zinc-300">{lane.label}</span>
+                              <Badge variant={lane.risk === 'safe' ? 'success' : 'warning'} className="text-[9px]">{lane.provider}</Badge>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">{lane.purpose}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <div>
                       <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-600">Likely files</div>

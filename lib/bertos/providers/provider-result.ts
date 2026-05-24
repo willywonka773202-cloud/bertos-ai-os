@@ -1,3 +1,5 @@
+import type { AgentOrchestrationPlan } from '../types'
+
 export interface ProviderAskResult {
   ok: boolean
   providerId: string
@@ -12,6 +14,7 @@ export interface ProviderAskResult {
   taskType?: 'general' | 'code_patch'
   inventoryShortcutUsed?: boolean
   selectedProvider?: string
+  orchestration?: AgentOrchestrationPlan
   attemptedProviders?: Array<{
     providerId: string
     available: boolean
@@ -28,6 +31,8 @@ export interface ProviderAskOptions {
   disableInventoryShortcut?: boolean
   temperature?: number
   maxTokens?: number
+  laneId?: string
+  safeMode?: boolean
 }
 
 export interface ProviderStatusResult {

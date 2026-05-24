@@ -30,6 +30,7 @@ export interface RouterDecision {
   confidence: number
   taskType: TaskType
   strategy: RoutingStrategy
+  orchestration?: AgentOrchestrationPlan
 }
 
 export type TaskType =
@@ -43,6 +44,65 @@ export type TaskType =
   | 'general'
 
 export type RoutingStrategy = 'single' | 'parallel' | 'sequential' | 'best-of'
+
+export type AgentLaneRole =
+  | 'orchestrator'
+  | 'planner'
+  | 'architect'
+  | 'implementer'
+  | 'reviewer'
+  | 'verifier'
+  | 'researcher'
+  | 'writer'
+  | 'memory'
+
+export type AgentLaneRisk = 'safe' | 'approval-required' | 'blocked'
+
+export interface AgentTokenBudget {
+  estimatedPromptTokens: number
+  maxInputTokens: number
+  maxOutputTokens: number
+  reservedResponseTokens: number
+  contextStrategy: 'full' | 'focused' | 'summarize' | 'chunk'
+  warnings: string[]
+}
+
+export interface AgentExecutionLane {
+  id: string
+  label: string
+  role: AgentLaneRole
+  provider: AIModel
+  purpose: string
+  promptFocus: string
+  canRunInParallel: boolean
+  risk: AgentLaneRisk
+  requiresDaemon: boolean
+  requiresApiKey: boolean
+  budget: AgentTokenBudget
+}
+
+export interface AgentExecutionGroup {
+  id: string
+  mode: 'parallel' | 'sequential'
+  laneIds: string[]
+  reason: string
+}
+
+export interface AgentOrchestrationPlan {
+  mode: RoutingStrategy
+  summary: string
+  primaryProvider: AIModel
+  fallbackProviders: AIModel[]
+  estimatedPromptTokens: number
+  maxParallelLanes: number
+  tokenPolicy: AgentTokenBudget
+  lanes: AgentExecutionLane[]
+  executionGroups: AgentExecutionGroup[]
+  approvalRequired: boolean
+  approvalReasons: string[]
+  efficiencyNotes: string[]
+  safetyNotes: string[]
+}
 
 export interface ChatSession {
   id: string

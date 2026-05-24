@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { routePrompt } from '@/lib/bertos/router'
+import { buildAgentOrchestrationPlan } from '@/lib/bertos/agent-orchestrator'
+import type { AIModel, RouterDecision, RoutingStrategy, TaskType } from '@/lib/bertos/types'
 
 export const runtime = 'edge'
 
@@ -19,12 +21,18 @@ Rules:
 - Math / general chat / brainstorming → "ollama-pro"
 - IMPORTANT: Never route research, general questions, or explanation prompts to "claude-code" — that is a coding tool, not a chat model`
 
-const MODEL_TO_ALIAS: Record<string, string> = {
+const MODEL_TO_ALIAS: Record<string, AIModel> = {
   'ollama-pro':  'ollama-pro',
   'claude-code': 'claude-code',
   'codex-cli':   'codex-cli',
   'gemini-cli':  'gemini-cli',
   'gemini-api-native': 'gemini-api-native',
+}
+
+function strategyForPrompt(prompt: string): RoutingStrategy {
+  if (/\b(parallel|simultaneous|simultaneously|ask all|all agents|council|compare|best[- ]of)\b/i.test(prompt)) return 'parallel'
+  if (/\b(plan.*implement.*review|pipeline|workflow|multi[- ]step|orchestrat)\b/i.test(prompt)) return 'sequential'
+  return 'single'
 }
 
 export async function POST(req: NextRequest) {
@@ -54,19 +62,27 @@ export async function POST(req: NextRequest) {
 
       const alias = MODEL_TO_ALIAS[raw.recommendedModel ?? ''] ?? 'ollama-pro'
 
-      return NextResponse.json({
+      const decision: RouterDecision & { orchestration?: ReturnType<typeof buildAgentOrchestrationPlan> } = {
         primary: alias,
         reasoning: raw.reasoning ?? 'Routed by AI classifier.',
         confidence: raw.confidence ?? 0.85,
-        taskType: raw.taskType ?? 'general',
-        strategy: 'single',
+        taskType: (raw.taskType ?? 'general') as TaskType,
+        strategy: strategyForPrompt(prompt),
+        orchestration: undefined,
+      }
+      decision.orchestration = buildAgentOrchestrationPlan(prompt, decision)
+
+      return NextResponse.json({
+        ...decision,
         recommendedModel: raw.recommendedModel,
       })
     } catch (err) {
       const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
       const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('billing') || msg.includes('rate limit')
       if (isQuota) {
+        const decision = routePrompt(prompt, 'ollama-pro')
         return NextResponse.json({
+          ...decision,
           primary: 'ollama-pro',
           reasoning: 'OpenAI quota exceeded — routing to Ollama Pro (default subscription provider).',
           confidence: 0.9,

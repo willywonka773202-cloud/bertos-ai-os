@@ -1,4 +1,5 @@
 import type { AIModel, RouterDecision, RoutingStrategy, TaskType } from './types'
+import { buildAgentOrchestrationPlan } from './agent-orchestrator'
 
 interface RoutingRule {
   patterns: RegExp[]
@@ -12,7 +13,7 @@ interface RoutingRule {
 const ROUTING_RULES: RoutingRule[] = [
   {
     patterns: [
-      /\b(team mode|multi[- ]model|provider debate|hard task|complex task|large implementation)\b/i,
+      /\b(team mode|multi[- ]model|multi[- ]agent|multiple agents|all agents|parallel|simultaneous|simultaneously|provider debate|hard task|complex task|large implementation)\b/i,
       /\b(plan.*implement.*review|architecture.*implementation|design.*patch.*review)\b/i,
     ],
     taskType: 'analysis',
@@ -144,12 +145,16 @@ function computeConfidence(prompt: string, rule: RoutingRule | null): number {
 
 export function routePrompt(prompt: string, preferredModel: AIModel): RouterDecision {
   if (preferredModel !== 'auto') {
-    return {
+    const decision: RouterDecision = {
       primary: preferredModel,
       reasoning: `Manually routed to ${preferredModel} as selected.`,
       confidence: 1.0,
       taskType: 'general',
       strategy: 'single',
+    }
+    return {
+      ...decision,
+      orchestration: buildAgentOrchestrationPlan(prompt, decision),
     }
   }
 
@@ -157,22 +162,30 @@ export function routePrompt(prompt: string, preferredModel: AIModel): RouterDeci
   const confidence = computeConfidence(prompt, rule)
 
   if (!rule) {
-    return {
+    const decision: RouterDecision = {
       primary: 'ollama-pro',
       reasoning: 'Using Ollama first to reduce paid usage for a general task. Pick Codex, Claude, or Gemini when the mission needs implementation, review, or long planning.',
       confidence: 0.5,
       taskType: 'general',
       strategy: 'single',
     }
+    return {
+      ...decision,
+      orchestration: buildAgentOrchestrationPlan(prompt, decision),
+    }
   }
 
-  return {
+  const decision: RouterDecision = {
     primary: rule.primary,
     secondary: rule.secondary,
     reasoning: rule.reasoning,
     confidence,
     taskType,
     strategy: rule.strategy,
+  }
+  return {
+    ...decision,
+    orchestration: buildAgentOrchestrationPlan(prompt, decision),
   }
 }
 
@@ -185,6 +198,7 @@ export function getModelColor(model: string): string {
     case 'mistral':         return '#EC4899'
     case 'deepseek-coder':  return '#06B6D4'
     case 'hermes3':         return '#A855F7'
+    case 'hermes-nous':     return '#F6C453'
     case 'claude-code':     return '#8B5CF6'
     case 'gemini-cli':      return '#3B82F6'
     case 'gemini-api-native': return '#3B82F6'
@@ -206,6 +220,7 @@ export function getModelLabel(model: string): string {
     case 'mistral':         return 'Mistral'
     case 'deepseek-coder':  return 'DeepSeek Coder'
     case 'hermes3':         return 'Hermes 3'
+    case 'hermes-nous':     return 'Hermes / Nous Remote'
     case 'claude-code':     return 'Claude Code'
     case 'gemini-cli':      return 'Gemini CLI'
     case 'gemini-api-native': return 'Gemini Native API'

@@ -1,4 +1,12 @@
 import type { AIModel } from './types'
+import {
+  buildAgentOSPromptSection,
+  recommendAgentOSPatterns,
+  summarizeAgentOSPatterns,
+  type AgentOSPatternId,
+} from './agent-os-patterns'
+import { routePrompt } from './router'
+import type { AgentOrchestrationPlan } from './types'
 
 export type MissionMode = 'plan' | 'patch' | 'review' | 'team' | 'worktree'
 export type MissionProvider = 'auto' | 'ollama' | 'gemini' | 'claude' | 'codex' | 'team'
@@ -17,6 +25,9 @@ export interface CodingMission {
   validation: string[]
   doneWhen: string[]
   warnings: string[]
+  agentOSPatterns: AgentOSPatternId[]
+  agentOSPatternSummary: string[]
+  orchestrationPlan?: AgentOrchestrationPlan
   worktreeRecommended: boolean
   estimatedScope: 'small' | 'medium' | 'large'
   suggestedPrompt: string
@@ -237,6 +248,9 @@ export function compileCodingMission(prompt: string, template?: MissionTemplate)
     'npm run build',
     ...(highRisk || source.includes('Sylistly') ? ['npm run bertos:safety'] : []),
   ])
+  const agentOSPatterns = recommendAgentOSPatterns({ prompt: source, mode, risk, estimatedScope })
+  const agentOSPromptSection = buildAgentOSPromptSection(agentOSPatterns)
+  const orchestrationPlan = routePrompt(source, provider.model).orchestration
   const warnings = [
     ...(large ? ['This mission is broad. Split it into plan, implementation, and review passes if the first patch is too large.'] : []),
     ...(worktreeRecommended ? ['This should use a worktree before risky implementation on main.'] : []),
@@ -256,6 +270,9 @@ export function compileCodingMission(prompt: string, template?: MissionTemplate)
     validation,
     doneWhen: DONE_WHEN,
     warnings,
+    agentOSPatterns: agentOSPatterns.map(pattern => pattern.id),
+    agentOSPatternSummary: summarizeAgentOSPatterns(agentOSPatterns),
+    orchestrationPlan,
     worktreeRecommended,
     estimatedScope,
     providerReason: provider.reason,
@@ -273,6 +290,9 @@ export function compileCodingMission(prompt: string, template?: MissionTemplate)
       '',
       'Validation:',
       ...validation.map(command => `- ${command}`),
+      '',
+      'Agent OS execution contract:',
+      ...agentOSPromptSection,
       '',
       'Done when:',
       ...DONE_WHEN.map(item => `- ${item}`),

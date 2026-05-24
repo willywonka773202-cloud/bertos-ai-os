@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bot, Brain, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Code2, Command,
   Compass, Cpu, FlaskConical, Github, GitCompare, Hash, KanbanSquare, LayoutDashboard,
-  Library, MessageSquare, Moon, Plus, Settings, Trash2, Zap,
+  Library, MessageSquare, Moon, Plus, Settings, Sparkles, Trash2, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { getModelLabel } from '@/lib/bertos/router'
@@ -14,11 +14,13 @@ import { useProjectStore } from '@/store/bertos/projects'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { OperatorSigil, StatusOrb, XPMeter } from '@/components/bertos/hermes'
 import { getRankProgress, useProgressionStore } from '@/store/bertos/progression'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { getPrimaryAgentEngines, type AgentEngineId } from '@/lib/bertos/agent-engines'
 
 const NAV_ITEMS = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Mission', href: '/dashboard' },
   { id: 'chat', icon: MessageSquare, label: 'Oracle', href: '/chat' },
+  { id: 'hermes', icon: Sparkles, label: 'Hermes', href: '/hermes' },
   { id: 'prompts', icon: Library, label: 'Prompts', href: '/prompts' },
   { id: 'compare', icon: GitCompare, label: 'Tribunal', href: '/compare' },
   { id: 'coding', icon: Zap, label: 'Forge', href: '/coding' },
@@ -35,6 +37,20 @@ const NAV_ITEMS = [
   { id: 'autopilot', icon: Cpu, label: 'Autopilot', href: '/autopilot' },
 ] as const
 
+const ENGINE_ICONS: Record<AgentEngineId, typeof Sparkles> = {
+  bertos: Sparkles,
+  codex: Zap,
+  claude: Cpu,
+  gemini: Compass,
+  'gemini-native': Compass,
+  ollama: Bot,
+  hermes: Sparkles,
+  qwen: Bot,
+  openai: Zap,
+}
+
+const ENGINE_NAV_ITEMS = getPrimaryAgentEngines()
+
 interface SidebarProps {
   isMobile?: boolean
   onMobileClose?: () => void
@@ -46,6 +62,7 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
   const { projects, activeProjectId, setActiveProject } = useProjectStore()
   const { operatorName, xp, relayStreak } = useProgressionStore()
   const router = useRouter()
+  const pathname = usePathname()
   const [hoveredSession, setHoveredSession] = useState<string | null>(null)
   const collapsed = isMobile ? false : sidebarCollapsed
   const rank = getRankProgress(xp)
@@ -147,7 +164,7 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
               </div>
             )}
             {NAV_ITEMS.map(item => {
-              const isActive = activeView === item.id
+              const isActive = activeView === item.id || pathname === item.href || pathname.startsWith(`${item.href}/`) || (item.id === 'coding' && pathname === '/builder')
               return (
                 <button
                   key={item.id}
@@ -164,6 +181,42 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
                   <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-[#D4B483]')} />
                   {!collapsed && <span className="text-xs font-medium">{item.label}</span>}
                   {isActive && !collapsed && <span className="ml-auto h-1 w-1 rotate-45 bg-[#D4B483] shadow-[0_0_8px_rgba(212,180,131,0.80)]" />}
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="space-y-0.5">
+            {!collapsed && (
+              <div className="flex items-center gap-2 px-2 pb-1.5 pt-1">
+                <span className="block h-px flex-1 bg-[rgba(212,180,131,0.18)]" />
+                <p className="text-[9px] font-semibold uppercase tracking-[0.32em] text-[rgba(212,180,131,0.50)]">Engines</p>
+                <span className="block h-px flex-1 bg-[rgba(212,180,131,0.18)]" />
+              </div>
+            )}
+            {ENGINE_NAV_ITEMS.map(engine => {
+              const EngineIcon = ENGINE_ICONS[engine.id]
+              const isActive = pathname === engine.route || pathname.startsWith(`${engine.route}/`)
+              return (
+                <button
+                  key={engine.id}
+                  title={engine.label}
+                  onClick={() => {
+                    setActiveView('agents')
+                    router.push(engine.route)
+                    onMobileClose?.()
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition',
+                    isActive
+                      ? 'bg-cyan-300/10 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.22)]'
+                      : 'text-[#6A5A3A] hover:bg-cyan-300/5 hover:text-cyan-100',
+                    collapsed && 'justify-center',
+                  )}
+                >
+                  <EngineIcon className={cn('h-3.5 w-3.5 shrink-0', isActive && 'text-cyan-100')} />
+                  {!collapsed && <span className="text-xs font-medium">{engine.shortLabel}</span>}
+                  {engine.paidGated && !collapsed && <span className="ml-auto rounded border border-amber-500/20 px-1 py-0.5 text-[8px] uppercase text-amber-300">paid</span>}
                 </button>
               )
             })}
@@ -225,7 +278,7 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
         <button
           title="Settings"
           onClick={() => { setActiveView('settings'); router.push('/settings'); onMobileClose?.() }}
-          className={cn('flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-xs transition', activeView === 'settings' ? 'bg-cyan-300/10 text-cyan-100' : 'text-zinc-500 hover:bg-white/5 hover:text-cyan-100', collapsed && 'justify-center')}
+          className={cn('flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-xs transition', activeView === 'settings' || pathname === '/settings' || pathname.startsWith('/settings/') ? 'bg-cyan-300/10 text-cyan-100' : 'text-zinc-500 hover:bg-white/5 hover:text-cyan-100', collapsed && 'justify-center')}
         >
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && <span>Settings</span>}

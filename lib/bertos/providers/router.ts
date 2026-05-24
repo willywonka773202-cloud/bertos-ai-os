@@ -113,6 +113,7 @@ export async function askWithProviderRouter(
 
   const byId = new Map(statuses.map(status => [status.providerId, status]))
   const decision = routePrompt(prompt, preferred)
+  const orchestration = decision.orchestration
   const fallbackOrder: ProviderId[] = routerMode === 'patch'
     ? ['codex-cli', 'claude-code', 'ollama-pro', 'gemini-cli']
     : ['gemini-api-native', 'codex-cli', 'claude-code', 'gemini-cli', 'ollama-pro']
@@ -141,7 +142,12 @@ export async function askWithProviderRouter(
       continue
     }
 
-    const result = await PROVIDERS[providerId].ask(prompt, options)
+    const laneBudget = orchestration?.lanes.find(lane => lane.provider === providerId)?.budget
+    const maxTokens = Math.min(
+      options.maxTokens ?? laneBudget?.maxOutputTokens ?? orchestration?.tokenPolicy.maxOutputTokens ?? 4096,
+      laneBudget?.maxOutputTokens ?? orchestration?.tokenPolicy.maxOutputTokens ?? 4096,
+    )
+    const result = await PROVIDERS[providerId].ask(prompt, { ...options, maxTokens })
     if (result.ok) {
       return {
         ...result,
@@ -152,6 +158,7 @@ export async function askWithProviderRouter(
         inventoryShortcutUsed: false,
         selectedProvider: providerId,
         attemptedProviders,
+        orchestration,
       }
     }
     errors.push(`${providerId}: ${result.error}`)
@@ -171,6 +178,7 @@ export async function askWithProviderRouter(
     inventoryShortcutUsed: false,
     selectedProvider: String(ordered[0] ?? decision.primary),
     attemptedProviders,
+    orchestration,
     error: `All verified providers failed or were unavailable. ${errors.join(' | ')}`,
   }
 }
