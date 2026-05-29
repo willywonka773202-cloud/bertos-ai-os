@@ -1,17 +1,17 @@
-import { askLocalDaemon, fetchLocalDaemonStatus } from '../local-daemon'
+import { askLocalDaemon, deriveCliProviderOnline, fetchLocalDaemonStatus } from '../local-daemon'
 import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 export async function status(): Promise<ProviderStatusResult> {
   const daemon = await fetchLocalDaemonStatus()
   const tool = daemon.tools.find(item => item.id === 'codex-cli')
-  const available = Boolean(daemon.online && tool?.installed && tool.loginStatus === 'available')
+  const { online, error } = deriveCliProviderOnline(tool, daemon.online)
   return {
-    ok: available,
+    ok: online,
     providerId: 'codex-cli',
     providerName: 'Codex CLI',
     modelOrTool: tool?.resolvedPath ?? 'codex',
-    online: available,
-    error: tool?.error ?? daemon.error,
+    online,
+    error: error ?? daemon.error,
     detail: tool,
   }
 }

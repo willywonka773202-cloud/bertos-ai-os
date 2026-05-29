@@ -95,6 +95,32 @@ export const LOCAL_CLI_TOOLS: Record<
   },
 }
 
+/**
+ * Decide whether an installed CLI tool is usable as a provider.
+ *
+ * The daemon only marks a tool `loginStatus: 'available'` AFTER a successful ask, so a
+ * freshly-started daemon reports installed+logged-in CLIs as `'unknown'`. Treat
+ * installed + (available|unknown) as usable so the first prompt/Test can run and confirm
+ * (the daemon then caches the real state). A genuine auth failure is cached as `'error'`,
+ * which correctly flips the provider back to offline with a clear message.
+ */
+export function deriveCliProviderOnline(
+  tool: LocalCliToolStatus | undefined,
+  daemonOnline: boolean,
+): { online: boolean; error?: string } {
+  if (!daemonOnline) {
+    return { online: false, error: 'Local CLI bridge is offline. Start it with npm run bertos:daemon.' }
+  }
+  if (!tool?.installed) {
+    return { online: false, error: tool?.error ?? `${tool?.executable ?? 'CLI'} is not installed.` }
+  }
+  if (tool.loginStatus === 'error' || tool.loginStatus === 'missing') {
+    return { online: false, error: tool.error ?? tool.troubleshooting ?? `${tool.executable} appears to need login. Run its login command, then test again.` }
+  }
+  // 'available' or 'unknown' → usable; the first ask verifies (and self-corrects if not logged in).
+  return { online: true }
+}
+
 export function getLocalDaemonBaseUrl(): string {
   const host = process.env.BERTOS_DAEMON_HOST || '127.0.0.1'
   const port = process.env.BERTOS_DAEMON_PORT || '8787'
