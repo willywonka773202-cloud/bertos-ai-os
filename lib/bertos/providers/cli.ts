@@ -5,6 +5,7 @@ export const CLI_COMMANDS: Record<ProviderId, string | undefined> = {
   'claude-code': 'claude',
   'gemini-cli':  'gemini',
   'codex-cli':   'codex',
+  'openclaw-cli': 'openclaw',
   'ollama':      undefined,
   'claude-api':  undefined,
   'openai-api':  undefined,
@@ -26,5 +27,9 @@ export const CLI_SETUP: Record<string, { install: string; login: string }> = {
   'codex-cli': {
     install: 'npm install -g @openai/codex',
     login:   'codex login',
+  },
+  'openclaw-cli': {
+    install: 'npm install -g openclaw@latest',
+    login:   'openclaw onboard --install-daemon',
   },
 }

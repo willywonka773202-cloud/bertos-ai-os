@@ -22,8 +22,8 @@ export function PlaybooksView() {
   }
 
   return (
-    <div className="flex h-full">
-      <aside className="hidden w-72 shrink-0 border-r border-zinc-800/50 bg-zinc-950/70 md:block">
+    <div className="flex h-full min-h-0">
+      <aside className="hidden min-h-0 w-72 shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950/70 md:flex">
         <div className="border-b border-zinc-800/50 p-4">
           <div className="flex items-center gap-2">
             <ClipboardList className="h-4 w-4 text-violet-400" />
@@ -31,7 +31,7 @@ export function PlaybooksView() {
           </div>
           <p className="mt-1 text-xs text-zinc-600">Safe auto-triage foundations and copyable workflows.</p>
         </div>
-        <ScrollArea className="h-[calc(100%-73px)]">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-2 p-3">
             {PLAYBOOK_TEMPLATES.map(playbook => (
               <button
@@ -54,8 +54,8 @@ export function PlaybooksView() {
         </ScrollArea>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-hidden">
-        <ScrollArea className="h-full">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <ScrollArea className="h-full min-h-0">
           <div className="mx-auto max-w-4xl space-y-5 p-6">
             <RouteHero
               eyebrow="tactical playbooks"

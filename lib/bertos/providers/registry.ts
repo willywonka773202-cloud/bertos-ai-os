@@ -50,6 +50,19 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
     models: ['codex'],
     color: '#10B981',
   },
+  'openclaw-cli': {
+    id: 'openclaw-cli',
+    name: 'OpenClaw',
+    kind: 'cli-subscription',
+    billingMode: 'local',
+    defaultModel: 'openclaw',
+    description: 'Local OpenClaw assistant bridge. Best when launched/configured through Ollama or OpenClaw onboard, then called through the BertOS desktop daemon.',
+    setupCommand: 'ollama launch openclaw --config, or npm install -g openclaw@latest && openclaw onboard --install-daemon',
+    docsUrl: 'https://docs.ollama.com/integrations/openclaw',
+    models: ['openclaw', 'openclaw+ollama'],
+    color: '#EF4444',
+    capabilities: ['local-agent', 'ollama-backed', 'messaging-gateway', 'tool-orchestration', 'desktop-daemon'],
+  },
   'claude-api': {
     id: 'claude-api',
     name: 'Anthropic API',
@@ -106,22 +119,22 @@ export const PROVIDER_REGISTRY: Record<ProviderId, ProviderDefinition> = {
   },
   'hermes-nous': {
     id: 'hermes-nous',
-    name: 'Hermes / Nous Remote',
-    kind: 'api-paid',
-    billingMode: 'api-paid',
+    name: 'Hermes Agent',
+    kind: 'api-native',
+    billingMode: 'local',
     defaultModel: 'hermes-agent',
-    description: 'Hostinger VPS Hermes Agent connector using the OpenAI-compatible Hermes API server.',
-    billingWarning: 'Paid model/tool credits may be used by the remote Hermes Agent. BertOS will not auto-route to Hermes unless ENABLE_HERMES_PAID=true and the provider is manually selected or explicitly requested.',
-    setupCommand: 'Enable API_SERVER_ENABLED=true and API_SERVER_KEY on Hostinger Hermes, expose /v1 over HTTPS, then set HERMES_API_URL, HERMES_API_KEY, and ENABLE_HERMES_PAID=true in BertOS.',
-    docsUrl: 'https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server',
+    description: 'Server-side OpenAI-compatible Hermes Agent connector for Hostinger VPS, local Ollama-backed Hermes, or a custom free endpoint.',
+    billingWarning: 'BertOS does not require OpenAI, Anthropic, Claude, or paid OpenRouter keys for Hermes. Any model cost depends on the Hermes backend you configure.',
+    setupCommand: 'Set HERMES_ENABLED=true, HERMES_BASE_URL=http://127.0.0.1:8642/v1 or HTTPS /v1 endpoint, HERMES_API_KEY, and HERMES_MODEL=hermes-agent server-side.',
+    docsUrl: 'https://www.hostinger.com/support/how-to-get-started-with-hermes-agent-at-hostinger/',
     models: ['hermes-agent'],
     color: '#A855F7',
-    capabilities: ['chat', 'openai-compatible-api', 'remote-agent', 'hostinger-vps', 'manual-paid-routing'],
-    requiredEnvVars: ['HERMES_API_URL', 'HERMES_API_KEY', 'ENABLE_HERMES_PAID'],
+    capabilities: ['chat', 'openai-compatible-api', 'remote-agent', 'hostinger-vps', 'ollama-local-backend', 'custom-endpoint'],
+    requiredEnvVars: ['HERMES_ENABLED', 'HERMES_BASE_URL', 'HERMES_API_KEY'],
   },
 }
 
-export const SUBSCRIPTION_PROVIDERS: ProviderId[] = ['ollama', 'claude-code', 'gemini-cli', 'codex-cli']
+export const SUBSCRIPTION_PROVIDERS: ProviderId[] = ['ollama', 'claude-code', 'gemini-cli', 'codex-cli', 'openclaw-cli']
 export const API_PROVIDERS: ProviderId[] = ['claude-api', 'openai-api', 'gemini-api', 'gemini-api-native', 'hermes-nous']
 export const DEFAULT_PROVIDER: ProviderId = 'ollama'
 export const DEFAULT_PROVIDER_MODEL = 'gpt-oss:120b-cloud'

@@ -25,7 +25,7 @@ const STEPS = [
           <Zap className="w-8 h-8 text-white" />
         </div>
         {[
-          { icon: <Cpu className="w-4 h-4" />, color: '#8B5CF6', x: -80, y: -30, label: 'Claude' },
+          { icon: <Cpu className="w-4 h-4" />, color: '#D97757', x: -80, y: -30, label: 'Claude' },
           { icon: <Zap className="w-4 h-4" />, color: '#10B981', x: 80, y: -30, label: 'Codex' },
           { icon: <Globe className="w-4 h-4" />, color: '#3B82F6', x: 0, y: 70, label: 'Gemini' },
         ].map((node, i) => (
@@ -59,7 +59,7 @@ const STEPS = [
         {[
           { prompt: 'Fix this TypeScript error', model: 'Codex', color: '#10B981', confidence: 94, icon: <Zap className="w-3 h-3" /> },
           { prompt: 'Summarize this research paper', model: 'Gemini', color: '#3B82F6', confidence: 87, icon: <Globe className="w-3 h-3" /> },
-          { prompt: 'Write a compelling pitch deck', model: 'Claude', color: '#8B5CF6', confidence: 91, icon: <Cpu className="w-3 h-3" /> },
+          { prompt: 'Write a compelling pitch deck', model: 'Claude', color: '#D97757', confidence: 91, icon: <Cpu className="w-3 h-3" /> },
         ].map((item, i) => (
           <motion.div
             key={i}

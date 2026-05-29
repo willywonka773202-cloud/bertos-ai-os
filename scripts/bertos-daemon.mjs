@@ -2,7 +2,15 @@
 import http from 'node:http'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdir, appendFile, readdir, readFile, writeFile, rm, stat } from 'node:fs/promises'
+import {
+  mkdir,
+  appendFile,
+  readdir,
+  readFile,
+  writeFile,
+  rm,
+  stat,
+} from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
 
@@ -16,22 +24,62 @@ const LOG_DIR = path.join(REPO_ROOT, 'logs')
 const LOG_FILE = path.join(LOG_DIR, 'bertos-daemon.log')
 const TOOL_VERIFICATION_FILE = path.join(LOG_DIR, 'tool-verification.json')
 const MAX_OUTPUT = 1024 * 1024 * 20
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://bertos-ai-os.vercel.app',
+]
+const EXTRA_ALLOWED_ORIGINS = String(
+  process.env.BERTOS_DAEMON_ALLOWED_ORIGINS || '',
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+const ALLOWED_ORIGINS = new Set([
+  ...DEFAULT_ALLOWED_ORIGINS,
+  ...EXTRA_ALLOWED_ORIGINS,
+])
+const DAEMON_TOKEN =
+  process.env.BERTOS_DAEMON_TOKEN || process.env.BERTOS_AGENT_SECRET || ''
+const OPENCLAW_AGENT_ID = process.env.OPENCLAW_AGENT_ID || 'main'
+const OPENCLAW_SESSION_KEY = process.env.OPENCLAW_SESSION_KEY || 'bertos'
+const OPENCLAW_THINKING_LEVEL = process.env.OPENCLAW_THINKING_LEVEL || 'off'
 const EXTRA_PATHS = [
   '/Applications/Codex.app/Contents/Resources',
+  '/opt/homebrew/opt/node@22/bin',
   '/opt/homebrew/bin',
   '/opt/homebrew/sbin',
+  '/usr/local/opt/node@22/bin',
   '/usr/local/bin',
   path.join(process.env.HOME || '', '.local/bin'),
   path.join(process.env.HOME || '', '.opencode/bin'),
 ].filter(Boolean)
 
 const CLI_TOOLS = {
-  'claude-code': { id: 'claude-code', label: 'Claude Code', executable: 'claude' },
+  'claude-code': {
+    id: 'claude-code',
+    label: 'Claude Code',
+    executable: 'claude',
+  },
   'codex-cli': { id: 'codex-cli', label: 'Codex CLI', executable: 'codex' },
   'gemini-cli': { id: 'gemini-cli', label: 'Gemini CLI', executable: 'gemini' },
+  'openclaw-cli': {
+    id: 'openclaw-cli',
+    label: 'OpenClaw',
+    executable: 'openclaw',
+  },
 }
 
-const ALLOWED_EXECUTABLES = new Set(['claude', 'codex', 'gemini', 'git', 'npm', 'node', 'pnpm'])
+const ALLOWED_EXECUTABLES = new Set([
+  'claude',
+  'codex',
+  'gemini',
+  'openclaw',
+  'git',
+  'npm',
+  'node',
+  'pnpm',
+])
 const DANGEROUS_PATTERNS = [
   /\brm\s+-rf\b/i,
   /\bremove-item\b/i,
@@ -52,8 +100,28 @@ const DANGEROUS_PATTERNS = [
   /\bsecret\b/i,
   /\.env(\.|$)/i,
 ]
-const IGNORE_DIRS = new Set(['.git', '.next', 'node_modules', 'dist', 'coverage', '.turbo'])
-const SEARCH_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.md', '.mdx', '.css', '.scss', '.html'])
+const IGNORE_DIRS = new Set([
+  '.git',
+  '.next',
+  'node_modules',
+  'dist',
+  'coverage',
+  '.turbo',
+])
+const SEARCH_EXTENSIONS = new Set([
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.json',
+  '.md',
+  '.mdx',
+  '.css',
+  '.scss',
+  '.html',
+])
 const PROTECTED_FILE_NAMES = new Set([
   '.env',
   '.env.local',
@@ -85,6 +153,12 @@ function consoleLog(message) {
   console.log(`[${nowIso()}] ${message}`)
 }
 
+function truncateText(value, maxLength = 1200) {
+  const text = String(value || '')
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength).trimEnd()}\n...[truncated ${text.length - maxLength} chars by BertOS daemon status]`
+}
+
 async function logCommand(entry) {
   const record = { timestamp: nowIso(), ...entry }
   logs.push(record)
@@ -94,19 +168,42 @@ async function logCommand(entry) {
 }
 
 function json(res, status, payload) {
+  const origin = res.bertosOrigin || res.req?.headers?.origin
+  const allowedOrigin = allowedCorsOrigin(origin)
   res.writeHead(status, {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-store',
-    'Access-Control-Allow-Origin': 'http://localhost:3000',
+    ...(allowedOrigin
+      ? { 'Access-Control-Allow-Origin': allowedOrigin, Vary: 'Origin' }
+      : {}),
     'Access-Control-Allow-Headers': 'content-type,x-bertos-agent-secret',
     'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
   })
   res.end(JSON.stringify(payload, null, 2))
 }
 
+function allowedCorsOrigin(origin) {
+  if (!origin) return 'http://localhost:3000'
+  if (ALLOWED_ORIGINS.has(origin)) return origin
+  if (/^https:\/\/bertos-ai-[a-z0-9-]+\.vercel\.app$/i.test(origin))
+    return origin
+  return ''
+}
+
+function authorizeDaemonRequest(req) {
+  if (!DAEMON_TOKEN) return null
+  const supplied = String(req.headers['x-bertos-agent-secret'] || '').trim()
+  if (supplied === DAEMON_TOKEN) return null
+  return 'Daemon token is required. Set BERTOS_DAEMON_TOKEN when starting the daemon and save the same token in BertOS Settings.'
+}
+
 function statusForDaemonError(error) {
   const message = error instanceof Error ? error.message : String(error)
-  if (/invalid path|outside the BertOS repo|ignored directory|protected|blocked by the daemon|only files can be deleted|requires confirm/i.test(message)) {
+  if (
+    /invalid path|outside the BertOS repo|ignored directory|protected|blocked by the daemon|only files can be deleted|requires confirm/i.test(
+      message,
+    )
+  ) {
     return 400
   }
   return 500
@@ -115,7 +212,7 @@ function statusForDaemonError(error) {
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let body = ''
-    req.on('data', chunk => {
+    req.on('data', (chunk) => {
       body += chunk
       if (body.length > 1024 * 1024) {
         reject(new Error('Request body is too large.'))
@@ -135,7 +232,10 @@ function readJson(req) {
 }
 
 function normalizeExecutable(value) {
-  return String(value || '').trim().toLowerCase().replace(/\.(cmd|exe)$/i, '')
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\.(cmd|exe)$/i, '')
 }
 
 function isInsideRepo(target) {
@@ -148,7 +248,7 @@ function safeRelativePath(value) {
   if (!raw || raw.includes('\0')) throw new Error('Invalid path.')
   if (!isInsideRepo(raw)) throw new Error('Path is outside the BertOS repo.')
   const parts = raw.split(/[\\/]+/)
-  if (parts.some(part => IGNORE_DIRS.has(part))) {
+  if (parts.some((part) => IGNORE_DIRS.has(part))) {
     throw new Error('Path is inside an ignored directory.')
   }
   return raw
@@ -158,11 +258,15 @@ function safeWritableFilePath(value) {
   const rel = safeRelativePath(value)
   const base = path.basename(rel).toLowerCase()
   if (PROTECTED_FILE_NAMES.has(base)) {
-    throw new Error(`${rel} is protected and cannot be written or deleted by the daemon.`)
+    throw new Error(
+      `${rel} is protected and cannot be written or deleted by the daemon.`,
+    )
   }
   for (const pattern of PROTECTED_PATH_PATTERNS) {
     if (pattern.test(rel)) {
-      throw new Error(`${rel} is blocked by the daemon secret/config safety policy.`)
+      throw new Error(
+        `${rel} is blocked by the daemon secret/config safety policy.`,
+      )
     }
   }
   return rel
@@ -171,22 +275,46 @@ function safeWritableFilePath(value) {
 function isSafeCommand(executable, args = []) {
   const exe = normalizeExecutable(executable)
   if (!ALLOWED_EXECUTABLES.has(exe)) {
-    return { safe: false, reason: `${exe || 'empty command'} is not allowlisted.` }
+    return {
+      safe: false,
+      reason: `${exe || 'empty command'} is not allowlisted.`,
+    }
   }
 
   const joined = [exe, ...args.map(String)].join(' ')
   for (const pattern of DANGEROUS_PATTERNS) {
     if (pattern.test(joined)) {
-      return { safe: false, reason: `Command blocked by safety rule: ${pattern}` }
+      return {
+        safe: false,
+        reason: `Command blocked by safety rule: ${pattern}`,
+      }
     }
   }
 
-  if ((exe === 'npm' || exe === 'pnpm') && args[0] && !['run', 'test', 'exec', 'install', '--version', '-v'].includes(String(args[0]))) {
-    return { safe: false, reason: `${exe} is limited to run/test/exec/install/version commands.` }
+  if (
+    (exe === 'npm' || exe === 'pnpm') &&
+    args[0] &&
+    !['run', 'test', 'exec', 'install', '--version', '-v'].includes(
+      String(args[0]),
+    )
+  ) {
+    return {
+      safe: false,
+      reason: `${exe} is limited to run/test/exec/install/version commands.`,
+    }
   }
 
-  if (exe === 'git' && args[0] && ['clean', 'reset', 'checkout', 'switch', 'branch', 'push'].includes(String(args[0]))) {
-    return { safe: false, reason: `git ${args[0]} is blocked by the local daemon. Run it manually if you intend to mutate git state.` }
+  if (
+    exe === 'git' &&
+    args[0] &&
+    ['clean', 'reset', 'checkout', 'switch', 'branch', 'push'].includes(
+      String(args[0]),
+    )
+  ) {
+    return {
+      safe: false,
+      reason: `git ${args[0]} is blocked by the local daemon. Run it manually if you intend to mutate git state.`,
+    }
   }
 
   return { safe: true }
@@ -219,10 +347,20 @@ async function whereExecutable(executable) {
   const exe = normalizeExecutable(executable)
   if (process.platform !== 'win32') {
     try {
-      const { stdout } = await execRaw('/usr/bin/env', ['bash', '-lc', `command -v ${exe}`], { timeoutMs: 5000 })
+      const { stdout } = await execRaw(
+        '/usr/bin/env',
+        ['bash', '-lc', `command -v ${exe}`],
+        { timeoutMs: 5000 },
+      )
       const resolvedPath = stdout.trim().split(/\r?\n/).find(Boolean)
-      if (!resolvedPath) throw new Error(`No executable path returned for ${exe}.`)
-      return { command: resolvedPath, resolvedPath, viaCmd: false, candidates: [resolvedPath] }
+      if (!resolvedPath)
+        throw new Error(`No executable path returned for ${exe}.`)
+      return {
+        command: resolvedPath,
+        resolvedPath,
+        viaCmd: false,
+        candidates: [resolvedPath],
+      }
     } catch (error) {
       return {
         command: exe,
@@ -238,11 +376,12 @@ async function whereExecutable(executable) {
     const { stdout } = await execRaw('where.exe', [exe], { timeoutMs: 5000 })
     const candidates = stdout
       .split(/\r?\n/)
-      .map(line => line.trim())
+      .map((line) => line.trim())
       .filter(Boolean)
-    const preferred = candidates.find(item => /\.cmd$/i.test(item))
-      || candidates.find(item => /\.exe$/i.test(item))
-      || candidates[0]
+    const preferred =
+      candidates.find((item) => /\.cmd$/i.test(item)) ||
+      candidates.find((item) => /\.exe$/i.test(item)) ||
+      candidates[0]
     if (!preferred) throw new Error('No executable path returned by where.exe.')
     return {
       command: preferred,
@@ -261,12 +400,20 @@ async function whereExecutable(executable) {
   }
 }
 
-async function runResolvedCommand({ executable, args = [], input = '', cwd = REPO_ROOT, timeoutMs = 120000 }) {
+async function runResolvedCommand({
+  executable,
+  args = [],
+  input = '',
+  cwd = REPO_ROOT,
+  timeoutMs = 120000,
+}) {
   const exe = normalizeExecutable(executable)
   const safe = isSafeCommand(exe, args)
   const started = Date.now()
   const resolved = await whereExecutable(exe)
-  const safeCwd = isInsideRepo(path.relative(REPO_ROOT, path.resolve(cwd))) ? path.resolve(cwd) : REPO_ROOT
+  const safeCwd = isInsideRepo(path.relative(REPO_ROOT, path.resolve(cwd)))
+    ? path.resolve(cwd)
+    : REPO_ROOT
 
   await logCommand({
     type: 'run-cli',
@@ -304,11 +451,12 @@ async function runResolvedCommand({ executable, args = [], input = '', cwd = REP
       exitCode: null,
       durationMs: Date.now() - started,
       error: `Could not resolve ${exe} on PATH. ${resolved.error}`,
-      troubleshooting: 'On Windows, confirm where.exe can find the command and restart the daemon from a normal PowerShell session.',
+      troubleshooting:
+        'On Windows, confirm where.exe can find the command and restart the daemon from a normal PowerShell session.',
     }
   }
 
-  const command = resolved.viaCmd ? 'cmd.exe' : (resolved.resolvedPath || exe)
+  const command = resolved.viaCmd ? 'cmd.exe' : resolved.resolvedPath || exe
   const finalArgs = resolved.viaCmd
     ? ['/d', '/c', 'call', resolved.resolvedPath, ...args.map(String)]
     : args.map(String)
@@ -366,8 +514,10 @@ function explainSpawnFailure(message, exe) {
       ? `${exe} was found but Windows blocked execution. Prefer the .cmd shim, restart PowerShell normally, or check antivirus/App Execution Alias settings.`
       : `${exe} was found but macOS blocked execution. Check permissions and restart the daemon from a normal shell.`
   }
-  if (/timed out/i.test(message)) return `${exe} timed out. Confirm the CLI is logged in and can answer non-interactively.`
-  if (/auth|login|sign in/i.test(message)) return `${exe} appears to need login. Run the CLI login command manually in PowerShell.`
+  if (/timed out/i.test(message))
+    return `${exe} timed out. Confirm the CLI is logged in and can answer non-interactively.`
+  if (/auth|login|sign in/i.test(message))
+    return `${exe} appears to need login. Run the CLI login command manually in PowerShell.`
   return undefined
 }
 
@@ -377,6 +527,9 @@ function providerSetupHint(providerId) {
   }
   if (providerId === 'gemini-cli') {
     return 'Gemini CLI is installed, but BertOS has not verified a non-interactive Gemini reply yet. Run gemini in Terminal, choose an auth method, then send a Gemini test prompt from BertOS.'
+  }
+  if (providerId === 'openclaw-cli') {
+    return 'OpenClaw is installed, but BertOS has not verified a non-interactive OpenClaw reply yet. Run ollama launch openclaw --config or openclaw onboard --install-daemon, then send an OpenClaw test prompt from BertOS.'
   }
   return 'CLI is installed, but BertOS has not verified a non-interactive reply yet.'
 }
@@ -389,15 +542,21 @@ async function loadToolVerificationCache() {
     const parsed = JSON.parse(raw)
     if (!parsed || typeof parsed !== 'object') return
     for (const [providerId, value] of Object.entries(parsed)) {
-      if (!CLI_TOOLS[providerId] || !value || typeof value !== 'object') continue
-      const status = value.loginStatus === 'available' || value.loginStatus === 'error'
-        ? value.loginStatus
-        : 'unknown'
+      if (!CLI_TOOLS[providerId] || !value || typeof value !== 'object')
+        continue
+      const status =
+        value.loginStatus === 'available' || value.loginStatus === 'error'
+          ? value.loginStatus
+          : 'unknown'
       toolVerificationCache.set(providerId, {
         loginStatus: status,
-        checkedAt: typeof value.checkedAt === 'string' ? value.checkedAt : undefined,
+        checkedAt:
+          typeof value.checkedAt === 'string' ? value.checkedAt : undefined,
         error: typeof value.error === 'string' ? value.error : undefined,
-        troubleshooting: typeof value.troubleshooting === 'string' ? value.troubleshooting : undefined,
+        troubleshooting:
+          typeof value.troubleshooting === 'string'
+            ? value.troubleshooting
+            : undefined,
       })
     }
   } catch {
@@ -408,23 +567,44 @@ async function loadToolVerificationCache() {
 async function persistToolVerificationCache() {
   await mkdir(LOG_DIR, { recursive: true })
   const payload = Object.fromEntries(toolVerificationCache.entries())
-  await writeFile(TOOL_VERIFICATION_FILE, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+  await writeFile(
+    TOOL_VERIFICATION_FILE,
+    `${JSON.stringify(payload, null, 2)}\n`,
+    'utf8',
+  )
 }
 
 async function rememberToolVerification(providerId, result) {
   if (!CLI_TOOLS[providerId]) return
   const message = result.ok
     ? undefined
-    : result.error || result.stderr || result.stdout || `${CLI_TOOLS[providerId].label} could not answer from BertOS.`
+    : result.stdout ||
+      result.stderr ||
+      result.error ||
+      `${CLI_TOOLS[providerId].label} could not answer from BertOS.`
   toolVerificationCache.set(providerId, {
     loginStatus: result.ok ? 'available' : 'error',
     checkedAt: new Date().toISOString(),
-    error: message,
-    troubleshooting: result.troubleshooting,
+    error: truncateText(message, 1600),
+    troubleshooting: truncateText(result.troubleshooting, 800),
   })
   toolsCache = null
   toolsCacheAt = 0
   await persistToolVerificationCache().catch(() => null)
+}
+
+function normalizeAskResult(providerId, result) {
+  if (providerId !== 'openclaw-cli') return result
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`
+  const failure = output.match(
+    /(Context overflow:[^\n]*|GatewayClientRequestError:[^\n]*|Error: No target session selected[^\n]*|Thinking level "[^"]+" is not supported[^\n]*)/i,
+  )
+  if (!failure) return result
+  return {
+    ...result,
+    ok: false,
+    error: truncateText(failure[0], 1600),
+  }
 }
 
 function buildPatchModePrompt(providerId, prompt) {
@@ -467,12 +647,44 @@ function buildPatchModePrompt(providerId, prompt) {
 
 function buildAskCommand(providerId, prompt, mode = 'chat') {
   const normalized = String(providerId || 'codex-cli')
-  if (!CLI_TOOLS[normalized]) throw new Error(`Unsupported CLI provider: ${providerId}`)
-  const finalPrompt = mode === 'patch' ? buildPatchModePrompt(normalized, prompt) : prompt
+  if (!CLI_TOOLS[normalized])
+    throw new Error(`Unsupported CLI provider: ${providerId}`)
+  const finalPrompt =
+    mode === 'patch' ? buildPatchModePrompt(normalized, prompt) : prompt
 
-  if (normalized === 'claude-code') return { providerId: normalized, executable: 'claude', args: ['-p', finalPrompt] }
-  if (normalized === 'gemini-cli') return { providerId: normalized, executable: 'gemini', args: ['-p', finalPrompt] }
-  return { providerId: normalized, executable: 'codex', args: ['exec', finalPrompt] }
+  if (normalized === 'claude-code')
+    return {
+      providerId: normalized,
+      executable: 'claude',
+      args: ['-p', finalPrompt],
+    }
+  if (normalized === 'gemini-cli')
+    return {
+      providerId: normalized,
+      executable: 'gemini',
+      args: ['-p', finalPrompt],
+    }
+  if (normalized === 'openclaw-cli')
+    return {
+      providerId: normalized,
+      executable: 'openclaw',
+      args: [
+        'agent',
+        '--agent',
+        OPENCLAW_AGENT_ID,
+        '--session-key',
+        OPENCLAW_SESSION_KEY,
+        '--message',
+        finalPrompt,
+        '--thinking',
+        OPENCLAW_THINKING_LEVEL,
+      ],
+    }
+  return {
+    providerId: normalized,
+    executable: 'codex',
+    args: ['exec', finalPrompt],
+  }
 }
 
 async function detectTool(tool, options = {}) {
@@ -482,44 +694,64 @@ async function detectTool(tool, options = {}) {
   const shouldVerifyVersion = Boolean(options.verifyVersion)
   const result = shouldVerifyVersion
     ? await runResolvedCommand({
-      executable: tool.executable,
-      args: ['--version'],
-      timeoutMs: 3000,
-    })
+        executable: tool.executable,
+        args: ['--version'],
+        timeoutMs: 3000,
+      })
     : null
   const versionStatus = result?.ok
-    ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id) ? 'available' : 'unknown'
+    ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id)
+      ? 'available'
+      : 'unknown'
     : installed
-      ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id) ? 'available' : 'unknown'
+      ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id)
+        ? 'available'
+        : 'unknown'
       : 'missing'
-  const needsAskVerification = installed && result?.ok && ASK_VERIFIED_CLI_TOOLS.has(tool.id) && !verification
+  const needsAskVerification =
+    installed &&
+    result?.ok &&
+    ASK_VERIFIED_CLI_TOOLS.has(tool.id) &&
+    !verification
   return {
     ...tool,
     installed,
     resolvedPath: resolved.resolvedPath,
     candidates: resolved.candidates,
-    version: result?.ok ? result.stdout.trim() || result.stderr.trim() : undefined,
+    version: result?.ok
+      ? result.stdout.trim() || result.stderr.trim()
+      : undefined,
     loginStatus: verification?.loginStatus ?? versionStatus,
     lastVerifiedAt: verification?.checkedAt,
-    error: verification?.error
-      ?? (needsAskVerification ? providerSetupHint(tool.id) : undefined)
-      ?? (result && !result.ok ? result.error || result.stderr : undefined)
-      ?? (!installed ? resolved.error || 'Not found on PATH.' : undefined),
-    troubleshooting: verification?.troubleshooting ?? result?.troubleshooting,
+    error: truncateText(
+      verification?.error ??
+        (needsAskVerification ? providerSetupHint(tool.id) : undefined) ??
+        (result && !result.ok ? result.error || result.stderr : undefined) ??
+        (!installed ? resolved.error || 'Not found on PATH.' : undefined),
+    ),
+    troubleshooting: truncateText(
+      verification?.troubleshooting ?? result?.troubleshooting,
+      800,
+    ),
   }
 }
 
 async function detectTools(options = {}) {
   if (toolsCache && Date.now() - toolsCacheAt < 10_000) return toolsCache
   await loadToolVerificationCache()
-  toolsCache = await Promise.all(Object.values(CLI_TOOLS).map(tool => detectTool(tool, options)))
+  toolsCache = await Promise.all(
+    Object.values(CLI_TOOLS).map((tool) => detectTool(tool, options)),
+  )
   toolsCacheAt = Date.now()
   return toolsCache
 }
 
 async function gitOutput(args) {
   try {
-    const { stdout } = await execRaw('git', args, { cwd: REPO_ROOT, timeoutMs: 10000 })
+    const { stdout } = await execRaw('git', args, {
+      cwd: REPO_ROOT,
+      timeoutMs: 10000,
+    })
     return stdout.trim()
   } catch {
     return ''
@@ -533,12 +765,15 @@ async function repoStatus() {
   const root = await gitOutput(['rev-parse', '--show-toplevel'])
   let packageName = ''
   try {
-    const pkg = JSON.parse(await readFile(path.join(root || REPO_ROOT, 'package.json'), 'utf8'))
+    const pkg = JSON.parse(
+      await readFile(path.join(root || REPO_ROOT, 'package.json'), 'utf8'),
+    )
     packageName = String(pkg.name || '')
   } catch {}
-  const safeRepo = packageName === 'bertos-ai-os'
-    && remote === 'https://github.com/willywonka773202-cloud/bertos-ai-os.git'
-    && !/sylistly/i.test(remote)
+  const safeRepo =
+    packageName === 'bertos-ai-os' &&
+    remote === 'https://github.com/willywonka773202-cloud/bertos-ai-os.git' &&
+    !/sylistly/i.test(remote)
   return {
     root: root || REPO_ROOT,
     daemonCwd: REPO_ROOT,
@@ -546,7 +781,69 @@ async function repoStatus() {
     remote,
     status,
     safeRepo,
-    blockedReason: safeRepo ? undefined : 'Repo safety check failed. Expected bertos-ai-os package and remote with no sylistly remote.',
+    blockedReason: safeRepo
+      ? undefined
+      : 'Repo safety check failed. Expected bertos-ai-os package and remote with no sylistly remote.',
+  }
+}
+
+async function probeOpenClawGateway() {
+  const host = process.env.OPENCLAW_GATEWAY_HOST || '127.0.0.1'
+  const port = Number(process.env.OPENCLAW_GATEWAY_PORT || 18789)
+  const url = `http://${host}:${port}`
+  const checkedAt = new Date().toISOString()
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 2500)
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    const xFrameOptions = response.headers.get('x-frame-options') || ''
+    const contentSecurityPolicy =
+      response.headers.get('content-security-policy') || ''
+    const frameBlockers = [
+      /deny|sameorigin/i.test(xFrameOptions)
+        ? `X-Frame-Options: ${xFrameOptions}`
+        : '',
+      /frame-ancestors\s+('none'|'self')/i.test(contentSecurityPolicy)
+        ? `Content-Security-Policy: ${contentSecurityPolicy.match(/frame-ancestors[^;]*/i)?.[0] || 'frame-ancestors'}`
+        : '',
+    ].filter(Boolean)
+    return {
+      online: response.ok,
+      host,
+      port,
+      url,
+      chatUrl: `${url}/chat?session=agent%3Amain%3Amain`,
+      wsUrl: `ws://${host}:${port}`,
+      checkedAt,
+      frameEmbedding: frameBlockers.length ? 'blocked' : 'allowed',
+      frameBlockers,
+      statusCode: response.status,
+      error: response.ok
+        ? undefined
+        : `OpenClaw Gateway returned HTTP ${response.status}.`,
+    }
+  } catch (error) {
+    return {
+      online: false,
+      host,
+      port,
+      url,
+      chatUrl: `${url}/chat?session=agent%3Amain%3Amain`,
+      wsUrl: `ws://${host}:${port}`,
+      checkedAt,
+      frameEmbedding: 'unknown',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'OpenClaw Gateway is not reachable.',
+    }
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -564,13 +861,20 @@ async function listFiles(dir = '.', depth = 0, maxDepth = 4) {
         name: entry.name,
         path: childRel,
         type: 'dir',
-        children: depth < maxDepth ? await listFiles(childRel, depth + 1, maxDepth) : [],
+        children:
+          depth < maxDepth
+            ? await listFiles(childRel, depth + 1, maxDepth)
+            : [],
       })
     } else {
       nodes.push({ name: entry.name, path: childRel, type: 'file' })
     }
   }
-  return nodes.sort((a, b) => Number(a.type === 'file') - Number(b.type === 'file') || a.name.localeCompare(b.name))
+  return nodes.sort(
+    (a, b) =>
+      Number(a.type === 'file') - Number(b.type === 'file') ||
+      a.name.localeCompare(b.name),
+  )
 }
 
 async function collectSearchFiles(dir = '.', output = [], maxFiles = 1200) {
@@ -601,16 +905,27 @@ function lineSnippet(lines, index, radius = 2) {
 }
 
 async function searchRepo({ terms = [], globs = [], maxResults = 40 } = {}) {
-  const normalizedTerms = [...new Set((Array.isArray(terms) ? terms : [])
-    .map(term => String(term || '').trim())
-    .filter(term => term.length >= 2))]
-  const normalizedGlobs = (Array.isArray(globs) ? globs : []).map(glob => String(glob || '').toLowerCase()).filter(Boolean)
+  const normalizedTerms = [
+    ...new Set(
+      (Array.isArray(terms) ? terms : [])
+        .map((term) => String(term || '').trim())
+        .filter((term) => term.length >= 2),
+    ),
+  ]
+  const normalizedGlobs = (Array.isArray(globs) ? globs : [])
+    .map((glob) => String(glob || '').toLowerCase())
+    .filter(Boolean)
   const files = await collectSearchFiles('.')
   const results = []
 
   for (const rel of files) {
     const normalizedRel = rel.replace(/\\/g, '/')
-    if (normalizedGlobs.length && !normalizedGlobs.some(glob => normalizedRel.toLowerCase().includes(glob.replace(/\*/g, '')))) {
+    if (
+      normalizedGlobs.length &&
+      !normalizedGlobs.some((glob) =>
+        normalizedRel.toLowerCase().includes(glob.replace(/\*/g, '')),
+      )
+    ) {
       continue
     }
 
@@ -623,12 +938,18 @@ async function searchRepo({ terms = [], globs = [], maxResults = 40 } = {}) {
     const lines = content.split(/\r?\n/)
     const lowerContent = content.toLowerCase()
     const lowerPath = normalizedRel.toLowerCase()
-    const matchedTerms = normalizedTerms.filter(term => lowerContent.includes(term.toLowerCase()) || lowerPath.includes(term.toLowerCase()))
+    const matchedTerms = normalizedTerms.filter(
+      (term) =>
+        lowerContent.includes(term.toLowerCase()) ||
+        lowerPath.includes(term.toLowerCase()),
+    )
     if (!matchedTerms.length) continue
     const snippets = []
     for (const term of matchedTerms.slice(0, 6)) {
       const lowerTerm = term.toLowerCase()
-      const lineIndex = lines.findIndex(line => line.toLowerCase().includes(lowerTerm))
+      const lineIndex = lines.findIndex((line) =>
+        line.toLowerCase().includes(lowerTerm),
+      )
       snippets.push({
         term,
         lines: lineIndex >= 0 ? lineSnippet(lines, lineIndex) : [],
@@ -642,14 +963,23 @@ async function searchRepo({ terms = [], globs = [], maxResults = 40 } = {}) {
   }
 
   const rankedResults = results
-    .sort((a, b) =>
-      b.matchedTerms.length - a.matchedTerms.length ||
-      b.snippets.reduce((count, snippet) => count + snippet.lines.length, 0) - a.snippets.reduce((count, snippet) => count + snippet.lines.length, 0) ||
-      a.path.localeCompare(b.path)
+    .sort(
+      (a, b) =>
+        b.matchedTerms.length - a.matchedTerms.length ||
+        b.snippets.reduce((count, snippet) => count + snippet.lines.length, 0) -
+          a.snippets.reduce(
+            (count, snippet) => count + snippet.lines.length,
+            0,
+          ) ||
+        a.path.localeCompare(b.path),
     )
     .slice(0, maxResults)
 
-  return { terms: normalizedTerms, globs: normalizedGlobs, results: rankedResults }
+  return {
+    terms: normalizedTerms,
+    globs: normalizedGlobs,
+    results: rankedResults,
+  }
 }
 
 async function statusPayload() {
@@ -660,6 +990,7 @@ async function statusPayload() {
     port: PORT,
     uptimeMs: Date.now() - STARTED_AT,
     tools: await detectTools({ verifyVersion: false }),
+    openClawGateway: await probeOpenClawGateway(),
     repo: await repoStatus(),
     logsCount: logs.length,
     startCommand: 'npm run bertos:daemon',
@@ -667,31 +998,46 @@ async function statusPayload() {
 }
 
 const server = http.createServer(async (req, res) => {
+  res.bertosOrigin = req.headers.origin
   try {
     if (req.method === 'OPTIONS') return json(res, 204, {})
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`)
+    const authError = authorizeDaemonRequest(req)
+    if (authError)
+      return json(res, 401, { ok: false, online: false, error: authError })
 
-    if (req.method === 'GET' && url.pathname === '/status') return json(res, 200, await statusPayload())
+    if (req.method === 'GET' && url.pathname === '/status')
+      return json(res, 200, await statusPayload())
     if (req.method === 'GET' && url.pathname === '/tools') {
       const verifyVersion = url.searchParams.get('verify') === '1'
       return json(res, 200, { tools: await detectTools({ verifyVersion }) })
     }
-    if (req.method === 'GET' && url.pathname === '/repo/status') return json(res, 200, await repoStatus())
+    if (req.method === 'GET' && url.pathname === '/repo/status')
+      return json(res, 200, await repoStatus())
     if (req.method === 'GET' && url.pathname === '/repo/files') {
-      return json(res, 200, { files: await listFiles(url.searchParams.get('dir') || '.') })
+      return json(res, 200, {
+        files: await listFiles(url.searchParams.get('dir') || '.'),
+      })
     }
     if (url.pathname === '/repo/search') {
       const body = req.method === 'POST' ? await readJson(req) : {}
-      const terms = req.method === 'POST'
-        ? body.terms
-        : url.searchParams.getAll('term')
-      const globs = req.method === 'POST'
-        ? body.globs
-        : url.searchParams.getAll('glob')
-      const maxResults = req.method === 'POST'
-        ? Number(body.maxResults || 40)
-        : Number(url.searchParams.get('maxResults') || 40)
-      return json(res, 200, await searchRepo({ terms, globs, maxResults: Math.min(Math.max(maxResults, 1), 100) }))
+      const terms =
+        req.method === 'POST' ? body.terms : url.searchParams.getAll('term')
+      const globs =
+        req.method === 'POST' ? body.globs : url.searchParams.getAll('glob')
+      const maxResults =
+        req.method === 'POST'
+          ? Number(body.maxResults || 40)
+          : Number(url.searchParams.get('maxResults') || 40)
+      return json(
+        res,
+        200,
+        await searchRepo({
+          terms,
+          globs,
+          maxResults: Math.min(Math.max(maxResults, 1), 100),
+        }),
+      )
     }
     if (req.method === 'GET' && url.pathname === '/repo/file') {
       const rel = safeRelativePath(url.searchParams.get('path'))
@@ -699,10 +1045,17 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { path: rel, content })
     }
 
-    if (req.method === 'POST' && (url.pathname === '/repo/file' || url.pathname === '/repo/file/write')) {
+    if (
+      req.method === 'POST' &&
+      (url.pathname === '/repo/file' || url.pathname === '/repo/file/write')
+    ) {
       const body = await readJson(req)
       const rel = safeWritableFilePath(body.path)
-      await writeFile(path.join(REPO_ROOT, rel), String(body.content ?? ''), 'utf8')
+      await writeFile(
+        path.join(REPO_ROOT, rel),
+        String(body.content ?? ''),
+        'utf8',
+      )
       await logCommand({ type: 'write-file', path: rel, safe: true })
       return json(res, 200, { ok: true, path: rel })
     }
@@ -713,7 +1066,10 @@ const server = http.createServer(async (req, res) => {
       const target = path.join(REPO_ROOT, rel)
       try {
         await stat(target)
-        return json(res, 409, { ok: false, error: `${rel} already exists. Use modify instead of create.` })
+        return json(res, 409, {
+          ok: false,
+          error: `${rel} already exists. Use modify instead of create.`,
+        })
       } catch {
         // Missing is expected.
       }
@@ -726,20 +1082,38 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/repo/file/delete') {
       const body = await readJson(req)
       const rel = safeWritableFilePath(body.path)
-      if (body.confirm !== true || body.patchHistoryId !== body.confirmPatchHistoryId) {
-        return json(res, 400, { ok: false, error: 'File delete requires confirm=true and matching patch history confirmation ids.' })
+      if (
+        body.confirm !== true ||
+        body.patchHistoryId !== body.confirmPatchHistoryId
+      ) {
+        return json(res, 400, {
+          ok: false,
+          error:
+            'File delete requires confirm=true and matching patch history confirmation ids.',
+        })
       }
       const target = path.join(REPO_ROOT, rel)
       const info = await stat(target)
       if (!info.isFile()) {
-        return json(res, 400, { ok: false, error: 'Only files can be deleted by the daemon.' })
+        return json(res, 400, {
+          ok: false,
+          error: 'Only files can be deleted by the daemon.',
+        })
       }
       await rm(target, { force: false, recursive: false })
-      await logCommand({ type: 'delete-file', path: rel, patchHistoryId: body.patchHistoryId, safe: true })
+      await logCommand({
+        type: 'delete-file',
+        path: rel,
+        patchHistoryId: body.patchHistoryId,
+        safe: true,
+      })
       return json(res, 200, { ok: true, path: rel, operation: 'delete' })
     }
 
-    if (req.method === 'POST' && (url.pathname === '/run-cli' || url.pathname === '/repo/run')) {
+    if (
+      req.method === 'POST' &&
+      (url.pathname === '/run-cli' || url.pathname === '/repo/run')
+    ) {
       const body = await readJson(req)
       const result = await runResolvedCommand({
         executable: body.executable,
@@ -762,13 +1136,19 @@ const server = http.createServer(async (req, res) => {
         cwd: body.cwd || REPO_ROOT,
         timeoutMs: body.timeoutMs || 180000,
       })
-      await rememberToolVerification(command.providerId, result)
-      return json(res, result.ok ? 200 : 400, { providerId: command.providerId, ...result })
+      const normalizedResult = normalizeAskResult(command.providerId, result)
+      await rememberToolVerification(command.providerId, normalizedResult)
+      return json(res, normalizedResult.ok ? 200 : 400, {
+        providerId: command.providerId,
+        ...normalizedResult,
+      })
     }
 
     return json(res, 404, { error: 'Not found.' })
   } catch (error) {
-    return json(res, statusForDaemonError(error), { error: error instanceof Error ? error.message : String(error) })
+    return json(res, statusForDaemonError(error), {
+      error: error instanceof Error ? error.message : String(error),
+    })
   }
 })
 
@@ -787,12 +1167,28 @@ function shutdown(signal) {
 server.on('listening', () => {
   consoleLog(`BertOS local CLI daemon listening on http://${HOST}:${PORT}`)
   consoleLog(`Repo root: ${REPO_ROOT}`)
-  consoleLog('Allowed executables: claude, codex, gemini, git, npm, node, pnpm')
+  consoleLog(
+    'Allowed executables: claude, codex, gemini, openclaw, git, npm, node, pnpm',
+  )
 })
 
-server.on('error', error => {
+server.on('error', (error) => {
+  if (error?.code === 'EADDRINUSE') {
+    console.error(
+      [
+        `[${nowIso()}] BertOS daemon is already running on http://${HOST}:${PORT}.`,
+        'This is usually OK. Keep the existing daemon running, or restart it after code/provider changes.',
+        `Check status: curl http://${HOST}:${PORT}/status`,
+        `Find process: lsof -nP -iTCP:${PORT} -sTCP:LISTEN`,
+        'Restart safely: kill the listed node PID, then run npm run bertos:daemon from the BertOS repo.',
+      ].join('\n'),
+    )
+    if (heartbeat) clearInterval(heartbeat)
+    process.exit(0)
+  }
   console.error(`[${nowIso()}] BertOS daemon server error:`, error)
-  process.exitCode = 1
+  if (heartbeat) clearInterval(heartbeat)
+  process.exit(1)
 })
 
 server.on('close', () => {
@@ -801,10 +1197,10 @@ server.on('close', () => {
 
 process.on('SIGINT', () => shutdown('SIGINT'))
 process.on('SIGTERM', () => shutdown('SIGTERM'))
-process.on('uncaughtException', error => {
+process.on('uncaughtException', (error) => {
   console.error(`[${nowIso()}] Uncaught exception:`, error)
 })
-process.on('unhandledRejection', reason => {
+process.on('unhandledRejection', (reason) => {
   console.error(`[${nowIso()}] Unhandled rejection:`, reason)
 })
 

@@ -8,7 +8,7 @@ export const runtime = 'edge'
 
 const SYSTEM = `You are an AI routing specialist for BertOS. Analyze the user's prompt and return ONLY a JSON object with:
 - "reasoning": one sentence explaining why you chose this model
-- "recommendedModel": exactly one of "ollama-pro", "claude-code", "codex-cli", "gemini-cli", "gemini-api-native"
+- "recommendedModel": exactly one of "ollama-pro", "claude-code", "codex-cli", "gemini-cli", "gemini-api-native", "openclaw-cli"
 - "taskType": one of "coding", "writing", "research", "analysis", "math", "brainstorming", "debugging", "general"
 - "confidence": number 0-1
 
@@ -27,6 +27,7 @@ const MODEL_TO_ALIAS: Record<string, AIModel> = {
   'codex-cli':   'codex-cli',
   'gemini-cli':  'gemini-cli',
   'gemini-api-native': 'gemini-api-native',
+  'openclaw-cli': 'openclaw-cli',
 }
 
 function strategyForPrompt(prompt: string): RoutingStrategy {

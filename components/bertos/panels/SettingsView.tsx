@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
+import { DEFAULT_BROWSER_DAEMON_URL, fetchBrowserDaemonStatus, fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
+import type { LocalDaemonAskResult } from '@/lib/bertos/local-daemon'
 
 interface OllamaStatus {
   online: boolean
@@ -26,9 +28,9 @@ interface OllamaStatus {
 }
 
 interface LocalCliToolStatus {
-  id: 'claude-code' | 'codex-cli' | 'gemini-cli'
+  id: 'claude-code' | 'codex-cli' | 'gemini-cli' | 'openclaw-cli'
   label: string
-  executable: string
+  executable: 'claude' | 'codex' | 'gemini' | 'openclaw'
   installed: boolean
   version?: string
   loginStatus: 'available' | 'missing' | 'error' | 'unknown'
@@ -55,6 +57,7 @@ interface ComposioStatus {
 interface GeminiNativeStatus {
   available: boolean
   hasApiKey: boolean
+  serverGateEnabled?: boolean
   models: string[]
   capabilities: string[]
   error?: string
@@ -71,6 +74,10 @@ interface TelegramBotStatus {
 interface HermesNousStatus {
   configured: boolean
   proxyReachable?: boolean
+  enabled?: boolean
+  endpointConfigured?: boolean
+  apiKeyConfigured?: boolean
+  mode?: string
   paidEnabled: boolean
   availableForRouting: boolean
   billing: string
@@ -125,6 +132,20 @@ function SecretInput({ value, onChange, placeholder }: { value: string; onChange
   )
 }
 
+function cliToolStatusLabel(tool: LocalCliToolStatus) {
+  if (!tool.installed) return 'Missing'
+  if (tool.loginStatus === 'available') return 'Available'
+  if (tool.loginStatus === 'error') return 'Auth/error'
+  return 'Needs test'
+}
+
+function cliToolStatusVariant(tool: LocalCliToolStatus) {
+  if (!tool.installed) return 'default'
+  if (tool.loginStatus === 'available') return 'success'
+  if (tool.loginStatus === 'error') return 'error'
+  return 'warning'
+}
+
 export function SettingsView() {
   const { settings, updateSettings } = useUIStore()
   const [activeSection, setActiveSection] = useState('providers')
@@ -140,20 +161,27 @@ export function SettingsView() {
   const [geminiNativeStatus, setGeminiNativeStatus] = useState<GeminiNativeStatus | null>(null)
   const [hermesNousStatus, setHermesNousStatus] = useState<HermesNousStatus | null>(null)
   const [telegramStatus, setTelegramStatus] = useState<TelegramBotStatus | null>(null)
+  const [hermesTestMessage, setHermesTestMessage] = useState<string | null>(null)
+  const [hermesTesting, setHermesTesting] = useState(false)
+  const [daemonUrl, setDaemonUrl] = useState(() => typeof window !== 'undefined' ? window.localStorage.getItem('bertos-daemon-url') || DEFAULT_BROWSER_DAEMON_URL : DEFAULT_BROWSER_DAEMON_URL)
+  const [daemonToken, setDaemonToken] = useState(() => typeof window !== 'undefined' ? window.localStorage.getItem('bertos-daemon-token') || '' : '')
   const [telegramLoading, setTelegramLoading] = useState(false)
   const [ollamaLoading, setOllamaLoading] = useState(false)
   const [daemonLoading, setDaemonLoading] = useState(false)
   const [testingCloud, setTestingCloud] = useState(false)
+  const [testingCliTool, setTestingCliTool] = useState<LocalCliToolStatus['id'] | null>(null)
+  const [cliToolMessages, setCliToolMessages] = useState<Record<string, string>>({})
 
   const fetchOllamaStatus = async (testCloud = false) => {
     setOllamaLoading(true)
     if (testCloud) setTestingCloud(true)
     try {
-      const params = new URLSearchParams()
-      if (testCloud) params.set('testCloud', 'true')
-      if (ollamaCloudKey) params.set('key', ollamaCloudKey)
-      const url = `/api/ollama/status${params.size ? '?' + params.toString() : ''}`
-      const res = await fetch(url)
+      const res = await fetch('/api/ollama/status', {
+        method: testCloud || ollamaCloudKey ? 'POST' : 'GET',
+        headers: testCloud || ollamaCloudKey ? { 'Content-Type': 'application/json' } : undefined,
+        body: testCloud || ollamaCloudKey ? JSON.stringify({ testCloud, key: ollamaCloudKey || undefined }) : undefined,
+        cache: 'no-store',
+      })
       const data = await res.json() as OllamaStatus
       setOllamaStatus(data)
     } catch {
@@ -167,13 +195,62 @@ export function SettingsView() {
   const fetchLocalDaemonStatus = async () => {
     setDaemonLoading(true)
     try {
-      const res = await fetch('/api/local-daemon/status', { cache: 'no-store' })
+      const browserDaemon = await fetchBrowserDaemonStatus()
+      if (browserDaemon?.online) {
+        setLocalDaemonStatus(browserDaemon)
+        return
+      }
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/status', { cache: 'no-store' })
       const data = await res.json() as LocalDaemonStatus
       setLocalDaemonStatus(data)
     } catch {
       setLocalDaemonStatus(null)
     } finally {
       setDaemonLoading(false)
+    }
+  }
+
+  const saveDaemonBridgeSettings = async () => {
+    if (typeof window !== 'undefined') {
+      const normalizedUrl = daemonUrl.trim().replace(/\/+$/, '') || DEFAULT_BROWSER_DAEMON_URL
+      window.localStorage.setItem('bertos-daemon-url', normalizedUrl)
+      if (daemonToken.trim()) window.localStorage.setItem('bertos-daemon-token', daemonToken.trim())
+      else window.localStorage.removeItem('bertos-daemon-token')
+      setDaemonUrl(normalizedUrl)
+    }
+    await fetchLocalDaemonStatus()
+  }
+
+  const testCliTool = async (tool: LocalCliToolStatus) => {
+    if (!tool.installed) return
+    setTestingCliTool(tool.id)
+    setCliToolMessages(messages => ({ ...messages, [tool.id]: 'Running live verification prompt...' }))
+    try {
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId: tool.id,
+          prompt: `Reply with exactly: BERTOS_${tool.id}_OK`,
+          timeoutMs: 120000,
+        }),
+      })
+      const result = await res.json() as LocalDaemonAskResult
+      const detail = [result.stdout?.trim(), result.stderr?.trim(), result.error].filter(Boolean).join('\n\n')
+      setCliToolMessages(messages => ({
+        ...messages,
+        [tool.id]: res.ok && result.ok
+          ? `Verified: ${(result.stdout || '').trim().slice(0, 120) || tool.label}`
+          : `Blocked: ${detail || `HTTP ${res.status}`}`,
+      }))
+      await fetchLocalDaemonStatus()
+    } catch (error) {
+      setCliToolMessages(messages => ({
+        ...messages,
+        [tool.id]: `Test failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+      }))
+    } finally {
+      setTestingCliTool(null)
     }
   }
 
@@ -227,14 +304,36 @@ export function SettingsView() {
       setHermesNousStatus({
         configured: false,
         proxyReachable: false,
+        enabled: false,
+        endpointConfigured: false,
+        apiKeyConfigured: false,
+        mode: 'free/local or custom endpoint',
         paidEnabled: false,
         availableForRouting: false,
-        billing: 'Paid API credits required',
-        statusMessage: 'Proxy reachable, but no free chat models available for this account.',
+        billing: 'No paid API key required by BertOS',
+        statusMessage: 'Hermes is not connected yet.',
         defaultProvider: false,
-        autoRoutingDisabledUnless: 'ENABLE_HERMES_PAID=true',
-        error: 'Could not check Hermes / Nous status.',
+        autoRoutingDisabledUnless: 'manual Hermes route or explicit engine selection',
+        error: 'Could not check Hermes status.',
       })
+    }
+  }
+
+  const sendHermesTestMessage = async () => {
+    setHermesTesting(true)
+    setHermesTestMessage(null)
+    try {
+      const res = await fetch('/api/hermes/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'Say hello from Hermes and confirm Bert OS integration is working.' }),
+      })
+      const data = await res.json() as { ok?: boolean; text?: string; error?: string }
+      setHermesTestMessage(data.ok ? `Hermes is connected and responding. ${data.text ?? ''}` : data.error ?? 'Hermes test failed.')
+    } catch (error) {
+      setHermesTestMessage(error instanceof Error ? error.message : 'Hermes test failed.')
+    } finally {
+      setHermesTesting(false)
     }
   }
 
@@ -268,29 +367,31 @@ export function SettingsView() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full min-h-0 overflow-hidden">
       {/* Section nav */}
-      <div className="w-48 flex-shrink-0 border-r border-zinc-800/50 p-3 space-y-0.5">
-        <p className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Settings</p>
-        {SECTIONS.map(section => (
-          <button
-            key={section.id}
-            onClick={() => setActiveSection(section.id)}
-            className={cn(
-              'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
-              activeSection === section.id
-                ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5 border border-transparent'
-            )}
-          >
-            <section.icon className={cn('w-3.5 h-3.5', activeSection === section.id && 'text-violet-400')} />
-            <span className="text-xs font-medium">{section.label}</span>
-          </button>
-        ))}
+      <div className="min-h-0 w-48 flex-shrink-0 overflow-y-auto border-r border-zinc-800/50 p-3">
+        <div className="space-y-0.5">
+          <p className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">Settings</p>
+          {SECTIONS.map(section => (
+            <button
+              key={section.id}
+              onClick={() => setActiveSection(section.id)}
+              className={cn(
+                'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-150',
+                activeSection === section.id
+                  ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5 border border-transparent'
+              )}
+            >
+              <section.icon className={cn('w-3.5 h-3.5', activeSection === section.id && 'text-violet-400')} />
+              <span className="text-xs font-medium">{section.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Settings content */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="max-w-2xl mx-auto px-6 py-6 space-y-6">
           <RouteHero
             eyebrow="systems sanctum"
@@ -482,11 +583,11 @@ export function SettingsView() {
                         </code>
                       </div>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Runs Claude Code, Codex CLI, Gemini CLI, and safe local commands from your Windows terminal.
+                        Runs Claude Code, Codex CLI, Gemini CLI, and safe local commands from your Mac or local terminal.
                       </p>
                       {!localDaemonStatus?.online && (
                         <p className="text-[11px] text-amber-300/80 mt-2">
-                          Start it from this repo with <code className="text-amber-200">npm run bertos:daemon</code>.
+                          Start it from this repo with <code className="text-amber-200">npm run bertos:daemon</code>. On the hosted domain, restart the daemon after updating so it allows the Vercel origin.
                         </p>
                       )}
                       {localDaemonStatus?.error && (
@@ -498,21 +599,71 @@ export function SettingsView() {
                     </Badge>
                   </div>
 
+                  <div className="grid gap-2 rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Browser daemon URL</label>
+                    <input
+                      value={daemonUrl}
+                      onChange={event => setDaemonUrl(event.target.value)}
+                      placeholder={DEFAULT_BROWSER_DAEMON_URL}
+                      className="h-9 rounded-lg border border-zinc-800 bg-zinc-950 px-3 font-mono text-xs text-zinc-200 outline-none focus:border-emerald-500/50"
+                    />
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Daemon token</label>
+                    <input
+                      value={daemonToken}
+                      onChange={event => setDaemonToken(event.target.value)}
+                      placeholder="Optional for desktop, required for HTTPS tunnel mode"
+                      type="password"
+                      className="h-9 rounded-lg border border-zinc-800 bg-zinc-950 px-3 font-mono text-xs text-zinc-200 outline-none focus:border-emerald-500/50"
+                    />
+                    <p className="text-[10px] leading-relaxed text-zinc-600">
+                      Desktop default: <code>{DEFAULT_BROWSER_DAEMON_URL}</code>. For phone access, run a secure HTTPS tunnel to the daemon, set <code>BERTOS_DAEMON_TOKEN</code> when starting it, then save the tunnel URL and token here.
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => void saveDaemonBridgeSettings()} disabled={daemonLoading}>
+                      <RefreshCw className={cn('w-3 h-3', daemonLoading && 'animate-spin')} />
+                      Save Bridge Settings
+                    </Button>
+                  </div>
+
                   <div className="grid gap-2">
                     {(localDaemonStatus?.tools ?? []).map(tool => (
-                      <div key={tool.id} className="flex items-center gap-2 rounded-lg bg-zinc-950/50 border border-zinc-800 px-2.5 py-2">
-                        {tool.id === 'claude-code' ? <Cpu className="w-3.5 h-3.5 text-violet-400" /> :
-                         tool.id === 'codex-cli' ? <Zap className="w-3.5 h-3.5 text-emerald-400" /> :
-                         <Globe className="w-3.5 h-3.5 text-blue-400" />}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-zinc-300">{tool.label}</p>
-                          <p className="text-[10px] text-zinc-600 truncate">
-                            {tool.installed ? (tool.version || `${tool.executable} detected`) : (tool.error || `${tool.executable} missing`)}
-                          </p>
+                      <div key={tool.id} className="rounded-lg bg-zinc-950/50 border border-zinc-800 px-2.5 py-2">
+                        <div className="flex items-center gap-2">
+                          {tool.id === 'claude-code' ? <Cpu className="w-3.5 h-3.5 text-violet-400" /> :
+                           tool.id === 'codex-cli' ? <Zap className="w-3.5 h-3.5 text-emerald-400" /> :
+                           tool.id === 'openclaw-cli' ? <Bot className="w-3.5 h-3.5 text-red-400" /> :
+                           <Globe className="w-3.5 h-3.5 text-blue-400" />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-zinc-300">{tool.label}</p>
+                            <p className="text-[10px] text-zinc-600 truncate">
+                              {tool.installed ? (tool.version || tool.error || `${tool.executable} detected`) : (tool.error || `${tool.executable} missing`)}
+                            </p>
+                          </div>
+                          <Badge variant={cliToolStatusVariant(tool)} className="text-[9px] h-4">
+                            {cliToolStatusLabel(tool)}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void testCliTool(tool)}
+                            disabled={!tool.installed || testingCliTool === tool.id}
+                            className="h-6 px-2 text-[10px]"
+                          >
+                            <RefreshCw className={cn('w-3 h-3', testingCliTool === tool.id && 'animate-spin')} />
+                            Test
+                          </Button>
                         </div>
-                        <Badge variant={tool.installed ? 'success' : 'default'} className="text-[9px] h-4">
-                          {tool.installed ? 'Detected' : 'Missing'}
-                        </Badge>
+                        {cliToolMessages[tool.id] && (
+                          <p className={cn(
+                            'mt-2 whitespace-pre-wrap break-words rounded border px-2 py-1.5 text-[10px] leading-relaxed',
+                            cliToolMessages[tool.id].startsWith('Verified')
+                              ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-300'
+                              : cliToolMessages[tool.id].startsWith('Running')
+                                ? 'border-blue-500/20 bg-blue-500/5 text-blue-300'
+                                : 'border-amber-500/20 bg-amber-500/5 text-amber-300',
+                          )}>
+                            {cliToolMessages[tool.id]}
+                          </p>
+                        )}
                       </div>
                     ))}
                     {localDaemonStatus && localDaemonStatus.tools.length === 0 && (
@@ -533,8 +684,8 @@ export function SettingsView() {
 
               {/* CLI subscription providers */}
               <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">CLI Subscription Providers</h4>
-                <p className="text-[11px] text-zinc-600">These use your existing AI subscriptions via local CLI tools. No API billing.</p>
+                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">CLI + Local Agent Providers</h4>
+                <p className="text-[11px] text-zinc-600">These use local CLI tools, subscriptions, or Ollama-backed local agents. No paid API key is required by BertOS.</p>
                 {([
                   {
                     id: 'claude-code', label: 'Claude Code', color: '#8B5CF6',
@@ -556,6 +707,13 @@ export function SettingsView() {
                     desc: 'ChatGPT Plus subscription · OpenAI Codex CLI',
                     install: 'npm install -g @openai/codex',
                     login: 'codex login',
+                  },
+                  {
+                    id: 'openclaw-cli', label: 'OpenClaw', color: '#EF4444',
+                    icon: <Bot className="w-4 h-4 text-red-400" />,
+                    desc: 'Local/OpenClaw agent · Ollama launch or OpenClaw onboarding',
+                    install: 'ollama launch openclaw --config',
+                    login: 'npm install -g openclaw@latest && openclaw onboard --install-daemon',
                   },
                 ]).map(p => (
                   <div key={p.id} className="p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/30 space-y-2">
@@ -634,40 +792,51 @@ export function SettingsView() {
                   </button>
                 </div>
 
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4 space-y-3">
                   <div className="flex items-start gap-3">
-                    <Bot className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                    <Bot className="w-4 h-4 text-violet-300 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-zinc-200">Hermes / Nous Proxy</p>
-                        <Badge variant={hermesNousStatus?.availableForRouting ? 'success' : 'warning'} className="text-[9px] h-4">
-                          {hermesNousStatus?.availableForRouting ? 'Routing enabled - paid provider active' : 'Paid API credits required'}
+                        <p className="text-sm font-medium text-zinc-200">Hermes Agent Backend</p>
+                        <Badge variant={hermesNousStatus?.availableForRouting ? 'success' : hermesNousStatus?.configured ? 'warning' : 'default'} className="text-[9px] h-4">
+                          {hermesNousStatus?.availableForRouting ? 'Connected' : hermesNousStatus?.configured ? 'Configured' : 'Setup required'}
                         </Badge>
-                        <Badge variant="default" className="text-[9px] h-4">Default: No</Badge>
+                        <Badge variant="success" className="text-[9px] h-4">No paid key required</Badge>
                       </div>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Proxy reachable, but no free chat models available for this account.
+                        Server-side OpenAI-compatible Hermes gateway. Use Ollama/local models, a custom endpoint, or a free-tier provider behind Hermes.
                       </p>
-                      <p className="text-[11px] text-amber-300/80 mt-2">
-                        Routing is disabled unless <code className="text-amber-200">ENABLE_HERMES_PAID=true</code>.
-                        BertOS will not spend Hermes/Nous credits automatically.
+                      <p className="text-[11px] text-violet-200/80 mt-2">
+                        Configure <code className="text-violet-100">HERMES_ENABLED</code>, <code className="text-violet-100">HERMES_BASE_URL</code>, and a server-side <code className="text-violet-100">HERMES_API_KEY</code>. The key is never sent to browser code.
                       </p>
                       <div className="mt-2 grid gap-1 text-[10px] text-zinc-600">
-                        <p>Status: {hermesNousStatus?.availableForRouting ? 'Routing enabled - paid provider active' : 'Paid routing disabled'}</p>
+                        <p>Status: {hermesNousStatus?.availableForRouting ? 'connected' : hermesNousStatus?.statusMessage ?? 'not connected'}</p>
                         <p>Proxy configured: {hermesNousStatus?.configured ? 'Yes' : 'No'}</p>
-                        <p>Health-only checks are safe; chat completions are not run from this card.</p>
-                        <p>Required env: <code>HERMES_API_URL</code> and <code>HERMES_API_KEY</code></p>
+                        <p>API key: {hermesNousStatus?.apiKeyConfigured ? '******** configured' : 'missing'}</p>
+                        <p>Mode: {hermesNousStatus?.mode ?? 'free/local or custom endpoint'}</p>
+                        <p>Required env: <code>HERMES_ENABLED</code>, <code>HERMES_BASE_URL</code>, <code>HERMES_API_KEY</code></p>
                         {hermesNousStatus?.error && <p className="text-amber-300/80">{hermesNousStatus.error}</p>}
                       </div>
                     </div>
                   </div>
-                  <button
-                    onClick={fetchProviderStatus}
-                    className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Refresh Hermes / Nous
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={fetchProviderStatus}
+                      className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Refresh Hermes
+                    </button>
+                    <button
+                      onClick={sendHermesTestMessage}
+                      disabled={hermesTesting}
+                      className="flex items-center gap-1 text-[11px] text-violet-200 hover:text-violet-100 transition-colors disabled:opacity-50"
+                    >
+                      <Zap className="w-3 h-3" />
+                      {hermesTesting ? 'Testing Hermes...' : 'Send Test Message'}
+                    </button>
+                  </div>
+                  {hermesTestMessage && <p className="text-[11px] text-zinc-400">{hermesTestMessage}</p>}
                 </div>
 
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 space-y-3">
@@ -683,8 +852,8 @@ export function SettingsView() {
                     },
                     {
                       name: 'OpenClaw',
-                      badge: 'Planned',
-                      detail: 'Future local agent runtime placeholder. No integration is configured yet.',
+                      badge: 'Local agent',
+                      detail: 'Available through the local daemon once installed. Recommended setup: ollama launch openclaw --config, or OpenClaw onboard with its daemon.',
                     },
                     {
                       name: 'Devin-style Auto Triage',
@@ -775,7 +944,7 @@ export function SettingsView() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-zinc-300">Gemini Native API</p>
                       <Badge variant={geminiNativeStatus?.available ? 'success' : 'default'} className="text-[9px]">
-                        {geminiNativeStatus?.available ? 'Configured' : 'Missing key'}
+                        {geminiNativeStatus?.available ? 'Ready' : geminiNativeStatus?.hasApiKey ? 'Gate off' : 'Missing key'}
                       </Badge>
                     </div>
                     <p className="mt-1 text-xs text-zinc-600">
@@ -954,15 +1123,15 @@ export function SettingsView() {
 
               {/* Hermes Hostinger */}
               <div className="space-y-3">
-                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Hermes Hostinger Provider</h4>
+                <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Hermes Hostinger / Free Backend</h4>
                 <div className={cn(
                   'rounded-xl border p-4 space-y-3',
                   hermesNousStatus?.availableForRouting
-                    ? 'border-amber-500/20 bg-amber-500/5'
+                    ? 'border-violet-500/20 bg-violet-500/5'
                     : 'border-zinc-800 bg-zinc-900/30'
                 )}>
                   <div className="flex items-start gap-3">
-                    <Globe className={cn('w-4 h-4 mt-0.5 flex-shrink-0', hermesNousStatus?.configured ? 'text-amber-400' : 'text-zinc-600')} />
+                    <Globe className={cn('w-4 h-4 mt-0.5 flex-shrink-0', hermesNousStatus?.configured ? 'text-violet-300' : 'text-zinc-600')} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-zinc-200">Hermes on Hostinger</p>
@@ -971,21 +1140,22 @@ export function SettingsView() {
                           className="text-[9px] h-4"
                         >
                           {hermesNousStatus?.availableForRouting
-                            ? 'Routing active'
+                            ? 'Connected'
                             : hermesNousStatus?.configured
-                              ? 'Configured — paid routing gated'
+                              ? 'Configured — not reachable'
                               : 'Not configured'}
                         </Badge>
                       </div>
                       <p className="text-xs text-zinc-500 mt-0.5">
-                        Your Hermes proxy running on Hostinger. Set <code className="text-zinc-400">HERMES_API_URL</code> and{' '}
-                        <code className="text-zinc-400">HERMES_API_KEY</code> in .env.local.
+                        Preferred production path: BertOS backend route to a Hermes API server on the same Hostinger VPS or a separate HTTPS VPS endpoint. Do not call Hermes directly from the browser.
                       </p>
                       <div className="mt-2 grid gap-1 text-[10px] text-zinc-600">
-                        <p>Proxy configured: {hermesNousStatus?.configured ? 'yes' : 'no'}</p>
+                        <p>HERMES_ENABLED: {hermesNousStatus?.enabled ? 'true' : 'false or missing'}</p>
+                        <p>Endpoint configured: {hermesNousStatus?.endpointConfigured ? 'yes' : 'no'}</p>
                         <p>Proxy reachable: {hermesNousStatus?.proxyReachable === true ? 'yes' : hermesNousStatus?.proxyReachable === false ? 'no' : 'unknown'}</p>
-                        <p>Paid routing: {hermesNousStatus?.paidEnabled ? 'enabled' : 'disabled (set ENABLE_HERMES_PAID=true)'}</p>
-                        <p className="text-zinc-700">Status checks are safe — no chat completions are run from this card.</p>
+                        <p>API key: {hermesNousStatus?.apiKeyConfigured ? '******** configured' : 'missing'}</p>
+                        <p>Paid provider: {hermesNousStatus?.paidEnabled ? 'optional enabled behind Hermes' : 'not required'}</p>
+                        <p className="text-zinc-700">Health/model checks are server-side and safe. Chat tests call only your configured Hermes endpoint.</p>
                       </div>
                       {hermesNousStatus?.error && (
                         <p className="text-[11px] text-amber-300/80 mt-1">{hermesNousStatus.error}</p>
@@ -997,7 +1167,7 @@ export function SettingsView() {
                     className="flex items-center gap-1 text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
                   >
                     <RefreshCw className="w-3 h-3" />
-                    Test Hermes Connection
+                    Test Hermes Health
                   </button>
                 </div>
               </div>

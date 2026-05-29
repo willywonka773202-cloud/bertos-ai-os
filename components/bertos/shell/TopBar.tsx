@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { usePathname } from 'next/navigation'
 import { Beaker, Bot, ChevronDown, Command, Cpu, Globe, Lock, Menu, PanelRight, PanelRightClose, Server, Sparkles, Zap } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -12,6 +13,9 @@ import type { AIModel } from '@/lib/bertos/types'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ProviderStatusIndicator } from './ProviderStatusIndicator'
 import { ProviderBadge, RomanDivider, StatusOrb } from '@/components/bertos/hermes'
+import { getGameModuleForPath } from '@/lib/bertos/game-modules'
+import { EngineTopNav } from './EngineTopNav'
+import { DivineTopBar } from '@/components/bertos/olympus'
 
 type ModelOption = {
   value: AIModel | string
@@ -36,11 +40,12 @@ const MODEL_OPTIONS: ModelOption[] = [
   { value: 'mistral', label: 'Mistral', description: 'Local Ollama concise reasoning', icon: <Bot className="h-3.5 w-3.5" />, color: '#F472B6', section: 'local' },
   { value: 'deepseek-coder', label: 'DeepSeek Coder', description: 'Local Ollama coding model', icon: <Bot className="h-3.5 w-3.5" />, color: '#22D3EE', section: 'local' },
   { value: 'hermes3', label: 'Hermes 3', description: 'NousResearch local Ollama model', icon: <Bot className="h-3.5 w-3.5" />, color: '#F6C453', section: 'local' },
+  { value: 'openclaw-cli', label: 'OpenClaw', description: 'Local/Ollama-backed OpenClaw agent through the BertOS desktop daemon', icon: <Bot className="h-3.5 w-3.5" />, color: '#EF4444', section: 'local' },
   { value: 'claude-api', label: 'Anthropic API', description: 'Paid metered API, disabled unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#A78BFA', section: 'paid', disabled: true, disabledReason: 'Requires an Anthropic API key in Settings and separate paid billing.' },
   { value: 'openai-api', label: 'OpenAI API', description: 'Paid metered API, disabled unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#34D399', section: 'paid', disabled: true, disabledReason: 'Requires an OpenAI API key in Settings and separate paid billing.' },
   { value: 'gemini-api', label: 'Gemini API', description: 'Paid metered API, disabled unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#60A5FA', section: 'paid', disabled: true, disabledReason: 'Requires a Gemini API key in Settings and separate paid billing.' },
   { value: 'gemini-api-native', label: 'Gemini Native', description: 'Structured planning via API, paid-gated unless configured', icon: <Lock className="h-3.5 w-3.5" />, color: '#60A5FA', section: 'paid', disabled: true, disabledReason: 'Requires GEMINI_API_KEY or Settings key. It will not route silently.' },
-  { value: 'hermes-nous', label: 'Hermes / Nous Remote', description: 'Paid proxy credits required', icon: <Lock className="h-3.5 w-3.5" />, color: '#F6C453', section: 'paid', disabled: true, disabledReason: 'Hermes/Nous remains paid-gated and needs ENABLE_HERMES_PAID=true plus explicit approval.' },
+  { value: 'hermes-nous', label: 'Hermes Agent', description: 'Server-side OpenAI-compatible Hermes endpoint backed by Ollama, local, custom, or optional paid models', icon: <Server className="h-3.5 w-3.5" />, color: '#F6C453', section: 'local' },
   { value: 'fcc-proxy', label: 'FCC Proxy', description: 'Experimental connector', icon: <Beaker className="h-3.5 w-3.5" />, color: '#C084FC', section: 'experimental', disabled: true, disabledReason: 'FCC remains experimental and is not wired as a guaranteed runtime.' },
   { value: 'anti-gravity', label: 'Anti-Gravity', description: 'Planned Google agent runtime', icon: <Beaker className="h-3.5 w-3.5" />, color: '#FBBF24', section: 'experimental', disabled: true, disabledReason: 'Planned/experimental. BertOS does not assume it is installed or configured.' },
 ]
@@ -48,19 +53,28 @@ const MODEL_OPTIONS: ModelOption[] = [
 const VIEW_LABELS: Record<string, string> = {
   dashboard: 'Mission Control',
   chat: 'Oracle Console',
+  hermes: 'Hermes Power Agent',
   prompts: 'Prompt Arsenal',
   compare: 'Oracle Tribunal',
   coding: 'Forge Bay',
   workspace: 'Command Deck',
   evolution: 'Experimental Armory',
   agents: 'Agent Legion',
+  skills: 'Skills Registry',
+  plugins: 'Plugin Registry',
+  outputs: 'Output Registry',
+  runs: 'Runs / Logs',
+  studio: 'Studio Mini-App',
+  'publishing-queue': 'Publishing Queue',
   memory: 'Memory Vault',
+  'memory-review': 'Memory Review',
   brief: 'Daily Oracle Brief',
   playbooks: 'Doctrine Library',
   tasks: 'Task Phalanx',
   migrations: 'Migration Cartography',
   github: 'Repo War Room',
   settings: 'Provider Forge',
+  launch: 'Launch Readiness',
   autopilot: 'Autopilot Praetorium',
 }
 
@@ -75,6 +89,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   const [mounted, setMounted] = useState(false)
   const [menuRect, setMenuRect] = useState<{ right: number; top: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const pathname = usePathname()
 
   useEffect(() => setMounted(true), [])
   useEffect(() => {
@@ -93,6 +108,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
   }, [modelMenuOpen])
 
   const activeModel = MODEL_OPTIONS.find(option => option.value === selectedModel) ?? MODEL_OPTIONS[0]
+  const routeModule = getGameModuleForPath(pathname)
   const activeSession = sessions.find(session => session.id === activeSessionId)
   const daemonDegraded = daemonStoreStatus === 'degraded'
   const daemonOnline = Boolean(daemonHealth?.daemonOnline) || daemonDegraded
@@ -140,21 +156,30 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
     document.body,
   ) : null
 
-  return (
-    <div className="relative z-30 flex h-12 shrink-0 items-center gap-3 border-b border-[rgba(212,180,131,0.12)] bg-[#0A0806]/76 px-4 backdrop-blur-xl">
-      <button
-        onClick={onMobileMenuToggle}
-        className="shrink-0 rounded-lg border border-[rgba(212,180,131,0.15)] p-1.5 text-[#6A5A3A] transition hover:border-[rgba(212,180,131,0.35)] hover:text-[#D4B483] md:hidden"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
+  const currentSection = routeModule.title || VIEW_LABELS[activeView] || 'BertOS'
 
+  return (
+    <div className="relative z-30 flex shrink-0 flex-col border-b border-[rgba(246,196,83,0.16)] bg-[#05030A]/78 shadow-[0_8px_50px_rgba(0,0,0,0.32),0_0_34px_rgba(246,196,83,0.07)] backdrop-blur-2xl">
+      <div className="flex min-h-12 items-center gap-2 border-b border-[rgba(246,196,83,0.08)] px-3 py-1.5 md:px-4">
+        <button
+          onClick={onMobileMenuToggle}
+          className="shrink-0 rounded-lg border border-[rgba(246,196,83,0.16)] bg-[rgba(246,196,83,0.06)] p-1.5 text-[#9A8A68] transition hover:border-[rgba(246,196,83,0.36)] hover:text-[#F6C453] md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <EngineTopNav />
+        </div>
+        <DivineTopBar currentSection={currentSection} />
+      </div>
+
+      <div className="flex h-12 items-center gap-3 px-3 md:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <StatusOrb state={liveState === 'setup' ? 'warning' : liveState === 'approval' ? 'warning' : isStreaming ? 'loading' : 'active'} size="sm" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-[#E8DDB8]">{VIEW_LABELS[activeView] ?? 'BertOS'}</div>
-          <div className="hidden truncate text-[10px] text-[#4A3C28] sm:block">
-            {activeSession?.title && activeSession.title !== 'New Chat' ? activeSession.title : 'Jarvis x Roman Hermes command channel'}
+          <div className="truncate text-sm font-semibold text-[#F0E8D0]">{currentSection}</div>
+          <div className="hidden truncate text-[10px] text-[#9A8A68] sm:block">
+            {activeSession?.title && activeSession.title !== 'New Chat' ? activeSession.title : 'Hermes Messenger Layer / Divine AI command channel'}
           </div>
         </div>
       </div>
@@ -163,7 +188,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         <TooltipTrigger asChild>
           <button
             onClick={() => setCommandPaletteOpen(true)}
-            className="hidden items-center gap-1.5 rounded-lg border border-[rgba(212,180,131,0.12)] bg-[rgba(212,180,131,0.04)] px-2.5 py-1 text-[#5A4A2A] transition hover:border-[rgba(212,180,131,0.30)] hover:text-[#D4B483] md:flex"
+            className="hidden items-center gap-1.5 rounded-lg border border-[rgba(246,196,83,0.18)] bg-[rgba(246,196,83,0.06)] px-2.5 py-1 text-[#9A8A68] transition hover:-translate-y-px hover:border-[rgba(103,232,249,0.38)] hover:text-[#67E8F9] md:flex"
           >
             <Command className="h-3 w-3" />
             <span className="text-[10px]">CTRL K</span>
@@ -194,7 +219,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
       <button
         ref={triggerRef}
         onClick={() => setModelMenuOpen(open => !open)}
-        className="flex items-center gap-2 rounded-lg border border-[rgba(212,180,131,0.20)] bg-[rgba(212,180,131,0.05)] px-3 py-1.5 text-sm transition hover:border-[rgba(212,180,131,0.38)]"
+        className="flex items-center gap-2 rounded-lg border border-[rgba(246,196,83,0.24)] bg-[rgba(246,196,83,0.07)] px-3 py-1.5 text-sm shadow-[0_0_24px_rgba(246,196,83,0.06)] transition hover:-translate-y-px hover:border-[rgba(246,196,83,0.48)]"
       >
         <span style={{ color: activeModel.color }}>{activeModel.icon}</span>
         <span className="hidden text-xs font-medium text-zinc-100 sm:block">{activeModel.label}</span>
@@ -226,6 +251,7 @@ export function TopBar({ onMobileMenuToggle }: { onMobileMenuToggle?: () => void
         </TooltipTrigger>
         <TooltipContent>{rightPanelOpen ? 'Hide Panel' : 'Show Panel'}</TooltipContent>
       </Tooltip>
+      </div>
     </div>
   )
 }

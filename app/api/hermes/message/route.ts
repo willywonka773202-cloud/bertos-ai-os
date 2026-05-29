@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   })
 
   if (!result.ok) {
-    const status = result.error?.includes('paid-gated') ? 403 : result.error?.includes('required') ? 503 : 502
+    const status = result.error?.includes('disabled') || result.error?.includes('missing') || result.error?.includes('required') ? 503 : 502
     return NextResponse.json({ ok: false, error: result.error }, { status })
   }
 

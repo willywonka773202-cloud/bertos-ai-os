@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
+import { HERMES_POWER_PROMPTS } from '@/lib/bertos/hermes-power-pack'
+import { STYLUSLY_REBUILD_MAX_PROMPT, STYLUSLY_REBUILD_PROMPT_TITLE } from '@/lib/bertos/stylusly-rebuild-prompt'
 
 export type PromptCategory = 'coding' | 'business' | 'school' | 'agents' | 'personal' | 'custom'
 
@@ -51,6 +53,15 @@ Rules:
     variables: ['projectName', 'focusAreas'],
     tags: ['typescript', 'debugging', 'types'],
     favorite: false,
+  },
+  {
+    title: STYLUSLY_REBUILD_PROMPT_TITLE,
+    category: 'coding',
+    content: STYLUSLY_REBUILD_MAX_PROMPT,
+    description: 'Max Mode rebuild prompt for restoring Stylusly as a complete fashion styling app instead of a stripped-down Fits clone.',
+    variables: [],
+    tags: ['stylusly', 'max', 'fashion', 'rebuild', 'product', 'ui', 'database'],
+    favorite: true,
   },
   {
     title: 'Improve UI Polish',
@@ -241,18 +252,38 @@ Provide:
     tags: ['planning', 'goals', 'productivity'],
     favorite: false,
   },
+  ...HERMES_POWER_PROMPTS.map(prompt => ({
+    title: prompt.title,
+    category: prompt.category,
+    content: prompt.content,
+    description: prompt.description,
+    variables: prompt.variables,
+    tags: prompt.tags,
+    favorite: false,
+  })),
 ]
+
+function materializeDefaultPrompts() {
+  const now = Date.now()
+  return DEFAULT_PROMPTS.map(p => ({
+    ...p,
+    id: uuidv4(),
+    usageCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  }))
+}
+
+function mergeMissingDefaultPrompts(existing: PromptTemplate[]) {
+  const byTitle = new Set(existing.map(prompt => prompt.title))
+  const missingDefaults = materializeDefaultPrompts().filter(prompt => !byTitle.has(prompt.title))
+  return missingDefaults.length ? [...missingDefaults, ...existing] : existing
+}
 
 export const usePromptStore = create<PromptStore>()(
   persist(
     (set, get) => ({
-      prompts: DEFAULT_PROMPTS.map(p => ({
-        ...p,
-        id: uuidv4(),
-        usageCount: 0,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      })),
+      prompts: materializeDefaultPrompts(),
 
       createPrompt: (data) => {
         const prompt: PromptTemplate = {
@@ -325,6 +356,16 @@ export const usePromptStore = create<PromptStore>()(
         return duplicate
       },
     }),
-    { name: 'bertos-prompts' }
+    {
+      name: 'bertos-prompts',
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<PromptStore>
+        return {
+          ...current,
+          ...p,
+          prompts: mergeMissingDefaultPrompts(p.prompts ?? current.prompts),
+        }
+      },
+    }
   )
 )

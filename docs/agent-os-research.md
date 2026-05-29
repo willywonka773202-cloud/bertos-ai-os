@@ -35,7 +35,7 @@ BertOS now uses a shared orchestration planner in `lib/bertos/agent-orchestrator
 - Gemini CLI / Gemini Native: broad planning, research, long-context synthesis, and judge-style work.
 - Claude Code: UI/UX, architecture, refactor quality, and review lanes.
 - Codex CLI: implementation, patch generation, typecheck/build/safety validation, and direct failure repair.
-- Hermes / Nous: paid-gated lane only; never included in automatic execution unless explicitly enabled and approved.
+- Hermes Agent: server-side setup-gated lane only; never included in automatic execution unless explicitly configured and approved.
 
 Broad prompts can fan out into read-only parallel lanes first. Mutating lanes such as implementation, validation commands, push/deploy, deletes, paid calls, or production/webhook work stay sequential and approval-gated.
 

@@ -4,12 +4,13 @@ import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from
 export async function status(): Promise<ProviderStatusResult> {
   const daemon = await fetchLocalDaemonStatus()
   const tool = daemon.tools.find(item => item.id === 'codex-cli')
+  const available = Boolean(daemon.online && tool?.installed && tool.loginStatus === 'available')
   return {
-    ok: Boolean(daemon.online && tool?.installed),
+    ok: available,
     providerId: 'codex-cli',
     providerName: 'Codex CLI',
     modelOrTool: tool?.resolvedPath ?? 'codex',
-    online: Boolean(daemon.online && tool?.installed),
+    online: available,
     error: tool?.error ?? daemon.error,
     detail: tool,
   }

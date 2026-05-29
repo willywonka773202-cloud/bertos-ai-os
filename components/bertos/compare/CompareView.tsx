@@ -16,6 +16,7 @@ import { useChatStore } from '@/store/bertos/chat'
 import { usePromptStore } from '@/store/bertos/prompts'
 import { toast } from 'sonner'
 import { ChamberCard, EmptyChamber, LoadingRelay, RouteHero } from '@/components/bertos/hermes'
+import { scopedClientKeysForModel } from '@/lib/bertos/client-provider-keys'
 
 type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'gemini-api-native' | 'codex-cli'
 type CouncilMode = 'compare' | 'judge' | 'build'
@@ -210,7 +211,7 @@ export function CompareView() {
         messages: [{ id: '1', role: 'user', content: prompt, timestamp: Date.now() }],
         model,
         systemPrompt,
-        clientKeys: settings.apiKeys,
+        clientKeys: scopedClientKeysForModel(model, settings.apiKeys),
         ollamaEndpoint: settings.ollamaEndpoint,
         enableApiProviders: settings.enableApiProviders,
       }),
@@ -428,7 +429,7 @@ export function CompareView() {
   const canAct = allDone && !isJudging
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-cyan-300/10 bg-slate-950/35 px-5 py-4 space-y-3">
         <div className="max-w-5xl mx-auto space-y-3">
@@ -568,9 +569,9 @@ export function CompareView() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {!hasResponses ? (
-          <div className="flex h-full flex-col items-center justify-center px-5 py-16">
+          <div className="flex h-full min-h-0 flex-col items-center justify-center px-5 py-16">
             <EmptyChamber
               icon={<Scale className="h-6 w-6" />}
               title="Tribunal Awaiting Evidence"

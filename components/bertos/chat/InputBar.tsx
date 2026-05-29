@@ -24,6 +24,7 @@ const MODEL_HINTS: Record<string, { icon: React.ReactNode; color: string; label:
   'claude-code':    { icon: <Cpu      className="w-3.5 h-3.5" />, color: '#8B5CF6', label: 'Claude Code'     },
   'gemini-cli':     { icon: <Globe    className="w-3.5 h-3.5" />, color: '#3B82F6', label: 'Gemini CLI'      },
   'codex-cli':      { icon: <Zap      className="w-3.5 h-3.5" />, color: '#10B981', label: 'Codex CLI'       },
+  'openclaw-cli':   { icon: <Bot      className="w-3.5 h-3.5" />, color: '#EF4444', label: 'OpenClaw'       },
   // Optional API providers
   'claude-api':     { icon: <Cpu      className="w-3.5 h-3.5" />, color: '#8B5CF6', label: 'Anthropic API'   },
   'openai-api':     { icon: <Zap      className="w-3.5 h-3.5" />, color: '#10B981', label: 'OpenAI API'      },
@@ -40,6 +41,14 @@ const MODEL_HINTS: Record<string, { icon: React.ReactNode; color: string; label:
 }
 
 const SLASH_COMMANDS = [
+  { cmd: '/youtube-researcher', desc: 'Ground scripts and hooks in YouTube sources' },
+  { cmd: '/second-brain', desc: 'Turn saved notes into source-linked ideas' },
+  { cmd: '/diagram', desc: 'Create a visual-first diagram spec' },
+  { cmd: '/paper-canvas', desc: 'Create an AI canvas or design board' },
+  { cmd: '/motion-graphics', desc: 'Plan motion scenes and video overlays' },
+  { cmd: '/gen-media', desc: 'Create Studio prompt cards or media assets' },
+  { cmd: '/brand-deal-manager', desc: 'Triage deal-flow with approval gates' },
+  { cmd: '/publishing-queue', desc: 'Draft local publishing queue items' },
   { cmd: '/compare', desc: 'Compare across all models' },
   { cmd: '/ask-all', desc: 'Ask all AI systems simultaneously' },
   { cmd: '/code', desc: 'Route to coding model' },

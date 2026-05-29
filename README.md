@@ -54,10 +54,11 @@ Optional provider/API integrations:
 ANTHROPIC_API_KEY=
 OPENAI_API_KEY=
 GEMINI_API_KEY=
-HERMES_API_URL=
+HERMES_ENABLED=false
+HERMES_BASE_URL=
 HERMES_API_KEY=
+HERMES_MODEL=hermes-agent
 COMPOSIO_API_KEY=
-ENABLE_HERMES_PAID=false
 ENABLE_FCC_PROXY=false
 ```
 
@@ -127,16 +128,16 @@ bertos status
 
 The local daemon lets BertOS use authenticated desktop CLIs without exposing them publicly.
 
-Start it from the repo root:
+Start it from the repo root on the computer that has this repo:
 
-```powershell
+```bash
 npm run bertos:daemon
 ```
 
-The command should stay running until you press `Ctrl+C`. If it immediately returns to PowerShell, check whether another process is already using port `8787`:
+The command should stay running until you press `Ctrl+C`. If it immediately exits, check whether another process is already using port `8787`:
 
-```powershell
-Get-NetTCPConnection -LocalPort 8787 -State Listen
+```bash
+lsof -i :8787
 ```
 
 Defaults:
@@ -155,7 +156,7 @@ POST http://127.0.0.1:8787/run-cli
 POST http://127.0.0.1:8787/ask-cli
 ```
 
-BertOS web routes:
+BertOS web routes and the production browser bridge:
 
 ```text
 GET  /api/local-daemon/status
@@ -165,13 +166,22 @@ POST /api/workspace/context
 POST /api/workspace/mission
 ```
 
-On Vercel, `/api/local-daemon/*` returns unavailable because Vercel cannot reach your Windows localhost daemon. In local development, BertOS proxies to the daemon.
+When BertOS is open from `https://bertos-ai-os.vercel.app` on the same desktop, the browser talks directly to `http://127.0.0.1:8787` through CORS. The Vercel server cannot reach your laptop's `localhost`, so coding actions in Workspace, Builder, Agents, GitHub, Dashboard checks, Evolution Lab, and the command palette use the browser-local daemon bridge first and fall back to the server route only in local development.
+
+For phone access, `127.0.0.1` is the phone itself, not your Mac. Run the daemon with a token and expose it through a secure HTTPS tunnel:
+
+```bash
+BERTOS_DAEMON_TOKEN=replace-with-a-strong-secret npm run bertos:daemon
+cloudflared tunnel --url http://127.0.0.1:8787
+```
+
+Then open BertOS on the phone, go to Settings -> Local CLI Bridge, set the browser daemon URL to the tunnel URL, and save the same token. Do not expose the daemon without a token.
 
 ## Test Local CLIs
 
-Run these in Windows PowerShell:
+Run these in your terminal:
 
-```powershell
+```bash
 claude --version
 codex --version
 gemini --version
@@ -179,22 +189,22 @@ gemini --version
 
 Then start the daemon:
 
-```powershell
+```bash
 npm run bertos:daemon
 ```
 
 In another terminal:
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:8787/status
-Invoke-RestMethod http://127.0.0.1:8787/tools
-Invoke-RestMethod http://127.0.0.1:8787/repo/status
+```bash
+curl http://127.0.0.1:8787/status
+curl http://127.0.0.1:8787/tools
+curl http://127.0.0.1:8787/repo/status
 ```
 
 Expected status includes:
 
 - `online: true`
-- resolved `.cmd` paths for Claude, Codex, and Gemini on Windows
+- resolved paths for Claude, Codex, and Gemini
 - `repo.safeRepo: true`
 - `remote: https://github.com/willywonka773202-cloud/bertos-ai-os.git`
 
@@ -232,6 +242,8 @@ If the local daemon is offline, BertOS falls back to Ollama Pro instead of prete
 ## Command Center Surfaces
 
 - `/dashboard` is the local mission control page with system status, agent stack visibility, today's command center, and quick launch buttons.
+- `/launch` is the publishability cockpit for domain status, installable app checks, local daemon bridge readiness, runtime safety, Creator OS modules, and phone/desktop setup.
+- `/hermes` is the Hermes Power Agent workspace with a light control column for compiling prompts, launching chat runs, staging agent tasks, and navigating memory/goals/briefs/swarms/content/video setup lanes.
 - `/builder` and `/coding` are the Builder / Code Lab workflow center for scoped missions, provider selection, copyable Claude/Codex/Gemini/Devin/Qwen/Hermes/FCC prompts, and safe local patch flow.
 - `/tasks` is a localStorage task board for tracking generated prompts, external-agent handoffs, review, blockers, and completion.
 - `/memory` is the local-first memory vault foundation. Project memory is active; Obsidian/local markdown vault support is planned.
@@ -305,9 +317,18 @@ BertOS keeps `/chat` and `/engines/bertos` as the combined router experience, th
 - `/engines/claude` for Claude Code architecture and UI review
 - `/engines/gemini` for Gemini CLI planning and research
 - `/engines/ollama` for cheap/default Ollama chat and summaries
-- `/engines/hermes` for paid-gated Hermes / Nous manual routing
+- `/engines/hermes` for server-side Hermes Agent routing through an OpenAI-compatible endpoint
 
-Additional direct routes exist for Gemini Native, Qwen, and OpenAI API. API and paid-gated tabs show missing setup instead of silently spending credits.
+Additional direct routes exist for Gemini Native, Qwen, and OpenAI API. API tabs show missing setup instead of silently spending credits. Hermes does not require a paid OpenAI, Claude, or OpenRouter key; it can point at a self-hosted Hermes gateway backed by Ollama/local models or a custom free-tier compatible endpoint.
+
+## Publishable App Mode
+
+BertOS includes a production web app manifest, service worker scaffold, and `/launch` readiness cockpit.
+
+- Desktop: run `npm run bertos:daemon`, then use `https://bertos-ai-os.vercel.app` or install BertOS from the browser install menu.
+- Phone: use the hosted domain for dashboards/review, and use a secure HTTPS daemon tunnel plus `BERTOS_DAEMON_TOKEN` for repo coding.
+- Service worker: caches core shell routes only and does not cache `/api/*`, local daemon requests, secrets, or generated runtime data.
+- Readiness API: `GET /api/bertos/readiness` reports deployment, PWA files, runtime gitignore safety, skills/plugins/output/memory status, and public secret-shaped env checks without printing secret values.
 
 ## Builder Workflow
 
@@ -340,16 +361,22 @@ Obsidian/local markdown memory is a major planned upgrade. The Memory page inclu
 The environment schema reserves:
 
 ```text
-HERMES_API_URL=
+HERMES_ENABLED=false
+HERMES_BASE_URL=
 HERMES_API_KEY=
+HERMES_MODEL=hermes-agent
+HERMES_TIMEOUT_MS=120000
+HERMES_STREAMING=true
 COMPOSIO_API_KEY=
 ```
 
 Those integrations should report missing setup until real credentials and endpoints are configured. Do not hard-code keys in the app.
 
-Hermes / Nous is paid-only for this account right now. No free text/chat model is available, so BertOS does not make Hermes / Nous a default provider and does not include it in auto-routing unless `ENABLE_HERMES_PAID=true` is set intentionally.
+Hermes Agent is a server-side OpenAI-compatible backend. BertOS calls it through backend routes only, keeps `HERMES_API_KEY` out of client JavaScript, and supports free/self-hosted model paths such as Ollama/local models, a custom compatible endpoint, or a free-tier provider configured behind Hermes. Paid providers are optional metadata only and are never required by BertOS.
 
-To verify the local safety gate without printing secrets or making a network call:
+The free Hostinger/local setup guide is documented in [`docs/hermes-free-setup.md`](docs/hermes-free-setup.md). The Hermes Power Pack is documented in [`docs/hermes-power-agent.md`](docs/hermes-power-agent.md). It captures the memory-first operating model, Super Goal loop, Dream Brief, model pantheon, Kanban swarm, content factory, Hyperframes setup path, and private backup plan while keeping unverified tools and risky actions gated.
+
+To verify server-side Hermes environment detection without printing secrets or making a network call:
 
 ```powershell
 npm run hermes:status
@@ -361,17 +388,25 @@ The API status payload also exposes both `.hermes` and `.hermesNous` for compati
 Invoke-RestMethod http://localhost:3000/api/providers/status | Select-Object -ExpandProperty hermes
 ```
 
-Do not add a browser toggle that writes `.env.local`; enable paid routing only by deliberately editing local/server environment variables and restarting the server.
+Do not add a browser toggle that writes `.env.local`; configure Hermes only by deliberately editing local/server environment variables and restarting the server.
 
-Additional Hermes route scaffolds exist for future remote orchestration:
+Hermes server-side routes:
 
 ```text
+GET  /api/hermes/health
+GET  /api/hermes/models
+POST /api/hermes/chat
+POST /api/hermes/responses
+POST /api/hermes/runs
+GET  /api/hermes/runs/:runId
+GET  /api/hermes/runs/:runId/events
+POST /api/hermes/runs/:runId/stop
 GET  /api/hermes/status
 POST /api/hermes/message
 POST /api/hermes/task
 ```
 
-`/api/hermes/message` and `/api/hermes/task` return `403` unless `ENABLE_HERMES_PAID=true` is set. BertOS does not run Hermes chat/completion tests by default.
+`/api/hermes/health`, `/api/hermes/models`, and `/api/hermes/chat` are the minimum working proxy set. If Hermes is disabled, missing a base URL, missing its server-side key, or unavailable, these routes return readable setup errors instead of exposing secrets.
 
 ## Telegram Scaffold
 

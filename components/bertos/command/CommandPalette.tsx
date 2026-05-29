@@ -5,7 +5,7 @@ import {
   MessageSquare, GitCompare, Code2, Bot, Brain, Settings, Plus,
   Trash2, Cpu, Globe, Zap, Sparkles, Search, ArrowRight, Keyboard, FlaskConical,
   LayoutDashboard, Library, Play, Check, Terminal, FileText, FolderOpen, Layers,
-  Shield, Clipboard, KanbanSquare, Compass, Github,
+  Shield, Clipboard, KanbanSquare, Compass, Github, Send, Rocket,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
@@ -13,6 +13,7 @@ import { useChatStore } from '@/store/bertos/chat'
 import { useProjectStore } from '@/store/bertos/projects'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
 
 interface Command {
   id: string
@@ -31,7 +32,7 @@ export function CommandPalette() {
   const router = useRouter()
   const [query, setQuery] = useState('')
 
-  const navigate = (view: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'brief' | 'playbooks' | 'tasks' | 'migrations' | 'github' | 'settings' | 'autopilot', href: string) => {
+  const navigate = (view: Parameters<typeof setActiveView>[0], href: string) => {
     setActiveView(view)
     router.push(href)
     setCommandPaletteOpen(false)
@@ -50,7 +51,7 @@ export function CommandPalette() {
 
     setCommandPaletteOpen(false)
     toast.promise(
-      fetch('/api/local-daemon/run', {
+      fetchLocalDaemonBridge('/api/local-daemon/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -190,6 +191,15 @@ export function CommandPalette() {
       action: () => navigate('chat', '/chat'),
     },
     {
+      id: 'open-hermes',
+      label: 'Hermes Power Agent',
+      description: 'Open the Hermes operating system workspace',
+      icon: <Sparkles className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['hermes', 'agent', 'soul', 'goal', 'brief', 'power'],
+      action: () => navigate('hermes', '/hermes'),
+    },
+    {
       id: 'open-prompts',
       label: 'Prompt Library',
       description: 'Browse and manage prompts',
@@ -197,6 +207,51 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['prompts', 'library', 'templates'],
       action: () => navigate('prompts', '/prompts'),
+    },
+    {
+      id: 'open-skills',
+      label: 'Skills',
+      description: 'Open reusable slash-command workflows',
+      icon: <Sparkles className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['skills', 'slash', 'workflow', 'creator'],
+      action: () => navigate('skills', '/skills'),
+    },
+    {
+      id: 'open-plugins',
+      label: 'Plugins',
+      description: 'Open @mention capability bundles and setup gates',
+      icon: <Cpu className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['plugins', 'tools', 'gmail', 'youtube', 'buffer'],
+      action: () => navigate('plugins', '/plugins'),
+    },
+    {
+      id: 'open-outputs',
+      label: 'Output Registry',
+      description: 'Search generated artifacts and previews',
+      icon: <FolderOpen className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['outputs', 'artifacts', 'files', 'registry'],
+      action: () => navigate('outputs', '/outputs'),
+    },
+    {
+      id: 'open-runs',
+      label: 'Runs / Logs',
+      description: 'Inspect workflow runs and sub-agent lanes',
+      icon: <Terminal className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['runs', 'logs', 'workflow', 'lanes'],
+      action: () => navigate('runs', '/runs'),
+    },
+    {
+      id: 'open-publishing-queue',
+      label: 'Publishing Queue',
+      description: 'Open local Buffer-style publishing drafts',
+      icon: <Send className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['publishing', 'buffer', 'queue', 'social', 'content'],
+      action: () => navigate('publishing-queue', '/publishing-queue'),
     },
     {
       id: 'open-compare',
@@ -260,6 +315,15 @@ export function CommandPalette() {
       category: 'Navigate',
       keywords: ['github', 'git', 'repo', 'branch', 'remote'],
       action: () => navigate('github', '/github'),
+    },
+    {
+      id: 'open-launch',
+      label: 'Launch Readiness',
+      description: 'Check publishability, install state, local bridge, and safety gates',
+      icon: <Rocket className="w-4 h-4" />,
+      category: 'Navigate',
+      keywords: ['launch', 'publish', 'readiness', 'pwa', 'mobile', 'domain'],
+      action: () => navigate('launch', '/launch'),
     },
     {
       id: 'open-workspace',
@@ -445,39 +509,41 @@ export function CommandPalette() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50"
+            className="fixed inset-0 z-50 bg-[#030207]/78 backdrop-blur-md"
             onClick={() => setCommandPaletteOpen(false)}
           />
-          <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh] px-4 pointer-events-none">
+          <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[16vh] pointer-events-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: -20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: -20 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="w-full max-w-xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl shadow-black/80 overflow-hidden pointer-events-auto"
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="pointer-events-auto relative w-full max-w-2xl overflow-hidden rounded-3xl border border-[rgba(246,196,83,0.24)] bg-[radial-gradient(circle_at_50%_0%,rgba(246,196,83,0.14),transparent_32%),linear-gradient(145deg,rgba(9,7,16,0.96),rgba(5,3,10,0.94))] shadow-[0_28px_100px_rgba(0,0,0,0.82),0_0_60px_rgba(246,196,83,0.12)] backdrop-blur-2xl"
             >
+              <div className="pointer-events-none absolute inset-0 hermes-grid-fine opacity-20" />
+              <div className="pointer-events-none absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-[rgba(103,232,249,0.62)] to-transparent" />
               {/* Search input */}
-              <div className="flex items-center gap-3 px-4 py-3.5 border-b border-zinc-800">
-                <Search className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+              <div className="relative z-10 flex items-center gap-3 border-b border-[rgba(246,196,83,0.14)] px-4 py-4">
+                <Search className="w-4 h-4 text-[#F6C453] flex-shrink-0" />
                 <input
                   autoFocus
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  placeholder="Type a command or search..."
-                  className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 outline-none"
+                  placeholder="Invoke Hermes Messenger Layer..."
+                  className="flex-1 bg-transparent text-sm text-[#F8F2DF] placeholder:text-[#6A5A3A] outline-none"
                 />
-                <kbd className="text-[10px] text-zinc-600 bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded">ESC</kbd>
+                <kbd className="rounded border border-[rgba(246,196,83,0.18)] bg-[rgba(246,196,83,0.06)] px-1.5 py-0.5 text-[10px] text-[#9A8A68]">ESC</kbd>
               </div>
 
               {/* Results */}
-              <div className="max-h-80 overflow-y-auto">
+              <div className="relative z-10 max-h-[430px] overflow-y-auto">
                 {Object.keys(grouped).length === 0 ? (
-                  <div className="py-12 text-center text-zinc-600 text-sm">No commands found</div>
+                  <div className="py-12 text-center text-sm text-[#9A8A68]">No messenger route found</div>
                 ) : (
                   <div className="p-2 space-y-2">
                     {Object.entries(grouped).map(([category, commands]) => (
                       <div key={category}>
-                        <p className="px-2 py-1 text-[10px] font-semibold text-zinc-600 uppercase tracking-wider">
+                        <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#9A8A68]">
                           {category}
                         </p>
                         <div className="space-y-0.5">
@@ -490,22 +556,22 @@ export function CommandPalette() {
                                 onClick={cmd.action}
                                 onMouseEnter={() => setSelectedIdx(currentIdx)}
                                 className={cn(
-                                  'w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all duration-100',
+                                  'w-full flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-all duration-150',
                                   isSelected
-                                    ? 'bg-violet-500/15 border border-violet-500/20 text-zinc-100'
-                                    : 'text-zinc-400 hover:bg-white/5 border border-transparent'
+                                    ? 'border-[rgba(103,232,249,0.34)] bg-[rgba(103,232,249,0.10)] text-[#F8F2DF] shadow-[0_0_24px_rgba(103,232,249,0.10)]'
+                                    : 'border-transparent text-[#A89A7D] hover:border-[rgba(246,196,83,0.18)] hover:bg-[rgba(246,196,83,0.06)]'
                                 )}
                               >
-                                <span className={cn(isSelected ? 'text-violet-400' : 'text-zinc-500')}>
+                                <span className={cn(isSelected ? 'text-[#67E8F9]' : 'text-[#B8894B]')}>
                                   {cmd.icon}
                                 </span>
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium">{cmd.label}</p>
                                   {cmd.description && (
-                                    <p className="text-[11px] text-zinc-600 truncate">{cmd.description}</p>
+                                    <p className="truncate text-[11px] text-[#6A5A3A]">{cmd.description}</p>
                                   )}
                                 </div>
-                                {isSelected && <ArrowRight className="w-3.5 h-3.5 text-violet-400" />}
+                                {isSelected && <ArrowRight className="w-3.5 h-3.5 text-[#67E8F9]" />}
                               </button>
                             )
                           })}

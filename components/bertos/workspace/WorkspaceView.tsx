@@ -40,6 +40,7 @@ import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import type { AIModel } from '@/lib/bertos/types'
 import { EmptyChamber, RouteHero } from '@/components/bertos/hermes'
 import { useProgressionStore } from '@/store/bertos/progression'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
 
 interface FileNode {
   name: string
@@ -892,7 +893,7 @@ function Editor({
 }) {
   if (!tab) {
     return (
-      <div className="flex h-full items-center justify-center overflow-hidden bg-[#09090B] p-6">
+      <div className="flex h-full min-h-0 items-center justify-center overflow-hidden bg-[#09090B] p-6">
         <EmptyChamber
           icon={<FileText className="h-6 w-6" />}
           title={safe ? 'Idle Code Chamber' : 'Local Forge Locked'}
@@ -907,7 +908,7 @@ function Editor({
   }
   const lines = (tab?.content ?? '').split(/\r?\n/).length
   return (
-    <div className="grid h-full grid-cols-[52px_1fr] overflow-hidden bg-[#09090B]">
+    <div className="grid h-full min-h-0 grid-cols-[52px_1fr] overflow-hidden bg-[#09090B]">
       <div className="select-none border-r border-zinc-900 bg-zinc-950/60 py-4 text-right font-mono text-xs leading-5 text-zinc-700">
         {Array.from({ length: Math.max(lines, 1) }, (_, index) => (
           <div key={index} className="px-3">{index + 1}</div>
@@ -1081,7 +1082,7 @@ export function WorkspaceView() {
   }, [])
 
   const readRepoFile = useCallback(async (path: string): Promise<string> => {
-    const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+    const res = await fetchLocalDaemonBridge(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || `Could not read ${path}`)
     return data.content ?? ''
@@ -1105,7 +1106,7 @@ export function WorkspaceView() {
           content: file.after ?? '',
         }
 
-    const res = await fetch('/api/local-daemon/file', {
+    const res = await fetchLocalDaemonBridge('/api/local-daemon/file', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -1116,13 +1117,13 @@ export function WorkspaceView() {
   }, [])
 
   const loadStatus = useCallback(async () => {
-    const res = await fetch('/api/local-daemon/status', { cache: 'no-store' })
+    const res = await fetchLocalDaemonBridge('/api/local-daemon/status', { cache: 'no-store' })
     const data = await res.json()
     setStatus(data)
   }, [])
 
   const loadFiles = useCallback(async () => {
-    const res = await fetch('/api/local-daemon/files', { cache: 'no-store' })
+    const res = await fetchLocalDaemonBridge('/api/local-daemon/files', { cache: 'no-store' })
     const data = await res.json()
     setFiles(data.files ?? [])
   }, [])
@@ -1144,7 +1145,7 @@ export function WorkspaceView() {
       return
     }
 
-    const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+    const res = await fetchLocalDaemonBridge(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
     const data = await res.json()
     if (!res.ok) {
       toast.error(data.error || 'Could not open file.')
@@ -1184,7 +1185,7 @@ export function WorkspaceView() {
       const parsed = JSON.parse(restored) as { tabs?: { path: string }[]; activeFile?: string }
       const paths = (parsed.tabs ?? []).map(tab => tab.path).filter(path => flatFiles.some(file => file.path === path)).slice(0, 6)
       Promise.all(paths.map(async path => {
-        const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
+        const res = await fetchLocalDaemonBridge(`/api/local-daemon/file?path=${encodeURIComponent(path)}`, { cache: 'no-store' })
         if (!res.ok) return null
         const data = await res.json()
         return {
@@ -1249,7 +1250,7 @@ export function WorkspaceView() {
 
   const saveActiveFile = async () => {
     if (!activeTab || !dirty || !safe) return
-    const res = await fetch('/api/local-daemon/file', {
+    const res = await fetchLocalDaemonBridge('/api/local-daemon/file', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: activeTab.path, content: activeTab.content }),
@@ -1267,7 +1268,7 @@ export function WorkspaceView() {
   const reloadActiveFile = async () => {
     if (!activeTab) return
     if (dirty && !window.confirm('Discard unsaved changes and reload this file?')) return
-    const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(activeTab.path)}`, { cache: 'no-store' })
+    const res = await fetchLocalDaemonBridge(`/api/local-daemon/file?path=${encodeURIComponent(activeTab.path)}`, { cache: 'no-store' })
     const data = await res.json()
     if (!res.ok) {
       toast.error(data.error || 'Reload failed.')
@@ -1290,7 +1291,7 @@ export function WorkspaceView() {
       timestamp: Date.now(),
       running: true,
     })
-    const res = await fetch('/api/local-daemon/run', {
+    const res = await fetchLocalDaemonBridge('/api/local-daemon/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(command),
@@ -1393,7 +1394,7 @@ export function WorkspaceView() {
     let activeContent = activeTab?.content
     if (forceActiveFile && activeFile && !activeTab) {
       try {
-        const res = await fetch(`/api/local-daemon/file?path=${encodeURIComponent(activeFile)}`, { cache: 'no-store' })
+        const res = await fetchLocalDaemonBridge(`/api/local-daemon/file?path=${encodeURIComponent(activeFile)}`, { cache: 'no-store' })
         const data = await res.json()
         if (res.ok && typeof data.content === 'string') {
           activeContent = data.content
@@ -1754,7 +1755,7 @@ export function WorkspaceView() {
     setContextSearchRunning(true)
     try {
       const terms = deriveClientSearchTerms(task)
-      const res = await fetch('/api/local-daemon/search', {
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1867,8 +1868,8 @@ export function WorkspaceView() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <aside className="hidden w-72 shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950/60 md:flex">
+    <div className="flex h-full min-h-0 overflow-hidden">
+      <aside className="hidden min-h-0 w-72 shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950/60 md:flex">
         <div className="flex items-center justify-between border-b border-zinc-800/50 px-3 py-3">
           <div className="flex items-center gap-2">
             <Code2 className="w-4 h-4 text-violet-400" />
@@ -1904,7 +1905,7 @@ export function WorkspaceView() {
           </div>
         </div>
 
-        <ScrollArea className="flex-1 p-2">
+        <ScrollArea className="min-h-0 flex-1 p-2">
           {safe ? <FileTree nodes={files} activePath={activeFile} query={fileSearch} onOpen={openFile} /> : (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-500">
               Local coding requires running BertOS locally with <code>npm run bertos:daemon</code>. Vercel can still use Ollama Cloud chat, but cannot edit your Windows files.
@@ -1913,7 +1914,7 @@ export function WorkspaceView() {
         </ScrollArea>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="p-3 pb-0">
           <RouteHero
             compact
@@ -1977,8 +1978,8 @@ export function WorkspaceView() {
         </div>
 
         <div className="flex min-h-0 flex-1">
-          <section className="flex min-w-0 flex-1 flex-col">
-            <div className="flex min-h-[38px] items-end gap-1 overflow-x-auto border-b border-zinc-800/50 bg-zinc-950/40 px-2 pt-1">
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex min-h-[38px] shrink-0 items-end gap-1 overflow-x-auto border-b border-zinc-800/50 bg-zinc-950/40 px-2 pt-1">
               {tabs.length === 0 ? (
                 <div className="px-2 pb-2 text-xs text-zinc-600">Open a file to start editing.</div>
               ) : tabs.map(tab => {
@@ -2078,7 +2079,7 @@ export function WorkspaceView() {
             'hidden w-[430px] shrink-0 flex-col border-l border-zinc-800/50 bg-zinc-950/50',
             workflowPanelOpen ? 'xl:flex' : '2xl:flex',
           )}>
-            <ScrollArea className="flex-1">
+            <ScrollArea className="min-h-0 flex-1">
               <div className="space-y-4 p-4">
                 <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
                   <div className="mb-3 flex items-center gap-2">

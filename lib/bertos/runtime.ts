@@ -22,8 +22,8 @@ export interface OllamaConfig {
 
 export function getOllamaConfig(): OllamaConfig {
   const mode = getBertOSDeploymentMode()
-  const defaultModel = process.env.OLLAMA_DEFAULT_MODEL || 'gpt-oss:120b-cloud'
   const localFallback = process.env.OLLAMA_LOCAL_FALLBACK || 'qwen2.5-coder:latest'
+  const defaultModel = process.env.OLLAMA_DEFAULT_MODEL || (mode === 'local' ? localFallback : 'gpt-oss:120b-cloud')
 
   if (mode === 'cloud') {
     return {

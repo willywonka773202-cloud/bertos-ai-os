@@ -214,3 +214,1063 @@
 }
 
 [data-radix-popper-content-wrapper] { z-index: 999 !important; }
+
+@layer utilities {
+  .olympus-shell {
+    --olympus-obsidian: #05030a;
+    --olympus-night: #08091a;
+    --olympus-purple: #31114f;
+    --olympus-gold: #f6c453;
+    --olympus-bronze: #b8894b;
+    --olympus-cyan: #67e8f9;
+    --olympus-ivory: #f8f2df;
+    --olympus-glass: rgba(8, 7, 16, 0.68);
+    perspective: 1400px;
+  }
+
+  .olympus-stage {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    background:
+      radial-gradient(circle at 50% -10%, rgba(246,196,83,0.22), transparent 34%),
+      radial-gradient(circle at 84% 18%, rgba(103,232,249,0.15), transparent 28%),
+      radial-gradient(circle at 16% 20%, rgba(140,92,255,0.16), transparent 30%),
+      linear-gradient(145deg, #05030a 0%, #090819 42%, #05030a 72%, #13080f 100%);
+  }
+
+  .olympus-stage::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 110%, rgba(246,196,83,0.11), transparent 46%),
+      linear-gradient(90deg, rgba(246,196,83,0.06), transparent 20%, transparent 80%, rgba(103,232,249,0.05));
+    mix-blend-mode: screen;
+  }
+
+  .olympus-cosmos,
+  .olympus-marble-noise,
+  .olympus-three-field,
+  .olympus-grid-depth,
+  .olympus-light-sweep {
+    position: absolute;
+    inset: 0;
+  }
+
+  .olympus-three-field {
+    z-index: 1;
+    height: 100%;
+    width: 100%;
+    opacity: 0.48;
+    mix-blend-mode: screen;
+    filter: saturate(118%) drop-shadow(0 0 30px rgba(103,232,249,0.16));
+  }
+
+  .olympus-cosmos {
+    background-image:
+      radial-gradient(circle, rgba(248,242,223,0.75) 0 1px, transparent 1.5px),
+      radial-gradient(circle, rgba(103,232,249,0.45) 0 1px, transparent 1.4px),
+      radial-gradient(circle, rgba(246,196,83,0.46) 0 1px, transparent 1.5px);
+    background-position: 0 0, 42px 32px, 80px 12px;
+    background-size: 146px 146px, 214px 214px, 280px 280px;
+    opacity: 0.26;
+    animation: olympusDrift 34s linear infinite;
+  }
+
+  .olympus-marble-noise {
+    opacity: 0.12;
+    mix-blend-mode: overlay;
+    background-image:
+      repeating-linear-gradient(115deg, rgba(248,242,223,0.06) 0 1px, transparent 1px 12px),
+      repeating-linear-gradient(18deg, rgba(246,196,83,0.04) 0 1px, transparent 1px 18px);
+  }
+
+  .olympus-grid-depth {
+    background-image:
+      linear-gradient(rgba(103,232,249,0.09) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(246,196,83,0.07) 1px, transparent 1px);
+    background-size: 74px 74px;
+    transform: rotateX(64deg) translateY(16%) translateZ(-260px) scale(1.45);
+    transform-origin: center bottom;
+    opacity: 0.26;
+    animation: olympusGridFlow 18s linear infinite;
+  }
+
+  .olympus-greek-key {
+    position: absolute;
+    left: clamp(20px, 8vw, 140px);
+    right: clamp(20px, 8vw, 140px);
+    height: 18px;
+    opacity: 0.24;
+    background:
+      linear-gradient(90deg, rgba(246,196,83,0.55) 50%, transparent 0) 0 0/22px 2px repeat-x,
+      linear-gradient(90deg, transparent 50%, rgba(246,196,83,0.45) 0) 0 16px/22px 2px repeat-x,
+      repeating-linear-gradient(90deg, rgba(246,196,83,0.45) 0 2px, transparent 2px 11px);
+    filter: drop-shadow(0 0 16px rgba(246,196,83,0.24));
+  }
+
+  .olympus-greek-key--top { top: 18px; }
+  .olympus-greek-key--bottom { bottom: 18px; transform: rotate(180deg); }
+
+  .olympus-light-sweep {
+    background: linear-gradient(110deg, transparent 0 38%, rgba(246,196,83,0.10) 45%, rgba(103,232,249,0.07) 50%, transparent 58% 100%);
+    transform: translateX(-70%);
+    animation: olympusSweep 12s ease-in-out infinite;
+  }
+
+  .olympus-particles {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+
+  .olympus-particles span {
+    position: absolute;
+    height: 3px;
+    width: 3px;
+    border-radius: 999px;
+    background: rgba(248,242,223,0.66);
+    box-shadow: 0 0 18px rgba(246,196,83,0.65);
+    animation: olympusParticleRise 12s ease-in-out infinite;
+  }
+
+  .olympus-constellation {
+    position: absolute;
+    inset: 8% 8% 10% 8%;
+    z-index: 2;
+    opacity: 0.38;
+  }
+
+  .constellation-line,
+  .constellation-dot {
+    position: absolute;
+    display: block;
+  }
+
+  .constellation-line {
+    height: 1px;
+    width: 28vw;
+    transform-origin: left center;
+    background: linear-gradient(90deg, transparent, rgba(103,232,249,0.45), rgba(246,196,83,0.28), transparent);
+    animation: constellationDraw 7s ease-in-out infinite;
+  }
+
+  .constellation-line--one { left: 14%; top: 24%; transform: rotate(18deg); }
+  .constellation-line--two { left: 48%; top: 35%; transform: rotate(128deg); animation-delay: 1.4s; }
+  .constellation-line--three { left: 20%; top: 70%; transform: rotate(-16deg); animation-delay: 2.2s; }
+
+  .constellation-dot {
+    height: 7px;
+    width: 7px;
+    border-radius: 999px;
+    background: rgba(248,242,223,0.88);
+    box-shadow: 0 0 22px rgba(103,232,249,0.85);
+    animation: olympusPulseDot 3.8s ease-in-out infinite;
+  }
+
+  .constellation-dot--one { left: 13%; top: 23%; }
+  .constellation-dot--two { left: 44%; top: 34%; animation-delay: 0.8s; }
+  .constellation-dot--three { left: 66%; top: 62%; animation-delay: 1.6s; }
+  .constellation-dot--four { left: 23%; top: 70%; animation-delay: 2.4s; }
+
+  .olympus-model {
+    z-index: 3;
+    transform-style: preserve-3d;
+    animation: olympusFloat calc(9s * var(--model-speed)) ease-in-out infinite;
+    animation-delay: var(--model-delay);
+    filter: drop-shadow(0 32px 36px rgba(0,0,0,0.42));
+    opacity: 0.72;
+  }
+
+  .olympus-model__body {
+    position: relative;
+    height: 100%;
+    width: 100%;
+    transform-style: preserve-3d;
+  }
+
+  .olympus-model--orb {
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 35% 28%, rgba(248,242,223,0.92), rgba(246,196,83,0.62) 20%, rgba(103,232,249,0.22) 47%, rgba(49,17,79,0.22) 68%, transparent 72%),
+      conic-gradient(from 90deg, rgba(246,196,83,0.6), rgba(103,232,249,0.42), rgba(140,92,255,0.42), rgba(246,196,83,0.6));
+    box-shadow: inset -22px -24px 48px rgba(0,0,0,0.38), 0 0 70px rgba(246,196,83,0.32);
+  }
+
+  .olympus-model--wingedHelmet {
+    border-radius: 46% 46% 42% 42%;
+    background:
+      radial-gradient(circle at 50% 12%, rgba(248,242,223,0.86), transparent 22%),
+      linear-gradient(145deg, rgba(246,196,83,0.92), rgba(117,76,25,0.92) 58%, rgba(35,18,8,0.94));
+    box-shadow: inset -18px -26px 36px rgba(0,0,0,0.35), 0 0 42px rgba(246,196,83,0.18);
+    transform: rotateY(-18deg) rotateX(10deg);
+  }
+
+  .helmet-wing,
+  .helmet-crown {
+    position: absolute;
+    display: block;
+  }
+
+  .helmet-wing {
+    top: 24%;
+    height: 42%;
+    width: 58%;
+    background: linear-gradient(135deg, rgba(248,242,223,0.92), rgba(246,196,83,0.28));
+    clip-path: polygon(0 50%, 100% 0, 78% 28%, 100% 50%, 76% 62%, 96% 100%);
+    filter: drop-shadow(0 0 18px rgba(246,196,83,0.28));
+    animation: olympusWing 3.8s ease-in-out infinite;
+  }
+
+  .helmet-wing--left { left: -46%; transform: scaleX(-1) rotate(-8deg); }
+  .helmet-wing--right { right: -46%; transform: rotate(-8deg); animation-delay: 0.4s; }
+  .helmet-crown {
+    left: 42%;
+    top: -12%;
+    height: 38%;
+    width: 16%;
+    border-radius: 999px 999px 0 0;
+    background: linear-gradient(#fff3c4, #b8894b);
+  }
+
+  .olympus-model--caduceus,
+  .olympus-model--goldenRing,
+  .olympus-model--neuralCube,
+  .olympus-model--scroll,
+  .olympus-model--laurel,
+  .olympus-model--tablet,
+  .olympus-model--marbleBust,
+  .olympus-model--column {
+    display: grid;
+    place-items: center;
+  }
+
+  .caduceus-staff {
+    position: absolute;
+    height: 88%;
+    width: 5%;
+    border-radius: 999px;
+    background: linear-gradient(#fff5c7, #f6c453 40%, #6b4217);
+    box-shadow: 0 0 18px rgba(246,196,83,0.38);
+  }
+
+  .caduceus-serpent {
+    position: absolute;
+    height: 62%;
+    width: 44%;
+    border: 3px solid rgba(103,232,249,0.72);
+    border-left-color: transparent;
+    border-bottom-color: transparent;
+    border-radius: 999px;
+  }
+
+  .caduceus-serpent--one { transform: rotate(45deg); }
+  .caduceus-serpent--two { transform: scaleX(-1) rotate(45deg); border-color: rgba(246,196,83,0.72); border-left-color: transparent; border-bottom-color: transparent; }
+  .caduceus-wings {
+    position: absolute;
+    top: 6%;
+    height: 23%;
+    width: 82%;
+    background: linear-gradient(90deg, transparent, rgba(248,242,223,0.78), transparent);
+    clip-path: polygon(0 50%, 34% 14%, 48% 50%, 66% 14%, 100% 50%, 66% 82%, 52% 52%, 34% 82%);
+  }
+
+  .bust-head,
+  .bust-neck,
+  .bust-base {
+    position: absolute;
+    background: linear-gradient(145deg, #f6f0df, #9b927f 58%, #3b342b);
+    box-shadow: inset -18px -18px 30px rgba(0,0,0,0.28), 0 0 32px rgba(248,242,223,0.12);
+  }
+
+  .bust-head { top: 6%; height: 44%; width: 40%; border-radius: 50% 50% 42% 42%; }
+  .bust-neck { top: 45%; height: 22%; width: 24%; border-radius: 12px; }
+  .bust-base { bottom: 8%; height: 36%; width: 74%; border-radius: 52% 52% 18% 18%; }
+
+  .column-cap,
+  .column-shaft {
+    position: absolute;
+    background: linear-gradient(90deg, rgba(248,242,223,0.9), rgba(184,137,75,0.72), rgba(71,45,19,0.86));
+    box-shadow: inset -16px 0 30px rgba(0,0,0,0.24);
+  }
+
+  .column-cap { height: 14%; width: 74%; border-radius: 8px; }
+  .column-cap--top { top: 8%; }
+  .column-cap--bottom { bottom: 8%; }
+  .column-shaft {
+    top: 20%;
+    height: 60%;
+    width: 48%;
+    border-radius: 14px;
+    background:
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.13) 0 5px, transparent 5px 12px),
+      linear-gradient(90deg, rgba(248,242,223,0.9), rgba(184,137,75,0.7), rgba(71,45,19,0.88));
+  }
+
+  .ring,
+  .ring-core {
+    position: absolute;
+    border-radius: 999px;
+  }
+
+  .ring {
+    inset: 10%;
+    border: 2px solid rgba(246,196,83,0.62);
+    box-shadow: 0 0 26px rgba(246,196,83,0.28), inset 0 0 22px rgba(103,232,249,0.12);
+    animation: olympusRotate 12s linear infinite;
+  }
+
+  .ring--two { inset: 24%; transform: rotateX(68deg); border-color: rgba(103,232,249,0.58); animation-duration: 9s; animation-direction: reverse; }
+  .ring-core { inset: 39%; background: radial-gradient(circle, #fff8dc, #f6c453 50%, transparent 66%); box-shadow: 0 0 34px rgba(246,196,83,0.55); }
+
+  .cube-face {
+    position: absolute;
+    height: 48%;
+    width: 48%;
+    border: 1px solid rgba(103,232,249,0.58);
+    background: linear-gradient(145deg, rgba(103,232,249,0.20), rgba(140,92,255,0.14));
+    box-shadow: inset 0 0 22px rgba(103,232,249,0.14), 0 0 24px rgba(103,232,249,0.12);
+  }
+  .cube-face--front { transform: translateZ(24px); }
+  .cube-face--side { transform: translateX(24%) rotateY(62deg); }
+  .cube-face--top { transform: translateY(-24%) rotateX(62deg); }
+
+  .scroll-paper,
+  .scroll-rod,
+  .tablet-face,
+  .tablet-line {
+    position: absolute;
+  }
+
+  .scroll-paper {
+    height: 48%;
+    width: 76%;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f2dfb6, #8d6841);
+    box-shadow: inset -16px -14px 24px rgba(0,0,0,0.23), 0 0 24px rgba(246,196,83,0.18);
+  }
+  .scroll-rod { height: 60%; width: 9%; border-radius: 999px; background: linear-gradient(#f6c453, #573313); }
+  .scroll-rod--left { left: 7%; }
+  .scroll-rod--right { right: 7%; }
+
+  .laurel-arc {
+    position: absolute;
+    height: 76%;
+    width: 38%;
+    border: 3px solid rgba(246,196,83,0.64);
+    border-top-color: transparent;
+    border-bottom-color: transparent;
+    border-radius: 999px;
+  }
+  .laurel-arc--left { left: 18%; transform: rotate(-18deg); }
+  .laurel-arc--right { right: 18%; transform: scaleX(-1) rotate(-18deg); }
+  .laurel-core { position: absolute; height: 22%; width: 22%; border-radius: 999px; background: radial-gradient(circle, #f8f2df, #f6c453 55%, transparent 70%); }
+
+  .tablet-face {
+    height: 72%;
+    width: 62%;
+    border-radius: 14px;
+    background: linear-gradient(145deg, rgba(248,242,223,0.88), rgba(121,106,83,0.78));
+    box-shadow: inset -18px -18px 32px rgba(0,0,0,0.24), 0 0 30px rgba(248,242,223,0.12);
+  }
+  .tablet-line { left: 29%; height: 2px; width: 42%; background: rgba(55,38,20,0.42); }
+  .tablet-line--one { top: 38%; }
+  .tablet-line--two { top: 49%; }
+  .tablet-line--three { top: 60%; }
+
+  .olympus-brand__mark {
+    position: relative;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--brand-glow) 48%, transparent);
+    background:
+      radial-gradient(circle at 30% 18%, color-mix(in srgb, var(--brand-glow) 45%, transparent), transparent 42%),
+      linear-gradient(145deg, rgba(248,242,223,0.09), rgba(5,3,10,0.76));
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.14),
+      0 0 24px color-mix(in srgb, var(--brand-glow) 32%, transparent);
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+
+  .olympus-brand:hover .olympus-brand__mark {
+    transform: translateY(-2px) rotateX(12deg) scale(1.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.18),
+      0 0 34px color-mix(in srgb, var(--brand-glow) 48%, transparent);
+  }
+
+  .olympus-orbit {
+    position: relative;
+    height: min(430px, 56vw);
+    width: min(430px, 56vw);
+    min-height: 280px;
+    min-width: 280px;
+    transform-style: preserve-3d;
+  }
+
+  .olympus-orbit--compact {
+    height: 190px;
+    width: 190px;
+    min-height: 190px;
+    min-width: 190px;
+  }
+
+  .olympus-orbit__ring,
+  .olympus-orbit__axis,
+  .olympus-orbit__core,
+  .olympus-orbit__node {
+    position: absolute;
+  }
+
+  .olympus-orbit__ring {
+    inset: 9%;
+    border-radius: 999px;
+    border: 1px solid rgba(246,196,83,0.34);
+    box-shadow: inset 0 0 36px rgba(103,232,249,0.10), 0 0 46px rgba(246,196,83,0.12);
+    animation: olympusRotate 22s linear infinite;
+  }
+
+  .olympus-orbit__ring--inner {
+    inset: 26%;
+    border-color: rgba(103,232,249,0.30);
+    transform: rotateX(68deg);
+    animation-duration: 15s;
+    animation-direction: reverse;
+  }
+
+  .olympus-orbit__axis {
+    inset: 16%;
+    border-radius: 999px;
+    border: 1px dashed rgba(248,242,223,0.16);
+    transform: rotateZ(-22deg) rotateX(62deg);
+  }
+
+  .olympus-orbit__core {
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    display: grid;
+    place-items: center;
+    text-align: center;
+  }
+
+  .olympus-orbit__node {
+    animation: olympusNodeBreath 4s ease-in-out infinite;
+  }
+
+  .olympus-orbit__node--1 { left: 4%; top: 42%; }
+  .olympus-orbit__node--2 { right: 7%; top: 17%; animation-delay: 0.8s; }
+  .olympus-orbit__node--3 { right: 3%; bottom: 18%; animation-delay: 1.6s; }
+  .olympus-orbit__node--4 { left: 13%; bottom: 6%; animation-delay: 2.4s; }
+
+  .olympus-glass-panel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid rgba(246,196,83,0.18);
+    background:
+      radial-gradient(circle at 82% 10%, rgba(103,232,249,0.12), transparent 34%),
+      linear-gradient(145deg, rgba(12,10,20,0.78), rgba(5,3,10,0.70));
+    box-shadow:
+      inset 0 1px 0 rgba(248,242,223,0.08),
+      0 22px 70px rgba(0,0,0,0.34);
+    backdrop-filter: blur(22px) saturate(150%);
+    transform-style: preserve-3d;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+    padding: 1rem;
+  }
+
+  .olympus-glass-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(110deg, transparent 0 38%, rgba(248,242,223,0.10) 48%, transparent 58% 100%),
+      repeating-linear-gradient(90deg, rgba(246,196,83,0.045) 0 1px, transparent 1px 18px);
+    transform: translateX(-100%);
+    transition: transform 800ms ease;
+  }
+
+  .olympus-glass-panel:hover {
+    transform: translateY(-3px) rotateX(1deg);
+    border-color: rgba(246,196,83,0.34);
+    box-shadow:
+      inset 0 1px 0 rgba(248,242,223,0.12),
+      0 26px 90px rgba(0,0,0,0.42),
+      0 0 38px rgba(246,196,83,0.10);
+  }
+
+  .olympus-glass-panel:hover::before { transform: translateX(100%); }
+  .olympus-oracle-panel { border-color: rgba(103,232,249,0.22); }
+
+  .olympus-panel-corner {
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    border-color: rgba(246,196,83,0.45);
+  }
+  .olympus-panel-corner--tl { left: 10px; top: 10px; border-left: 1px solid; border-top: 1px solid; }
+  .olympus-panel-corner--br { right: 10px; bottom: 10px; border-right: 1px solid; border-bottom: 1px solid; }
+
+  .divine-topbar {
+    border-radius: 14px;
+    border: 1px solid rgba(246,196,83,0.16);
+    background: rgba(7,5,13,0.58);
+    box-shadow: inset 0 1px 0 rgba(248,242,223,0.06), 0 0 28px rgba(246,196,83,0.08);
+    padding: 0.25rem 0.5rem;
+  }
+
+  .divine-topbar__identity,
+  .divine-topbar__modules {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .divine-topbar__glyph {
+    display: grid;
+    height: 28px;
+    width: 28px;
+    place-items: center;
+    border-radius: 10px;
+    border: 1px solid rgba(246,196,83,0.38);
+    background: radial-gradient(circle at 35% 18%, rgba(248,242,223,0.35), transparent 44%), linear-gradient(145deg, rgba(246,196,83,0.28), rgba(49,17,79,0.38));
+    color: #f8f2df;
+    font-weight: 900;
+    box-shadow: 0 0 22px rgba(246,196,83,0.25);
+  }
+
+  .olympus-dock {
+    position: fixed;
+    left: 260px;
+    top: 50%;
+    bottom: auto;
+    z-index: 45;
+    transform: translateY(-50%);
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 22px;
+    border: 1px solid rgba(246,196,83,0.24);
+    background:
+      radial-gradient(circle at 50% 0%, rgba(246,196,83,0.14), transparent 54%),
+      rgba(5,3,10,0.78);
+    padding: 0.45rem;
+    box-shadow:
+      inset 0 1px 0 rgba(248,242,223,0.10),
+      0 24px 74px rgba(0,0,0,0.55),
+      0 0 45px rgba(103,232,249,0.10);
+    backdrop-filter: blur(24px) saturate(150%);
+  }
+
+  .olympus-dock__section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .olympus-dock__divider {
+    height: 1px;
+    width: 28px;
+    background: linear-gradient(90deg, transparent, rgba(246,196,83,0.34), transparent);
+  }
+
+  .olympus-dock__button,
+  .olympus-dock__brand {
+    position: relative;
+    display: grid;
+    height: 40px;
+    width: 40px;
+    place-items: center;
+    border-radius: 14px;
+    border: 1px solid rgba(248,242,223,0.09);
+    background: rgba(248,242,223,0.045);
+    color: rgba(248,242,223,0.65);
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .olympus-dock__button:hover,
+  .olympus-dock__brand:hover,
+  .olympus-dock__button.is-active {
+    transform: translateX(8px) scale(1.08);
+    border-color: rgba(246,196,83,0.42);
+    background: rgba(246,196,83,0.12);
+    color: #f8f2df;
+    box-shadow: 0 0 28px rgba(246,196,83,0.18);
+  }
+
+  .olympus-dock__button.is-active::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 18px;
+    border: 1px solid rgba(103,232,249,0.30);
+    animation: olympusRotate 4s linear infinite;
+  }
+
+  .olympus-dock__flare {
+    position: absolute;
+    left: -10px;
+    top: 12%;
+    bottom: 12%;
+    width: 1px;
+    background: linear-gradient(transparent, rgba(246,196,83,0.65), rgba(103,232,249,0.40), transparent);
+    filter: blur(1px);
+  }
+
+  .olympus-control-aura {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    overflow: hidden;
+  }
+
+  .olympus-control-aura__model {
+    opacity: 0.30;
+    filter: blur(0.1px) drop-shadow(0 0 22px rgba(246,196,83,0.18));
+  }
+
+  .olympus-control-aura__model--one {
+    left: 276px;
+    top: 82px;
+  }
+
+  .olympus-control-aura__model--two {
+    right: 214px;
+    top: 96px;
+  }
+
+  .olympus-control-aura__model--three {
+    left: 276px;
+    bottom: 68px;
+  }
+
+  .olympus-shell button,
+  .olympus-shell [role='tab'],
+  .olympus-live-control {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    transform-style: preserve-3d;
+    will-change: transform, box-shadow, border-color;
+  }
+
+  .olympus-shell button:not(:disabled)::before,
+  .olympus-shell [role='tab']::before,
+  .olympus-live-control::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: -2px;
+    z-index: -1;
+    border-radius: inherit;
+    background:
+      radial-gradient(circle at var(--olympus-control-x, 18%) var(--olympus-control-y, 20%), rgba(248,242,223,0.20), transparent 22%),
+      linear-gradient(110deg, transparent 0 36%, rgba(246,196,83,0.16) 45%, rgba(103,232,249,0.13) 52%, transparent 62% 100%);
+    background-size: 100% 100%, 240% 100%;
+    background-position: 0 0, 180% 0;
+    opacity: 0;
+    transition: opacity 180ms ease, background-position 700ms ease;
+  }
+
+  .olympus-shell button:not(:disabled)::after,
+  .olympus-shell [role='tab']::after,
+  .olympus-live-control::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    z-index: 1;
+    height: 7px;
+    width: 7px;
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 35% 30%, #fff8dc, #f6c453 40%, rgba(103,232,249,0.65) 66%, transparent 72%);
+    box-shadow:
+      0 0 10px rgba(246,196,83,0.72),
+      0 0 18px rgba(103,232,249,0.35);
+    opacity: 0;
+    transform: translate3d(0, -50%, 22px) scale(0.45);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .olympus-shell button:not(:disabled):hover,
+  .olympus-shell button:not(:disabled):focus-visible,
+  .olympus-shell [role='tab']:hover,
+  .olympus-shell [role='tab']:focus-visible,
+  .olympus-live-control:hover,
+  .olympus-live-control:focus-visible {
+    transform: translate3d(0, -2px, 22px) rotateX(var(--olympus-tilt-x, 4deg)) rotateY(var(--olympus-tilt-y, 0deg));
+  }
+
+  .olympus-shell button:not(:disabled):active,
+  .olympus-live-control:active {
+    transform: translate3d(0, 1px, 8px) rotateX(0deg) scale(0.985);
+  }
+
+  .olympus-shell button:not(:disabled):hover::before,
+  .olympus-shell button:not(:disabled):focus-visible::before,
+  .olympus-shell button.is-active::before,
+  .olympus-shell [role='tab']:hover::before,
+  .olympus-shell [role='tab']:focus-visible::before,
+  .olympus-shell [role='tab'][aria-selected='true']::before,
+  .olympus-live-control:hover::before,
+  .olympus-live-control:focus-visible::before {
+    opacity: 1;
+    background-position: 0 0, -80% 0;
+  }
+
+  .olympus-shell button:not(:disabled):hover::after,
+  .olympus-shell button:not(:disabled):focus-visible::after,
+  .olympus-shell button.is-active::after,
+  .olympus-shell [role='tab']:hover::after,
+  .olympus-shell [role='tab']:focus-visible::after,
+  .olympus-shell [role='tab'][aria-selected='true']::after,
+  .olympus-live-control:hover::after,
+  .olympus-live-control:focus-visible::after {
+    opacity: 1;
+    transform: translate3d(0, -50%, 32px) scale(1);
+    animation: olympusButtonMoon 1.8s ease-in-out infinite;
+  }
+
+  .olympus-shell button:not(:disabled):focus-visible,
+  .olympus-shell [role='tab']:focus-visible,
+  .olympus-live-control:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 1px rgba(246,196,83,0.48),
+      0 0 0 4px rgba(103,232,249,0.14),
+      0 0 34px rgba(246,196,83,0.16);
+  }
+
+  .olympus-shell button svg,
+  .olympus-shell [role='tab'] svg,
+  .olympus-live-control svg {
+    transform-style: preserve-3d;
+    transition: transform 220ms ease, filter 220ms ease;
+  }
+
+  .olympus-shell button:not(:disabled):hover svg,
+  .olympus-shell [role='tab']:hover svg,
+  .olympus-live-control:hover svg {
+    transform: translateZ(28px) rotateY(-12deg) scale(1.08);
+    filter: drop-shadow(0 0 8px rgba(246,196,83,0.40));
+  }
+
+  .olympus-shell button > span,
+  .olympus-shell [role='tab'] > span,
+  .olympus-live-control > span {
+    position: relative;
+    z-index: 2;
+  }
+
+  .olympus-button-content {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .olympus-button-gyro {
+    pointer-events: none;
+    position: absolute;
+    inset: -12px auto auto -12px;
+    z-index: 1;
+    height: 30px;
+    width: 30px;
+    opacity: 0;
+    transform: translate3d(-8px, 6px, 20px) scale(0.65);
+    transition: opacity 180ms ease, transform 220ms ease;
+    transform-style: preserve-3d;
+  }
+
+  .olympus-button-gyro__ring,
+  .olympus-button-gyro__cube,
+  .olympus-button-gyro__wing {
+    position: absolute;
+    display: block;
+  }
+
+  .olympus-button-gyro__ring {
+    inset: 4px;
+    border-radius: 999px;
+    border: 1px solid rgba(246,196,83,0.68);
+    box-shadow: 0 0 16px rgba(246,196,83,0.34), inset 0 0 12px rgba(103,232,249,0.14);
+    animation: olympusButtonGyroSpin 2.8s linear infinite;
+  }
+
+  .olympus-button-gyro__cube {
+    left: 11px;
+    top: 11px;
+    height: 8px;
+    width: 8px;
+    border: 1px solid rgba(103,232,249,0.76);
+    background: linear-gradient(145deg, rgba(103,232,249,0.36), rgba(140,92,255,0.24));
+    box-shadow: 0 0 14px rgba(103,232,249,0.42);
+    transform: rotateX(55deg) rotateZ(45deg);
+    animation: olympusButtonCube 2.4s ease-in-out infinite;
+  }
+
+  .olympus-button-gyro__wing {
+    left: 1px;
+    top: 12px;
+    height: 8px;
+    width: 28px;
+    background: linear-gradient(90deg, transparent, rgba(248,242,223,0.76), rgba(246,196,83,0.34), transparent);
+    clip-path: polygon(0 50%, 34% 10%, 48% 50%, 66% 10%, 100% 50%, 66% 90%, 50% 54%, 34% 90%);
+    filter: drop-shadow(0 0 10px rgba(246,196,83,0.34));
+    animation: olympusButtonWing 1.9s ease-in-out infinite;
+  }
+
+  .olympus-live-control:hover .olympus-button-gyro,
+  .olympus-live-control:focus-visible .olympus-button-gyro {
+    opacity: 1;
+    transform: translate3d(-2px, -2px, 42px) scale(1);
+  }
+
+  .olympus-live-control[size='icon'] .olympus-button-content,
+  .olympus-live-control:has(.olympus-button-content > svg:only-child) .olympus-button-content {
+    gap: 0;
+  }
+
+  .olympus-shell button:not(.olympus-live-control):not(:disabled):hover {
+    box-shadow:
+      inset 0 1px 0 rgba(248,242,223,0.08),
+      0 12px 34px rgba(0,0,0,0.22),
+      0 0 22px rgba(246,196,83,0.10);
+  }
+
+  .olympus-shell button:not(.olympus-live-control):not(:disabled):hover::after {
+    right: 6px;
+  }
+
+  .olympus-shell button:not(.olympus-live-control):not(:disabled):hover::before {
+    box-shadow: inset 0 0 22px rgba(103,232,249,0.06);
+  }
+
+  .olympus-shell input,
+  .olympus-shell textarea,
+  .olympus-shell select {
+    transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease, transform 180ms ease;
+  }
+
+  .olympus-shell input:focus,
+  .olympus-shell textarea:focus,
+  .olympus-shell select:focus {
+    transform: translateY(-1px) rotateX(var(--olympus-tilt-x, 0deg)) rotateY(var(--olympus-tilt-y, 0deg));
+    box-shadow:
+      0 0 0 1px rgba(103,232,249,0.20),
+      0 0 28px rgba(103,232,249,0.08),
+      inset 0 0 20px rgba(246,196,83,0.04);
+  }
+
+  .olympus-shell kbd {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .olympus-shell kbd::after {
+    content: '';
+    position: absolute;
+    inset: auto 4px 3px auto;
+    height: 3px;
+    width: 3px;
+    border-radius: 999px;
+    background: rgba(103,232,249,0.85);
+    box-shadow: 0 0 10px rgba(103,232,249,0.75);
+    animation: olympusKeySpark 2.8s ease-in-out infinite;
+  }
+
+  .olympus-shell .rounded-full,
+  .olympus-shell .rounded-lg,
+  .olympus-shell .rounded-xl,
+  .olympus-shell .rounded-2xl,
+  .olympus-shell .rounded-3xl {
+    backface-visibility: hidden;
+  }
+
+  .olympus-shell [class*='StatusOrb'],
+  .olympus-shell .animate-pulse {
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+
+  .olympus-brand__mark::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--brand-glow) 26%, transparent);
+    opacity: 0;
+    transform: rotateX(62deg) scale(0.82);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .olympus-brand__mark::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 16px;
+    background: conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--brand-glow) 32%, transparent), transparent 34%);
+    opacity: 0;
+    transition: opacity 180ms ease;
+    animation: olympusRotate 4.5s linear infinite;
+    z-index: -1;
+  }
+
+  .olympus-brand:hover .olympus-brand__mark::before,
+  .olympus-brand:hover .olympus-brand__mark::after {
+    opacity: 1;
+    transform: rotateX(62deg) scale(1);
+  }
+
+  .olympus-dock .olympus-dock__button.is-active::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    height: auto;
+    width: auto;
+    border-radius: 18px;
+    border: 1px solid rgba(103,232,249,0.30);
+    background: transparent;
+    box-shadow: none;
+    opacity: 1;
+    transform: none;
+    animation: olympusRotate 4s linear infinite;
+  }
+}
+
+@keyframes olympusFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) rotateX(8deg) rotateY(-10deg); }
+  50% { transform: translate3d(0, -18px, 46px) rotateX(12deg) rotateY(14deg); }
+}
+
+@keyframes olympusRotate {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes olympusWing {
+  0%, 100% { opacity: 0.74; filter: drop-shadow(0 0 12px rgba(246,196,83,0.18)); }
+  50% { opacity: 1; filter: drop-shadow(0 0 24px rgba(246,196,83,0.42)); }
+}
+
+@keyframes olympusDrift {
+  to { background-position: 146px 146px, 256px 246px, 360px 212px; }
+}
+
+@keyframes olympusGridFlow {
+  to { background-position: 0 74px, 74px 0; }
+}
+
+@keyframes olympusSweep {
+  0%, 18% { transform: translateX(-75%); opacity: 0; }
+  38%, 62% { opacity: 1; }
+  82%, 100% { transform: translateX(75%); opacity: 0; }
+}
+
+@keyframes olympusParticleRise {
+  0%, 100% { opacity: 0.12; transform: translate3d(0, 0, 0) scale(0.6); }
+  50% { opacity: 0.72; transform: translate3d(18px, -46px, 0) scale(1.15); }
+}
+
+@keyframes constellationDraw {
+  0%, 100% { opacity: 0.14; clip-path: inset(0 100% 0 0); }
+  45%, 70% { opacity: 0.72; clip-path: inset(0 0 0 0); }
+}
+
+@keyframes olympusPulseDot {
+  0%, 100% { transform: scale(0.75); opacity: 0.45; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+
+@keyframes olympusNodeBreath {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-6px) scale(1.04); }
+}
+
+@keyframes olympusButtonMoon {
+  0%, 100% { transform: translate3d(0, -50%, 32px) scale(0.95); opacity: 0.72; }
+  50% { transform: translate3d(-4px, -80%, 40px) scale(1.2); opacity: 1; }
+}
+
+@keyframes olympusButtonGyroSpin {
+  to { transform: rotateX(66deg) rotateZ(360deg); }
+}
+
+@keyframes olympusButtonCube {
+  0%, 100% { transform: translateZ(8px) rotateX(55deg) rotateZ(45deg) scale(0.82); opacity: 0.68; }
+  50% { transform: translateZ(22px) rotateX(35deg) rotateZ(225deg) scale(1.18); opacity: 1; }
+}
+
+@keyframes olympusButtonWing {
+  0%, 100% { transform: translateY(0) scaleX(0.86); opacity: 0.58; }
+  50% { transform: translateY(-2px) scaleX(1.08); opacity: 1; }
+}
+
+@keyframes olympusKeySpark {
+  0%, 100% { transform: translateX(0) scale(0.7); opacity: 0.32; }
+  50% { transform: translateX(-10px) scale(1.2); opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .olympus-stage .olympus-model {
+    opacity: 0.34;
+    transform: scale(0.7);
+  }
+
+  .olympus-grid-depth {
+    opacity: 0.15;
+  }
+
+  .olympus-greek-key {
+    left: 16px;
+    right: 16px;
+  }
+
+  .olympus-particles span:nth-child(n+18) {
+    display: none;
+  }
+
+  .olympus-control-aura {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .olympus-stage *,
+  .olympus-dock *,
+  .olympus-control-aura *,
+  .olympus-button-gyro *,
+  .olympus-glass-panel::before {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .olympus-light-sweep {
+    display: none;
+  }
+
+  .olympus-model,
+  .olympus-dock__button:hover,
+  .olympus-dock__brand:hover,
+  .olympus-shell button:hover,
+  .olympus-live-control:hover {
+    transform: none !important;
+  }
+
+  .olympus-shell button::after,
+  .olympus-shell [role='tab']::after,
+  .olympus-live-control::after,
+  .olympus-button-gyro {
+    display: none;
+  }
+}

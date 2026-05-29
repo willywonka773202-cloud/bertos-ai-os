@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { browserDaemonOfflineHealth, fetchBrowserDaemonHealth } from '@/lib/bertos/browser-daemon'
 import type { DaemonHealth } from '@/lib/bertos/daemon-health'
 
 export type DaemonStatus = 'connected' | 'disconnected' | 'checking' | 'degraded' | 'unknown'
@@ -48,20 +49,38 @@ export const useDaemonStore = create<DaemonStore>((set, get) => ({
     const prevStatus = get().status
     const nextStatus = prevStatus === 'connected' ? 'connected' : 'checking'
     set({ loading: true, status: nextStatus })
+
+    const browserHealth = await fetchBrowserDaemonHealth()
+    if (browserHealth?.daemonOnline) {
+      set({
+        health: browserHealth,
+        error: browserHealth.error ?? null,
+        lastCheckedAt: Date.now(),
+        lastSeenAt: Date.now(),
+        loading: false,
+        status: 'connected',
+        failureCount: 0,
+      })
+      return browserHealth
+    }
+
     try {
       const res = await fetch('/api/local-daemon/health', { cache: 'no-store' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json() as DaemonHealth
+      const normalized = data.daemonOnline
+        ? data
+        : browserDaemonOfflineHealth(data.error ?? 'Hosted BertOS could not reach your Mac daemon from the server. The browser-local bridge is also offline.')
       set({
-        health: data,
-        error: data.error ?? null,
+        health: normalized,
+        error: normalized.error ?? null,
         lastCheckedAt: Date.now(),
-        lastSeenAt: data.daemonOnline ? Date.now() : get().lastSeenAt,
+        lastSeenAt: normalized.daemonOnline ? Date.now() : get().lastSeenAt,
         loading: false,
-        status: data.daemonOnline ? 'connected' : 'disconnected',
+        status: normalized.daemonOnline ? 'connected' : 'disconnected',
         failureCount: 0,
       })
-      return data
+      return normalized
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not check local daemon health.'
       const prevFailures = get().failureCount + 1

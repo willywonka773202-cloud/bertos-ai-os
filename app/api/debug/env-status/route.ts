@@ -18,8 +18,11 @@ export async function GET() {
     },
     optional: {
       COMPOSIO_API_KEY: present('COMPOSIO_API_KEY'),
+      HERMES_ENABLED: present('HERMES_ENABLED'),
+      HERMES_BASE_URL: present('HERMES_BASE_URL'),
       HERMES_API_URL: present('HERMES_API_URL'),
       HERMES_API_KEY: present('HERMES_API_KEY'),
+      HERMES_API_SERVER_KEY: present('HERMES_API_SERVER_KEY'),
       OPENAI_API_KEY: present('OPENAI_API_KEY'),
       ANTHROPIC_API_KEY: present('ANTHROPIC_API_KEY'),
       GEMINI_API_KEY: present('GEMINI_API_KEY'),

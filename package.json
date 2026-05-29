@@ -21,7 +21,10 @@
     "hermes:status": "node scripts/hermes-status.mjs",
     "smoke": "node scripts/test-patch-parser.mjs",
     "smoke:payload": "node scripts/test-patch-payload.mjs",
-    "validate": "npm run typecheck && npm run build && npm run bertos:safety && npm run smoke && npm run smoke:payload"
+    "smoke:memory": "node scripts/test-memory-engine.mjs",
+    "smoke:creator-os": "node scripts/test-creator-os.mjs",
+    "smoke:hermes-free": "node scripts/test-hermes-free.mjs",
+    "validate": "npm run typecheck && npm run build && npm run bertos:safety && npm run smoke && npm run smoke:payload && npm run smoke:memory && npm run smoke:creator-os && npm run smoke:hermes-free"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
@@ -54,6 +57,7 @@
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
+    "three": "^0.184.0",
     "uuid": "^14.0.0",
     "zustand": "^5.0.1"
   },
@@ -61,6 +65,7 @@
     "@types/node": "^22.9.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.184.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^9",
     "eslint-config-next": "15.5.15",

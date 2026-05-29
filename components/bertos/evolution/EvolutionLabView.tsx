@@ -22,6 +22,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/bertos/cn'
 import type { AIModel } from '@/lib/bertos/types'
 import { EmptyChamber, LoadingRelay, RouteHero } from '@/components/bertos/hermes'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
 
 type EvolutionCategory = 'bug' | 'feature' | 'ui' | 'code-quality' | 'automation' | 'safety'
 type RecurringMode = 'suggestOnOpen' | 'dailyPlan' | 'backgroundScan'
@@ -183,7 +184,7 @@ export function EvolutionLabView() {
   const runCommand = async (label: string, executable: string, args: string[], timeoutMs = 180000) => {
     const id = `${Date.now()}-${label}`
     appendTerminal({ id, label, stdout: 'Running...', timestamp: Date.now(), running: true })
-    const res = await fetch('/api/local-daemon/run', {
+    const res = await fetchLocalDaemonBridge('/api/local-daemon/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ executable, args, timeoutMs }),
@@ -315,7 +316,7 @@ export function EvolutionLabView() {
           toast.error(`Delete blocked for ${file.path}.`)
           continue
         }
-        const res = await fetch('/api/local-daemon/file', {
+        const res = await fetchLocalDaemonBridge('/api/local-daemon/file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: file.path, content: file.after ?? '' }),
@@ -357,9 +358,9 @@ export function EvolutionLabView() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <section className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-cyan-300/10 px-6 py-4">
+    <div className="flex h-full min-h-0 overflow-hidden">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="shrink-0 border-b border-cyan-300/10 px-6 py-4">
           <RouteHero
             eyebrow="experimental weapons lab"
             title="Evolution Lab"
@@ -396,7 +397,7 @@ export function EvolutionLabView() {
 
         <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[410px_1fr]">
           <aside className="min-h-0 border-r border-zinc-800/50 bg-zinc-950/50">
-            <ScrollArea className="h-full">
+            <ScrollArea className="h-full min-h-0">
               <div className="space-y-4 p-4">
                 <div className={cn(
                   'rounded-xl border p-3',
@@ -466,7 +467,7 @@ export function EvolutionLabView() {
           </aside>
 
           <main className="min-h-0">
-            <ScrollArea className="h-full">
+            <ScrollArea className="h-full min-h-0">
               <div className="space-y-4 p-4">
                 {selectedItem && (
                   <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">

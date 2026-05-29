@@ -4,19 +4,13 @@ import { motion } from 'framer-motion'
 import { Activity, CheckCircle2, XCircle, AlertCircle, RefreshCw } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/bertos/cn'
-
-interface ProviderStatus {
-  id: string
-  name: string
-  status: 'online' | 'offline' | 'unknown'
-  latency?: number
-  message?: string
-}
+import { fetchBrowserAwareProviderStatus, type ProviderStatusEntry } from '@/lib/bertos/provider-status-client'
 
 export function ProviderStatusIndicator() {
-  const [providers, setProviders] = useState<ProviderStatus[]>([])
+  const [providers, setProviders] = useState<ProviderStatusEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [lastCheck, setLastCheck] = useState<Date>(new Date())
+  const [source, setSource] = useState<'server' | 'browser-daemon'>('server')
 
   useEffect(() => {
     loadProviderStatus()
@@ -27,12 +21,10 @@ export function ProviderStatusIndicator() {
 
   async function loadProviderStatus() {
     try {
-      const res = await fetch('/api/providers/status')
-      if (res.ok) {
-        const data = await res.json()
-        setProviders(data.providers || [])
-        setLastCheck(new Date())
-      }
+      const data = await fetchBrowserAwareProviderStatus()
+      setProviders(data.providers || [])
+      setSource(data.providerStatusSource === 'browser-daemon' ? 'browser-daemon' : 'server')
+      setLastCheck(new Date())
     } catch (error) {
       console.error('Failed to load provider status:', error)
     } finally {
@@ -93,6 +85,9 @@ export function ProviderStatusIndicator() {
           <div className="flex items-center gap-2 pb-2 border-b border-zinc-700/50">
             <Activity className="w-4 h-4 text-zinc-400" />
             <span className="font-semibold text-sm">Provider Status</span>
+            <span className="ml-auto rounded border border-zinc-700/60 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500">
+              {source === 'browser-daemon' ? 'desktop bridge' : 'server'}
+            </span>
           </div>
 
           {loading ? (
@@ -108,14 +103,29 @@ export function ProviderStatusIndicator() {
                 const Icon = provider.status === 'online' ? CheckCircle2 :
                             provider.status === 'offline' ? XCircle : AlertCircle
                 const color = provider.status === 'online' ? 'text-emerald-400' :
-                             provider.status === 'offline' ? 'text-red-400' : 'text-zinc-500'
+                             provider.status === 'offline' ? 'text-red-400' : 'text-amber-400'
 
                 return (
-                  <div key={provider.id} className="flex items-center gap-2 text-xs">
-                    <Icon className={cn('w-3.5 h-3.5 flex-shrink-0', color)} />
-                    <span className="flex-1 text-zinc-300">{provider.name}</span>
-                    {provider.latency && (
-                      <span className="text-zinc-600">{provider.latency}ms</span>
+                  <div key={provider.id} className="rounded-md border border-zinc-800/70 bg-zinc-950/40 p-2">
+                    <div className="flex items-center gap-2 text-xs">
+                      <Icon className={cn('w-3.5 h-3.5 flex-shrink-0', color)} />
+                      <span className="min-w-0 flex-1 truncate text-zinc-300">{provider.name}</span>
+                      {provider.source && (
+                        <span className="rounded bg-zinc-900 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-600">
+                          {provider.source === 'browser-daemon' ? 'desktop' : provider.source}
+                        </span>
+                      )}
+                      {provider.status !== 'online' && provider.status !== 'offline' && (
+                        <span className="text-[10px] uppercase tracking-wide text-amber-400">{provider.status}</span>
+                      )}
+                      {provider.latency && (
+                        <span className="text-zinc-600">{provider.latency}ms</span>
+                      )}
+                    </div>
+                    {provider.message && (
+                      <div className="mt-1 line-clamp-2 text-[10px] leading-relaxed text-zinc-600">
+                        {provider.message}
+                      </div>
                     )}
                   </div>
                 )
@@ -123,8 +133,13 @@ export function ProviderStatusIndicator() {
             </div>
           )}
 
-          <div className="pt-2 border-t border-zinc-700/50 text-[10px] text-zinc-600">
-            Last check: {lastCheck.toLocaleTimeString()}
+          <div className="space-y-1 border-t border-zinc-700/50 pt-2 text-[10px] leading-relaxed text-zinc-600">
+            <div>
+              {source === 'browser-daemon'
+                ? 'Local CLI providers are checked through this desktop daemon. Phone access needs the desktop bridge reachable or a server-side provider.'
+                : 'Server status cannot see your Mac daemon. Start the desktop daemon and refresh from this browser to check CLI tools.'}
+            </div>
+            <div>Last check: {lastCheck.toLocaleTimeString()} · {source === 'browser-daemon' ? 'browser bridge' : 'server'}</div>
           </div>
         </div>
       </TooltipContent>

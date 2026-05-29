@@ -43,24 +43,27 @@ function loadTsModule(relativePath) {
         strategy: 'single',
       }),
     }
-    if (specifier === './claude-cli' || specifier === './codex-cli' || specifier === './gemini-cli' || specifier === './gemini-native' || specifier === './ollama-pro') {
+    if (specifier === './claude-cli' || specifier === './codex-cli' || specifier === './gemini-cli' || specifier === './gemini-native' || specifier === './hermes-nous' || specifier === './ollama-pro' || specifier === './openclaw-cli') {
       const providerId = specifier.replace('./', '')
+      const normalizedProviderId = providerId === 'gemini-native'
+        ? 'gemini-api-native'
+        : providerId
       return {
         status: async () => ({
           ok: providerId === 'codex-cli',
-          providerId: providerId === 'gemini-native' ? 'gemini-api-native' : providerId,
+          providerId: normalizedProviderId,
           providerName: providerId === 'gemini-native' ? 'Gemini Native API' : providerId,
           modelOrTool: providerId,
           online: providerId === 'codex-cli',
         }),
         ask: async () => ({
           ok: true,
-          providerId: providerId === 'gemini-native' ? 'gemini-api-native' : providerId,
+          providerId: normalizedProviderId,
           providerName: providerId,
           modelOrTool: providerId,
           text: '{"summary":"ok","files":[],"validation":{"commands":[]}}',
           latencyMs: 1,
-          source: providerId === 'ollama-pro' ? 'api' : 'daemon',
+          source: providerId === 'ollama-pro' || providerId === 'hermes-nous' ? 'api' : 'daemon',
         }),
       }
     }

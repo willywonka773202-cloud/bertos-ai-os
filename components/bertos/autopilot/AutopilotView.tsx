@@ -6,11 +6,14 @@ import {
   CheckCircle2,
   Clipboard,
   Copy,
+  Layers3,
   Loader2,
   Play,
   RefreshCw,
   Shield,
+  Sparkles,
   Terminal,
+  TimerReset,
   ToggleLeft,
   ToggleRight,
   XCircle,
@@ -27,11 +30,13 @@ import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import { useAgentStore } from '@/store/bertos/agents'
 import { useAutomationStore } from '@/store/bertos/automations'
 import { useUIStore } from '@/store/bertos/ui'
-import type { AutomationAction, AutomationRisk, AutomationRule, AutomationRun } from '@/lib/bertos/types'
+import type { AgentTask, AutomationAction, AutomationRisk, AutomationRule, AutomationRun } from '@/lib/bertos/types'
 import { useRouter } from 'next/navigation'
 import { RouteHero } from '@/components/bertos/hermes'
 
 type AutopilotTab = 'overview' | 'rules' | 'queue' | 'logs' | 'safety'
+
+const VISUAL_EVOLUTION_RULE_ID = 'rule-visual-evolution-loop'
 
 const TAB_LABELS: Record<AutopilotTab, string> = {
   overview: 'Overview',
@@ -50,8 +55,14 @@ const ACTION_LABELS: Record<AutomationAction, string> = {
   'git-status': 'Git status',
   'git-diff-stat': 'Git diff stat',
   'create-agent-plan': 'Create agent plan',
+  'create-visual-evolution-task': 'Visual evolution task',
   'create-workspace-debug-task': 'Create workspace debug task',
   'create-project-health-report': 'Project health report',
+  'create-daily-brief-task': 'Daily brief task',
+  'create-inbox-triage-task': 'Inbox triage task',
+  'create-weekly-review-task': 'Weekly review task',
+  'create-content-pipeline-task': 'Content pipeline task',
+  'create-connector-setup-task': 'Connector setup task',
 }
 
 const DAEMON_DEPENDENT_ACTIONS = new Set<AutomationAction>([
@@ -79,6 +90,14 @@ function statusVariant(status: AutomationRun['status']) {
 
 function formatTime(value?: string) {
   return value ? new Date(value).toLocaleString() : 'Never'
+}
+
+function scheduleLabel(rule: AutomationRule) {
+  if (rule.schedule?.nextRunAt) return `Next run: ${formatTime(rule.schedule.nextRunAt)}`
+  if (rule.trigger === 'app-start') return 'Runs when Autopilot starts'
+  if (rule.trigger === 'interval') return `Every ${rule.schedule?.intervalMinutes ?? 60} minutes`
+  if (rule.trigger === 'daily-review') return `Daily at ${rule.schedule?.timeOfDay ?? '09:00'}`
+  return 'Manual run only'
 }
 
 function RunRow({
@@ -193,7 +212,9 @@ function RuleRow({
               <Badge key={action} variant="default" className="text-[10px]">{ACTION_LABELS[action]}</Badge>
             ))}
           </div>
-          <div className="mt-2 text-[11px] text-zinc-700">Last run: {formatTime(rule.lastRunAt)}</div>
+          <div className="mt-2 text-[11px] text-zinc-700">
+            Last run: {formatTime(rule.lastRunAt)} / {scheduleLabel(rule)}
+          </div>
         </div>
         <div className="flex shrink-0 gap-2">
           <Button size="sm" onClick={() => onRun(rule)} disabled={!rule.enabled || running}>
@@ -204,6 +225,80 @@ function RuleRow({
         </div>
       </div>
     </div>
+  )
+}
+
+function VisualEvolutionLoopPanel({
+  rule,
+  runs,
+  autopilotEnabled,
+  running,
+  onRun,
+  onOpenQueue,
+}: {
+  rule?: AutomationRule
+  runs: AutomationRun[]
+  autopilotEnabled: boolean
+  running: boolean
+  onRun: (rule: AutomationRule) => void
+  onOpenQueue: () => void
+}) {
+  const latestRun = runs.find(run => run.ruleId === VISUAL_EVOLUTION_RULE_ID)
+  const pendingApproval = runs.filter(run => run.ruleId === VISUAL_EVOLUTION_RULE_ID && run.status === 'needs-approval').length
+  const completed = runs.filter(run => run.ruleId === VISUAL_EVOLUTION_RULE_ID && run.status === 'completed').length
+
+  return (
+    <section className="relative overflow-hidden rounded-xl border border-cyan-300/16 bg-[linear-gradient(145deg,rgba(8,12,24,0.86),rgba(19,12,28,0.72)_45%,rgba(8,6,12,0.92))] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.30)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(103,232,249,0.12),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(246,196,83,0.12),transparent_34%)]" />
+      <div className="relative z-10 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <Badge variant="info" className="rounded-md border-cyan-300/24 bg-cyan-300/10 text-cyan-100">
+              <Layers3 className="h-3 w-3" />
+              3D visual loop
+            </Badge>
+            <Badge variant={pendingApproval ? 'warning' : autopilotEnabled ? 'success' : 'default'} className="rounded-md">
+              {pendingApproval ? `${pendingApproval} approval` : autopilotEnabled ? 'armed' : 'paused'}
+            </Badge>
+            <Badge variant="warning" className="rounded-md">
+              every {rule?.schedule?.intervalMinutes ?? 20} min
+            </Badge>
+          </div>
+          <h2 className="text-lg font-semibold tracking-tight text-[#F0E8D0]">BertOS Visual Evolution Sprint</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#9A8A68]">
+            Autopilot queues a scoped build task for the next 3D, motion, spatial UI, or visual-quality upgrade. It stops at approval before any implementation work, then routes the task through the existing agent workflow.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {rule && (
+              <Button size="sm" onClick={() => onRun(rule)} disabled={!rule.enabled || running}>
+                {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                Run sprint now
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={onOpenQueue}>
+              <Shield className="h-3.5 w-3.5" />
+              Review approvals
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-1">
+          {[
+            { icon: TimerReset, label: 'Cadence', value: rule ? scheduleLabel(rule) : 'Installing rule' },
+            { icon: Sparkles, label: 'Latest', value: latestRun ? `${latestRun.status} / ${formatTime(latestRun.createdAt)}` : 'No sprint queued yet' },
+            { icon: CheckCircle2, label: 'Completed', value: `${completed} visual tasks` },
+          ].map(item => (
+            <div key={item.label} className="rounded-lg border border-white/8 bg-white/[0.035] p-3">
+              <div className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-100/62">
+                <item.icon className="h-3.5 w-3.5" />
+                {item.label}
+              </div>
+              <div className="text-xs leading-5 text-[#E8DDB8]">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -237,6 +332,11 @@ export function AutopilotView() {
     failed: runs.filter(run => run.status === 'failed' || run.status === 'blocked').length,
   }), [rules, runs, activeRunIds])
 
+  const visualEvolutionRule = useMemo(
+    () => rules.find(rule => rule.id === VISUAL_EVOLUTION_RULE_ID),
+    [rules],
+  )
+
   const daemonOnline = Boolean(health?.daemonOnline)
 
   const markRuleLastRun = useCallback((ruleId: string) => {
@@ -253,10 +353,10 @@ export function AutopilotView() {
         appendRunLog,
         markRuleLastRun,
       }, {
-        onAgentPlan: (title, description) => {
-          createTask({ title, description, model: 'auto', mode: 'plan' })
+        onAgentPlan: (title, description, mode: AgentTask['mode'] = 'plan') => {
+          createTask({ title, description, model: 'auto', mode })
           setPendingAgentTask({ title, description })
-          toast.success('Agent debug plan queued.')
+          toast.success(mode === 'build' ? 'Visual evolution build task queued.' : 'Agent debug plan queued.')
         },
       })
     } finally {
@@ -321,7 +421,7 @@ export function AutopilotView() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <header className="shrink-0 border-b border-cyan-300/10 px-6 py-4">
         <RouteHero
           eyebrow="guarded automation oracle"
@@ -375,12 +475,20 @@ export function AutopilotView() {
         </div>
       </header>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <main className="mx-auto max-w-5xl space-y-4 p-6">
           <DaemonHealthBanner health={health} loading={healthLoading} onRefresh={refreshHealth} />
 
           {tab === 'overview' && (
             <>
+              <VisualEvolutionLoopPanel
+                rule={visualEvolutionRule}
+                runs={runs}
+                autopilotEnabled={autopilotEnabled}
+                running={activeRunIds.size > 0}
+                onRun={runRule}
+                onOpenQueue={() => setTab('queue')}
+              />
               <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
                 {[
                   ['Daemon', daemonOnline ? 'Online' : 'Offline', daemonOnline ? 'success' : 'warning'],
@@ -492,7 +600,7 @@ export function AutopilotView() {
               Runtime note
             </div>
             <p className="text-xs leading-relaxed text-zinc-500">
-              Manual runs are active now. Interval and app-start triggers are intentionally guarded for a later worker/cron phase, so Autopilot assists continuously without becoming an uncontrolled background loop.
+              App-start, interval, and daily triggers run while BertOS is open and Autopilot is enabled. Safe actions execute through the guarded daemon path; approval-required rules queue for review instead of running silently.
             </p>
           </section>
         </main>

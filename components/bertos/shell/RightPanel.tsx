@@ -1,6 +1,6 @@
 'use client'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Terminal, Brain, ListTodo, FolderOpen, Activity, CheckCircle2, Circle, Plus, Cpu, Globe, Zap } from 'lucide-react'
+import { X, Terminal, Brain, ListTodo, FolderOpen, Activity, CheckCircle2, Circle, Plus, Cpu, Globe, Zap, Bot } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useUIStore } from '@/store/bertos/ui'
 import { useProjectStore } from '@/store/bertos/projects'
@@ -11,9 +11,10 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { useEffect, useState } from 'react'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
 
 interface LocalPanelTool {
-  id: 'claude-code' | 'codex-cli' | 'gemini-cli'
+  id: 'claude-code' | 'codex-cli' | 'gemini-cli' | 'openclaw-cli'
   label: string
   installed: boolean
   version?: string
@@ -31,16 +32,21 @@ export function RightPanel() {
   const { getActiveProject, toggleTodo, addTodo, projects } = useProjectStore()
   const { tasks } = useAgentStore()
   const { sessions } = useChatStore()
+  const [mounted, setMounted] = useState(false)
   const [newTodo, setNewTodo] = useState('')
   const [daemonStatus, setDaemonStatus] = useState<LocalPanelDaemonStatus | null>(null)
 
   const project = getActiveProject()
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
     let cancelled = false
     async function loadDaemonStatus() {
       try {
-        const res = await fetch('/api/local-daemon/status', { cache: 'no-store' })
+        const res = await fetchLocalDaemonBridge('/api/local-daemon/status', { cache: 'no-store' })
         const data = await res.json() as LocalPanelDaemonStatus
         if (!cancelled) setDaemonStatus(data)
       } catch {
@@ -55,7 +61,7 @@ export function RightPanel() {
     }
   }, [])
 
-  if (!rightPanelOpen) return null
+  if (!mounted || !rightPanelOpen) return null
 
   const activeTasks = tasks.filter(t => t.status === 'running' || t.status === 'pending')
 
@@ -64,7 +70,7 @@ export function RightPanel() {
       initial={{ x: 20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: 20, opacity: 0 }}
-      className="w-64 flex flex-col h-full bg-[#0D0D0F] border-l border-zinc-800/50 flex-shrink-0"
+      className="flex h-full min-h-0 w-64 flex-shrink-0 flex-col border-l border-zinc-800/50 bg-[#0D0D0F]"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-zinc-800/50">
@@ -97,7 +103,7 @@ export function RightPanel() {
           </TabsList>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="min-h-0 flex-1">
           {/* Memory tab */}
           <TabsContent value="memory" className="px-3 py-2 space-y-4 m-0">
             {/* Project context */}
@@ -134,6 +140,7 @@ export function RightPanel() {
                   <div key={ai.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-zinc-900/50 border border-zinc-800/50">
                     {ai.id === 'claude-code' ? <Cpu className="w-3 h-3 text-violet-400" /> :
                      ai.id === 'codex-cli' ? <Zap className="w-3 h-3 text-emerald-400" /> :
+                     ai.id === 'openclaw-cli' ? <Bot className="w-3 h-3 text-red-400" /> :
                      <Globe className="w-3 h-3 text-blue-400" />}
                     <span className="text-xs text-zinc-400 flex-1">{ai.label}</span>
                     <div className={cn(

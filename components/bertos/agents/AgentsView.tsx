@@ -23,6 +23,7 @@ import { AGENT_ROSTER } from '@/lib/bertos/command-center'
 import { AGENT_TEAMS, buildAgentTeamPrompt, type AgentTeam } from '@/lib/bertos/agent-teams'
 import { useRouter } from 'next/navigation'
 import { EmptyChamber, RouteHero } from '@/components/bertos/hermes'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
 
 const TASK_TEMPLATES = [
   { title: 'Fix TypeScript Errors',   description: 'Scan codebase for type errors and fix them systematically. Report what was fixed.', model: 'codex-cli' as AIModel, mode: 'debug' as AgentTask['mode'] },
@@ -291,7 +292,7 @@ function TaskCard({ task, daemonOnline }: { task: AgentTask; daemonOnline: boole
         providerUsed: providerId,
       })
 
-      const res = await fetch('/api/local-daemon/ask', {
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -554,7 +555,7 @@ export function AgentsView() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="flex-shrink-0 px-6 py-4 border-b border-zinc-800/50">
         <div className="max-w-6xl mx-auto">
           <RouteHero
@@ -781,7 +782,7 @@ export function AgentsView() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="max-w-6xl mx-auto px-6 py-4 space-y-3">
           {tasks.length === 0 ? (
             <EmptyChamber

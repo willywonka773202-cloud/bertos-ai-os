@@ -2,6 +2,10 @@ import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchLocalDaemonStatus } from '@/lib/bertos/local-daemon'
+import { getHermesNousConfig, status as getHermesNousProviderStatus } from '@/lib/bertos/providers/hermes-nous'
+import { getOllamaConfig } from '@/lib/bertos/runtime'
+import { resolveOllamaModel } from '@/lib/bertos/providers/ollama'
+import { recordTelegramRemoteEvent } from '@/lib/bertos/telegram-remote'
 
 export const runtime = 'nodejs'
 
@@ -43,6 +47,49 @@ const CHECK_CMDS: Record<TelegramCheck, { cmd: string; timeoutMs: number }> = {
   'diff-check': { cmd: 'git diff --check', timeoutMs: 10000 },
 }
 
+function inferTelegramCommand(text: string): { command: string; args: string; inferred: boolean } {
+  const trimmed = text.trim()
+  if (trimmed.startsWith('/')) {
+    const parts = trimmed.split(/\s+/)
+    return { command: parts[0], args: parts.slice(1).join(' '), inferred: false }
+  }
+
+  const lower = trimmed.toLowerCase()
+  const stripTaskPrefix = trimmed
+    .replace(/^(please\s+)?(make|create|add|write|build|fix|change|update|code|coding task|task)\s+(me\s+)?/i, '')
+    .trim()
+
+  if (/\b(type ?check|typescript|tsc)\b/.test(lower)) {
+    return { command: '/run-check', args: 'typecheck', inferred: true }
+  }
+  if (/\b(safety|safe repo|repo safety|bertos safety)\b/.test(lower)) {
+    return { command: '/run-check', args: 'bertos:safety', inferred: true }
+  }
+  if (/\b(diff check|check diff|whitespace|formatting issues)\b/.test(lower)) {
+    return { command: '/run-check', args: 'diff-check', inferred: true }
+  }
+  if (/\b(provider|providers|models|codex|claude|gemini|ollama)\b/.test(lower)) {
+    return { command: '/providers', args: '', inferred: true }
+  }
+  if (/\b(daemon|local bridge|bridge|terminal)\b/.test(lower)) {
+    return { command: '/daemon', args: '', inferred: true }
+  }
+  if (/\b(hermes)\b/.test(lower)) {
+    return { command: '/hermes', args: '', inferred: true }
+  }
+  if (/\b(brief|summary|what'?s going on|overview|daily)\b/.test(lower)) {
+    return { command: '/brief', args: '', inferred: true }
+  }
+  if (/\b(status|health|are we online|is bertos running)\b/.test(lower)) {
+    return { command: '/status', args: '', inferred: true }
+  }
+  if (/\b(task|code|coding|build|fix|implement|change|update|add)\b/.test(lower)) {
+    return { command: '/coding', args: stripTaskPrefix || trimmed, inferred: true }
+  }
+
+  return { command: '/chat', args: trimmed, inferred: true }
+}
+
 export async function GET() {
   const configured = !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ALLOWED_CHAT_ID)
   const chatEnabled = process.env.TELEGRAM_ALLOW_CHAT === 'true'
@@ -53,9 +100,17 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   const allowedChatId = process.env.TELEGRAM_ALLOWED_CHAT_ID
+  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET
 
   if (!botToken || !allowedChatId) {
     return NextResponse.json({ ok: false, error: 'Telegram not configured.' }, { status: 503 })
+  }
+
+  if (webhookSecret) {
+    const incomingSecret = req.headers.get('x-telegram-bot-api-secret-token')
+    if (incomingSecret !== webhookSecret) {
+      return NextResponse.json({ ok: false, error: 'Invalid Telegram webhook secret.' }, { status: 401 })
+    }
   }
 
   let update: TelegramUpdate
@@ -67,12 +122,41 @@ export async function POST(req: NextRequest) {
 
   const message = update.message
   if (!message) return NextResponse.json({ ok: true })
-  if (String(message.chat.id) !== allowedChatId) return NextResponse.json({ ok: true })
+  const chatId = message.chat.id
+  const telegramBotToken = botToken
+  if (String(message.chat.id) !== allowedChatId) {
+    recordTelegramRemoteEvent({
+      type: 'ignored',
+      chatId,
+      command: 'unauthorized',
+      detail: 'Ignored Telegram update from a non-allowlisted chat.',
+    })
+    return NextResponse.json({ ok: true })
+  }
 
   const text = message.text?.trim() ?? ''
-  const parts = text.split(/\s+/)
-  const command = parts[0]
-  const args = parts.slice(1).join(' ')
+  const inferredCommand = inferTelegramCommand(text)
+  const command = inferredCommand.command
+  const args = inferredCommand.args
+
+  recordTelegramRemoteEvent({
+    type: 'incoming',
+    chatId,
+    command: command || '(empty)',
+    text,
+    detail: inferredCommand.inferred ? `Interpreted as ${command}${args ? ` ${args}` : ''}` : undefined,
+  })
+
+  async function reply(text: string, detail?: string) {
+    recordTelegramRemoteEvent({
+      type: 'reply',
+      chatId,
+      command: command || '(empty)',
+      text,
+      detail,
+    })
+    await sendReply(telegramBotToken, chatId, text)
+  }
 
   // /status — daemon + repo summary
   if (command === '/status') {
@@ -91,14 +175,14 @@ export async function POST(req: NextRequest) {
       : 0
     const lastCommit = logLine.status === 'fulfilled' ? logLine.value : 'unknown'
 
-    await sendReply(botToken, message.chat.id, [
+    await reply([
       'BertOS Status',
       `Daemon: ${d?.online ? 'online' : 'offline'}${d?.error ? ` (${d.error})` : ''}`,
       `Branch: ${branchName}`,
       `Tree: ${dirty ? `dirty — ${changedCount} changed` : 'clean'}`,
       `Last commit: ${lastCommit}`,
       d?.repo?.safeRepo !== undefined ? `Repo safe: ${d.repo.safeRepo ? 'yes' : 'no'}` : '',
-    ].filter(Boolean).join('\n'))
+    ].filter(Boolean).join('\n'), `Branch ${branchName}; ${dirty ? `${changedCount} changed files` : 'clean tree'}.`)
     return NextResponse.json({ ok: true })
   }
 
@@ -106,7 +190,7 @@ export async function POST(req: NextRequest) {
   if (command === '/daemon') {
     const daemon = await fetchLocalDaemonStatus().catch(() => null)
     if (!daemon) {
-      await sendReply(botToken, message.chat.id, 'Daemon health check failed. Is the daemon running? (npm run bertos:daemon)')
+      await reply('Daemon health check failed. Is the daemon running? (npm run bertos:daemon)', 'Daemon health check failed.')
       return NextResponse.json({ ok: true })
     }
     const lines = [
@@ -128,7 +212,7 @@ export async function POST(req: NextRequest) {
     }
     lines.push('')
     lines.push('No destructive actions available via Telegram.')
-    await sendReply(botToken, message.chat.id, lines.join('\n'))
+    await reply(lines.join('\n'), `Daemon ${daemon.online ? 'online' : 'offline'}.`)
     return NextResponse.json({ ok: true })
   }
 
@@ -136,7 +220,7 @@ export async function POST(req: NextRequest) {
   if (command === '/providers') {
     const daemon = await fetchLocalDaemonStatus()
     const tools = daemon.tools ?? []
-    await sendReply(botToken, message.chat.id, [
+    await reply([
       'BertOS Providers',
       `Daemon bridge: ${daemon.online ? 'online' : 'offline'}`,
       ...tools.map(t => {
@@ -145,31 +229,51 @@ export async function POST(req: NextRequest) {
       }),
       '',
       'Paid providers are never called silently from Telegram.',
-    ].join('\n'))
+    ].join('\n'), `${tools.filter(t => t.installed && t.loginStatus === 'available').length} local CLI providers available.`)
+    return NextResponse.json({ ok: true })
+  }
+
+  // /hermes — safe Hermes Hostinger status, no chat completion
+  if (command === '/hermes') {
+    const cfg = getHermesNousConfig()
+    const hermesStatus = await getHermesNousProviderStatus()
+    await reply([
+      'BertOS Hermes',
+      `Configured: ${cfg.apiUrl && (cfg.apiKey || cfg.allowMissingKey) ? 'yes' : 'no'}`,
+      `Enabled: ${cfg.enabled ? 'yes' : 'no'}`,
+      `Mode: ${cfg.backendMode}`,
+      `Paid provider optional: ${cfg.paidEnabled ? 'enabled behind Hermes' : 'not required'}`,
+      `Reachable: ${hermesStatus.online ? 'yes' : 'no'}`,
+      `Model: ${hermesStatus.modelOrTool}`,
+      hermesStatus.error ? `Status: ${hermesStatus.error}` : '',
+      '',
+      'No Hermes chat completion was run.',
+      'Hermes is manual-selection only and is never part of Telegram fallback routing.',
+    ].filter(Boolean).join('\n'), `Hermes ${cfg.enabled ? 'enabled' : 'disabled'}; reachable ${hermesStatus.online ? 'yes' : 'no'}.`)
     return NextResponse.json({ ok: true })
   }
 
   // /tasks — read-only note
   if (command === '/tasks') {
-    await sendReply(botToken, message.chat.id, 'Open BertOS /tasks to review local task board items. Telegram does not mutate task state.')
+    await reply('Open BertOS /tasks to review local task board items. Telegram does not mutate task state.', 'Tasks are browser-review only.')
     return NextResponse.json({ ok: true })
   }
 
   // /evolution — read-only note
   if (command === '/evolution') {
-    await sendReply(botToken, message.chat.id, 'Open BertOS /evolution to review the improvement backlog. Telegram does not apply patches.')
+    await reply('Open BertOS /evolution to review the improvement backlog. Telegram does not apply patches.', 'Evolution backlog is browser-review only.')
     return NextResponse.json({ ok: true })
   }
 
   // /memory — read-only memory status
   if (command === '/memory') {
-    await sendReply(botToken, message.chat.id, [
+    await reply([
       'BertOS Memory',
       'Local memory is managed in BertOS /memory view.',
       'Obsidian/markdown memory: configure vault path in BertOS Settings > Memory.',
       '',
       'Telegram cannot write memory entries. Open BertOS to add notes.',
-    ].join('\n'))
+    ].join('\n'), 'Memory command displayed guidance only.')
     return NextResponse.json({ ok: true })
   }
 
@@ -192,7 +296,7 @@ export async function POST(req: NextRequest) {
     const tools = d?.tools ?? []
     const availableProviders = tools.filter(t => t.installed && t.loginStatus === 'available').map(t => t.label)
 
-    await sendReply(botToken, message.chat.id, [
+    await reply([
       'BertOS Brief',
       '',
       `Daemon: ${d?.online ? 'online' : 'offline'}`,
@@ -201,32 +305,29 @@ export async function POST(req: NextRequest) {
       '',
       'Recent commits:',
       ...recentLog.split('\n').filter(Boolean).map(l => `  ${l}`),
-    ].join('\n'))
+    ].join('\n'), `Brief generated for ${branchName}; daemon ${d?.online ? 'online' : 'offline'}.`)
     return NextResponse.json({ ok: true })
   }
 
-  // /coding <task> — queue a draft (no auto-apply, no execution)
+  // /coding <task> — capture an intent summary (no auto-apply, no execution)
   if (command === '/coding') {
     if (!args.trim()) {
-      await sendReply(botToken, message.chat.id, 'Usage: /coding <describe the task>\nExample: /coding add dark mode toggle to settings\n\nThis queues a draft in BertOS /coding. No code is written automatically.')
+      await reply('Usage: /coding <describe the task>\nExample: /coding add dark mode toggle to settings\n\nThis returns a review-ready task summary. No code is written automatically.', 'Coding task was missing.')
       return NextResponse.json({ ok: true })
     }
     // Validate: no shell metacharacters in the task description
     const unsafe = /[;&|`$<>{}]/.test(args)
     if (unsafe) {
-      await sendReply(botToken, message.chat.id, 'Task description contains unsafe characters. Please use plain text only.')
+      await reply('Task description contains unsafe characters. Please use plain text only.', 'Rejected unsafe task text.')
       return NextResponse.json({ ok: true })
     }
-    // Write to a safe queue file (read-only from Next.js perspective — the UI polls this)
-    // We use a localStorage-equivalent: write a pending draft to a temp file the UI can check
-    // For safety, we only record the intent — no code execution, no git ops
-    await sendReply(botToken, message.chat.id, [
-      'Coding task queued (draft only):',
+    await reply([
+      'Coding task captured (review only):',
       `"${args.slice(0, 200)}"`,
       '',
-      'Open BertOS /coding in your browser to review and apply.',
+      'Open BertOS /coding in your browser and paste this task to compile a mission.',
       'No code has been written or executed.',
-    ].join('\n'))
+    ].join('\n'), `Captured coding task: ${args.slice(0, 120)}`)
     return NextResponse.json({ ok: true })
   }
 
@@ -234,15 +335,22 @@ export async function POST(req: NextRequest) {
   if (command === '/run-check') {
     const checkName = args.trim() as TelegramCheck
     if (!checkName) {
-      await sendReply(botToken, message.chat.id, `Usage: /run-check <name>\nAllowed: ${TELEGRAM_CHECK_ALLOWLIST.join(', ')}`)
+      await reply(`Usage: /run-check <name>\nAllowed: ${TELEGRAM_CHECK_ALLOWLIST.join(', ')}`, 'Run-check was missing a check name.')
       return NextResponse.json({ ok: true })
     }
     if (!(TELEGRAM_CHECK_ALLOWLIST as readonly string[]).includes(checkName)) {
-      await sendReply(botToken, message.chat.id, `Unknown check: "${checkName}"\nAllowed from Telegram: ${TELEGRAM_CHECK_ALLOWLIST.join(', ')}\n\nFull checks (typecheck, build, lint) require the BertOS browser UI.`)
+      await reply(`Unknown check: "${checkName}"\nAllowed from Telegram: ${TELEGRAM_CHECK_ALLOWLIST.join(', ')}\n\nFull checks (typecheck, build, lint) require the BertOS browser UI.`, `Rejected unknown check: ${checkName}`)
       return NextResponse.json({ ok: true })
     }
 
-    await sendReply(botToken, message.chat.id, `Running ${checkName}… (this may take a moment)`)
+    recordTelegramRemoteEvent({
+      type: 'running',
+      chatId,
+      command,
+      text: `/run-check ${checkName}`,
+      detail: `Running ${checkName} from Telegram.`,
+    })
+    await reply(`Running ${checkName}... (this may take a moment)`, `Started ${checkName}.`)
 
     const check = CHECK_CMDS[checkName]
     const start = Date.now()
@@ -254,7 +362,14 @@ export async function POST(req: NextRequest) {
       })
       const output = (stdout + stderr).trim().slice(0, 800)
       const elapsed = Date.now() - start
-      await sendReply(botToken, message.chat.id, [
+      recordTelegramRemoteEvent({
+        type: 'completed',
+        chatId,
+        command,
+        text: `${checkName}: PASSED`,
+        detail: output || `${checkName} passed.`,
+      })
+      await reply([
         `${checkName}: PASSED (${elapsed}ms)`,
         output ? `\n${output}` : '',
       ].join(''))
@@ -263,7 +378,14 @@ export async function POST(req: NextRequest) {
       const rawOut = (e.stdout ?? '') + (e.stderr ?? '')
       const output = (rawOut || (e.message ?? 'Failed')).trim().slice(0, 800)
       const elapsed = Date.now() - start
-      await sendReply(botToken, message.chat.id, [
+      recordTelegramRemoteEvent({
+        type: 'failed',
+        chatId,
+        command,
+        text: `${checkName}: FAILED`,
+        detail: output || `${checkName} failed.`,
+      })
+      await reply([
         `${checkName}: FAILED (${elapsed}ms)`,
         output ? `\n${output}` : '',
       ].join(''))
@@ -271,59 +393,75 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  // /chat <message> — Ollama-only, requires explicit opt-in env var
+  // /chat <message> — Ollama-only. Plain inferred chat is allowed for local Ollama;
+  // explicit /chat in cloud/API-key mode still requires TELEGRAM_ALLOW_CHAT=true.
   if (command === '/chat') {
     const chatEnabled = process.env.TELEGRAM_ALLOW_CHAT === 'true'
-    if (!chatEnabled) {
-      await sendReply(botToken, message.chat.id, '/chat is disabled. Set TELEGRAM_ALLOW_CHAT=true in .env.local to enable Ollama chat from Telegram.\n\nNote: Only local Ollama models will be used — no paid APIs.')
-      return NextResponse.json({ ok: true })
-    }
     if (!args.trim()) {
-      await sendReply(botToken, message.chat.id, 'Usage: /chat <message>')
+      await reply('Send me a normal message, or ask for a safe action like “run typecheck” or “what providers are online?”', 'Chat message was missing.')
       return NextResponse.json({ ok: true })
     }
 
-    // Only Ollama — never use paid providers from Telegram
-    const ollamaBase = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434'
-    const ollamaModel = process.env.TELEGRAM_OLLAMA_MODEL ?? 'llama3'
+    // Only Ollama — never route Telegram chat to Hermes or external API providers.
+    const ollama = getOllamaConfig()
+    const ollamaModel = resolveOllamaModel(process.env.TELEGRAM_OLLAMA_MODEL ?? 'ollama-pro')
+    const plainLocalChat = inferredCommand.inferred && ollama.mode === 'local' && !ollama.requiresApiKey
+
+    if (!chatEnabled && !plainLocalChat) {
+      await reply('Telegram chat is disabled for cloud/API-key providers. I can still answer remote-control requests like “status”, “providers”, “run typecheck”, or “give me a brief”.', 'Telegram chat is disabled except local inferred Ollama chat.')
+      return NextResponse.json({ ok: true })
+    }
+
+    if (ollama.requiresApiKey && !ollama.apiKey) {
+      await reply('Ollama Cloud is selected, but OLLAMA_API_KEY is missing in the BertOS server environment. I did not call any paid provider.', 'Ollama Cloud key missing.')
+      return NextResponse.json({ ok: true })
+    }
 
     try {
-      const res = await fetch(`${ollamaBase}/api/generate`, {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (ollama.apiKey) headers.Authorization = `Bearer ${ollama.apiKey}`
+
+      const res = await fetch(ollama.chatUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: ollamaModel, prompt: args, stream: false }),
+        headers,
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [{ role: 'user', content: args }],
+          stream: false,
+        }),
         signal: AbortSignal.timeout(60_000),
       })
       if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`)
-      const data = await res.json() as { response?: string; error?: string }
+      const data = await res.json() as { response?: string; message?: { content?: string }; error?: string }
       if (data.error) throw new Error(data.error)
-      const reply = (data.response ?? '').trim().slice(0, 3000)
-      await sendReply(botToken, message.chat.id, reply || '(empty response from Ollama)')
+      const ollamaReply = (data.message?.content ?? data.response ?? '').trim().slice(0, 3000)
+      await reply(ollamaReply || '(empty response from Ollama)', 'Ollama-only Telegram chat completed.')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Ollama unavailable'
-      await sendReply(botToken, message.chat.id, `Ollama error: ${msg}\n\nMake sure Ollama is running locally and model "${ollamaModel}" is available.`)
+      await reply(`Ollama error: ${msg}\n\nCheck the BertOS server Ollama configuration and model "${ollamaModel}".`, `Ollama error: ${msg}`)
     }
     return NextResponse.json({ ok: true })
   }
 
   // Default / /help
-  await sendReply(botToken, message.chat.id, [
+  await reply([
     'BertOS Telegram Commands',
     '',
     '/status       — daemon + repo + branch summary',
     '/daemon       — detailed daemon health',
     '/providers    — provider bridge status',
+    '/hermes       — Hermes Hostinger status',
     '/brief        — combined status snapshot',
     '/tasks        — task board note',
     '/evolution    — evolution backlog note',
     '/memory       — memory system note',
-    '/coding <task> — queue a coding draft (browser approval required)',
+    '/coding <task> — capture a review-ready coding task',
     '/run-check <name> — run a safe check (typecheck | bertos:safety | diff-check)',
     '/chat <msg>   — Ollama chat (requires TELEGRAM_ALLOW_CHAT=true)',
     '/help         — this message',
     '',
     'File writes, git push, paid calls, and destructive ops require web approval.',
-  ].join('\n'))
+  ].join('\n'), 'Displayed Telegram command help.')
 
   return NextResponse.json({ ok: true })
 }

@@ -6,6 +6,7 @@ import * as geminiCli from './gemini-cli'
 import * as geminiNative from './gemini-native'
 import * as hermesNous from './hermes-nous'
 import * as ollamaPro from './ollama-pro'
+import * as openClawCli from './openclaw-cli'
 import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 const PROVIDERS = {
@@ -15,6 +16,7 @@ const PROVIDERS = {
   'gemini-cli': geminiCli,
   'hermes-nous': hermesNous,
   'ollama-pro': ollamaPro,
+  'openclaw-cli': openClawCli,
 }
 
 type ProviderId = keyof typeof PROVIDERS

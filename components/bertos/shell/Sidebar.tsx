@@ -3,8 +3,10 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bot, Brain, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Code2, Command,
+  Inbox,
   Compass, Cpu, FlaskConical, Github, GitCompare, Hash, KanbanSquare, LayoutDashboard,
-  Library, MessageSquare, Moon, Plus, Settings, Sparkles, Trash2, Zap,
+  Library, MessageSquare, Moon, PackageSearch, Plug, Plus, Send, Settings, ShieldCheck, Sparkles, Trash2, WandSparkles, Zap, Activity, Images,
+  Rocket,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { getModelLabel } from '@/lib/bertos/router'
@@ -18,23 +20,33 @@ import { usePathname, useRouter } from 'next/navigation'
 import { getPrimaryAgentEngines, type AgentEngineId } from '@/lib/bertos/agent-engines'
 
 const NAV_ITEMS = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Mission', href: '/dashboard' },
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Olympus', href: '/dashboard' },
   { id: 'chat', icon: MessageSquare, label: 'Oracle', href: '/chat' },
   { id: 'hermes', icon: Sparkles, label: 'Hermes', href: '/hermes' },
   { id: 'prompts', icon: Library, label: 'Prompts', href: '/prompts' },
   { id: 'compare', icon: GitCompare, label: 'Tribunal', href: '/compare' },
   { id: 'coding', icon: Zap, label: 'Forge', href: '/coding' },
   { id: 'max', icon: Moon, label: 'Max Mode', href: '/max' },
-  { id: 'workspace', icon: Code2, label: 'Deck', href: '/workspace' },
+  { id: 'workspace', icon: Code2, label: 'Archive', href: '/workspace' },
   { id: 'evolution', icon: FlaskConical, label: 'Armory', href: '/evolution' },
-  { id: 'agents', icon: Bot, label: 'Legion', href: '/agents' },
+  { id: 'agents', icon: Bot, label: 'Pantheon', href: '/agents' },
+  { id: 'skills', icon: WandSparkles, label: 'Skills', href: '/skills' },
+  { id: 'plugins', icon: Plug, label: 'Plugins', href: '/plugins' },
+  { id: 'outputs', icon: PackageSearch, label: 'Outputs', href: '/outputs' },
+  { id: 'runs', icon: Activity, label: 'Runs', href: '/runs' },
+  { id: 'studio', icon: Images, label: 'Studio', href: '/studio' },
+  { id: 'content-lab', icon: ClipboardList, label: 'Content Lab', href: '/content-lab' },
+  { id: 'inbox-deals', icon: Inbox, label: 'Inbox / Deals', href: '/inbox-deals' },
+  { id: 'publishing-queue', icon: Send, label: 'Publish', href: '/publishing-queue' },
   { id: 'memory', icon: Brain, label: 'Memory', href: '/memory' },
+  { id: 'memory-review', icon: ShieldCheck, label: 'Memory Review', href: '/memory-review' },
   { id: 'brief', icon: CalendarDays, label: 'Brief', href: '/brief' },
   { id: 'playbooks', icon: ClipboardList, label: 'Doctrine', href: '/playbooks' },
   { id: 'tasks', icon: KanbanSquare, label: 'Tasks', href: '/tasks' },
   { id: 'migrations', icon: Compass, label: 'Migrations', href: '/migrations' },
   { id: 'github', icon: Github, label: 'Repo', href: '/github' },
   { id: 'autopilot', icon: Cpu, label: 'Autopilot', href: '/autopilot' },
+  { id: 'launch', icon: Rocket, label: 'Launch', href: '/launch' },
 ] as const
 
 const ENGINE_ICONS: Record<AgentEngineId, typeof Sparkles> = {
@@ -45,8 +57,17 @@ const ENGINE_ICONS: Record<AgentEngineId, typeof Sparkles> = {
   'gemini-native': Compass,
   ollama: Bot,
   hermes: Sparkles,
+  openclaw: Bot,
   qwen: Bot,
   openai: Zap,
+}
+
+const ENGINE_LOGOS: Partial<Record<AgentEngineId, string>> = {
+  codex: '/brand-icons/codex.svg',
+  claude: '/brand-icons/claude.svg',
+  gemini: '/brand-icons/gemini.svg',
+  ollama: '/brand-icons/ollama.svg',
+  hermes: '/brand-icons/hermes.svg',
 }
 
 const ENGINE_NAV_ITEMS = getPrimaryAgentEngines()
@@ -90,6 +111,60 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
     const hours = Math.floor(minutes / 60)
     return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
   }
+  const renderEngineNav = (
+    <div className="space-y-0.5">
+      {!collapsed && (
+        <div className="flex items-center gap-2 px-2 pb-1.5 pt-1">
+          <span className="block h-px flex-1 bg-cyan-300/14" />
+          <p className="text-[9px] font-semibold uppercase tracking-[0.32em] text-cyan-100/55">Engines</p>
+          <span className="block h-px flex-1 bg-cyan-300/14" />
+        </div>
+      )}
+      {ENGINE_NAV_ITEMS.map(engine => {
+        const EngineIcon = ENGINE_ICONS[engine.id]
+        const isActive = pathname === engine.route || pathname.startsWith(`${engine.route}/`)
+        return (
+          <button
+            key={engine.id}
+            title={engine.label}
+            onClick={() => {
+              setActiveView('agents')
+              router.push(engine.route)
+              onMobileClose?.()
+            }}
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-lg border px-2 py-1.5 text-sm transition',
+              !isActive && 'hover:bg-white/5',
+              collapsed && 'justify-center',
+            )}
+            style={{
+              borderColor: isActive ? engine.theme.border : 'rgba(255,255,255,0.06)',
+              background: isActive ? engine.theme.surface2 : 'transparent',
+              color: isActive ? engine.theme.text : engine.theme.muted,
+              boxShadow: isActive ? `0 0 18px ${engine.theme.shadow}` : undefined,
+            }}
+          >
+            <span
+              className="grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[9px] font-black"
+              style={{
+                borderColor: engine.theme.border,
+                background: `linear-gradient(135deg, ${engine.theme.accent}22, ${engine.theme.accent2}14)`,
+                color: engine.theme.accent,
+              }}
+            >
+              {ENGINE_LOGOS[engine.id] ? (
+                <img src={ENGINE_LOGOS[engine.id]} alt="" className="h-[18px] w-[18px] rounded-[4px]" />
+              ) : (
+                <EngineIcon className="h-3 w-3" />
+              )}
+            </span>
+            {!collapsed && <span className="text-xs font-medium">{engine.shortLabel}</span>}
+            {engine.paidGated && !collapsed && <span className="ml-auto rounded border px-1 py-0.5 text-[8px] uppercase" style={{ borderColor: engine.theme.border, color: engine.theme.accent }}>paid</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   const inner = (
     <>
@@ -104,8 +179,8 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
           <AnimatePresence>
             {!collapsed && (
               <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} className="min-w-0">
-                <p className="text-sm font-bold leading-none tracking-tight text-hermes-gradient">BertOS</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-[rgba(212,180,131,0.55)]">Imperium</p>
+                <p className="text-sm font-bold leading-none tracking-tight text-hermes-gradient">BERTOS</p>
+                <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-[rgba(103,232,249,0.62)]">Olympus Core</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -135,7 +210,7 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
         )}
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-3 px-2 py-3">
           <button
             title="Command Palette"
@@ -154,6 +229,8 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
             <Plus className="h-3.5 w-3.5 shrink-0" />
             {!collapsed && <span>New oracle thread</span>}
           </button>
+
+          {renderEngineNav}
 
           <div className="space-y-0.5">
             {!collapsed && (
@@ -181,42 +258,6 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
                   <item.icon className={cn('h-4 w-4 shrink-0', isActive && 'text-[#D4B483]')} />
                   {!collapsed && <span className="text-xs font-medium">{item.label}</span>}
                   {isActive && !collapsed && <span className="ml-auto h-1 w-1 rotate-45 bg-[#D4B483] shadow-[0_0_8px_rgba(212,180,131,0.80)]" />}
-                </button>
-              )
-            })}
-          </div>
-
-          <div className="space-y-0.5">
-            {!collapsed && (
-              <div className="flex items-center gap-2 px-2 pb-1.5 pt-1">
-                <span className="block h-px flex-1 bg-[rgba(212,180,131,0.18)]" />
-                <p className="text-[9px] font-semibold uppercase tracking-[0.32em] text-[rgba(212,180,131,0.50)]">Engines</p>
-                <span className="block h-px flex-1 bg-[rgba(212,180,131,0.18)]" />
-              </div>
-            )}
-            {ENGINE_NAV_ITEMS.map(engine => {
-              const EngineIcon = ENGINE_ICONS[engine.id]
-              const isActive = pathname === engine.route || pathname.startsWith(`${engine.route}/`)
-              return (
-                <button
-                  key={engine.id}
-                  title={engine.label}
-                  onClick={() => {
-                    setActiveView('agents')
-                    router.push(engine.route)
-                    onMobileClose?.()
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition',
-                    isActive
-                      ? 'bg-cyan-300/10 text-cyan-100 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.22)]'
-                      : 'text-[#6A5A3A] hover:bg-cyan-300/5 hover:text-cyan-100',
-                    collapsed && 'justify-center',
-                  )}
-                >
-                  <EngineIcon className={cn('h-3.5 w-3.5 shrink-0', isActive && 'text-cyan-100')} />
-                  {!collapsed && <span className="text-xs font-medium">{engine.shortLabel}</span>}
-                  {engine.paidGated && !collapsed && <span className="ml-auto rounded border border-amber-500/20 px-1 py-0.5 text-[8px] uppercase text-amber-300">paid</span>}
                 </button>
               )
             })}
@@ -283,7 +324,6 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && <span>Settings</span>}
         </button>
-
         {!isMobile && (
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className={cn('flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[10px] text-zinc-700 transition hover:bg-white/5 hover:text-zinc-500', collapsed ? 'justify-center' : 'justify-between')}>
             {!collapsed && <span>Collapse</span>}
@@ -295,16 +335,18 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
   )
 
   if (isMobile) {
-    return <div className="relative flex h-full w-full flex-col overflow-hidden border-r border-cyan-300/10 bg-slate-950/96">{inner}</div>
+    return <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-[rgba(246,196,83,0.16)] bg-[#05030A]/96">{inner}</div>
   }
 
   return (
     <motion.aside
       animate={{ width: sidebarCollapsed ? 58 : 248 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="relative z-20 flex h-full shrink-0 flex-col overflow-hidden border-r border-cyan-300/10 bg-slate-950/78 backdrop-blur-xl"
+      className="relative z-20 flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-[rgba(246,196,83,0.16)] bg-[#05030A]/68 shadow-[18px_0_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl"
     >
       <div className="hermes-grid-fine pointer-events-none absolute inset-0 opacity-30" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-[rgba(246,196,83,0.50)] to-transparent" />
+      <div className="pointer-events-none absolute -left-20 top-20 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(103,232,249,0.14),transparent_65%)]" />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">{inner}</div>
     </motion.aside>
   )

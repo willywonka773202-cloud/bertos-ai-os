@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/bertos/cn'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { HologramPanel, RomanDivider, StatusOrb, RouteHero, MetricTile } from '@/components/bertos/hermes'
+import { STYLUSLY_REBUILD_MAX_PROMPT } from '@/lib/bertos/stylusly-rebuild-prompt'
 import {
   useMaxStore,
   type MaxMission, type MaxAutonomy, type MaxDuration,
@@ -256,6 +257,20 @@ export function MaxModeView() {
     setActiveMission(null)
   }, [setActiveMission])
 
+  const loadStyluslyPreset = useCallback(() => {
+    setIdea(STYLUSLY_REBUILD_MAX_PROMPT)
+    setAppCategory('E-commerce')
+    setTargetUser('Stylusly users who want a complete fashion styling app with closet, swipe discovery, and outfit editing')
+    setDuration('2hours')
+    setAutonomy('propose-patch')
+    setAgentMode('max-swarm')
+    setOutputGoal('code-with-approval')
+    setMaxIterations(60)
+    setSafeMode(true)
+    setTab('compose')
+    toast.success('Stylusly rebuild prompt loaded into Max Mode')
+  }, [])
+
   const pendingGates = mission?.approvalGates.filter(g => g.status === 'pending') ?? []
   const activeTasks = mission?.tasks.filter(t => t.status === 'active') ?? []
   const doneTasks = mission?.tasks.filter(t => t.status === 'done') ?? []
@@ -272,7 +287,7 @@ export function MaxModeView() {
   ] as const
 
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea className="h-full min-h-0">
       <div className="px-4 py-4 max-w-5xl mx-auto">
         <RouteHero
           eyebrow="BertOS Max"
@@ -367,6 +382,22 @@ export function MaxModeView() {
           <div className="space-y-4">
             <HologramPanel tone="bronze">
               <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-pink-400/20 bg-pink-500/8 p-3">
+                  <div>
+                    <p className="text-xs font-semibold text-pink-100">Stylusly rebuild preset</p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-zinc-500">
+                      Loads the full prompt to restore Stylusly's clothing catalog, swipe discovery, outfit builder, saved outfits, and fashion-forward personality.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={loadStyluslyPreset}
+                    className="flex items-center gap-2 rounded-lg border border-pink-300/25 bg-pink-400/10 px-3 py-2 text-xs font-semibold text-pink-100 transition hover:border-pink-300/45 hover:bg-pink-400/15"
+                  >
+                    <Star className="h-3.5 w-3.5" />
+                    Load Stylusly Prompt
+                  </button>
+                </div>
                 <div>
                   <label className="block text-[11px] font-semibold uppercase tracking-widest text-amber-200/60 mb-2">App idea *</label>
                   <textarea

@@ -3,11 +3,8 @@ import { getOllamaConfig } from '@/lib/bertos/runtime'
 
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
+async function buildStatus(testCloud: boolean, clientKey?: string) {
   const cfg = getOllamaConfig()
-  const testCloud = req.nextUrl.searchParams.get('testCloud') === 'true'
-  // Accept client-supplied key so the in-app key can be tested without Vercel env vars
-  const clientKey = req.nextUrl.searchParams.get('key')?.trim() || undefined
   const effectiveKey = clientKey || cfg.apiKey
 
   if (cfg.mode === 'cloud') {
@@ -100,4 +97,18 @@ export async function GET(req: NextRequest) {
       error: `Local Ollama is offline: ${message}. Run: ollama serve`,
     })
   }
+}
+
+export async function GET(req: NextRequest) {
+  return buildStatus(req.nextUrl.searchParams.get('testCloud') === 'true')
+}
+
+export async function POST(req: NextRequest) {
+  let body: { testCloud?: boolean; key?: string } = {}
+  try {
+    body = await req.json()
+  } catch {
+    body = {}
+  }
+  return buildStatus(Boolean(body.testCloud), body.key?.trim() || undefined)
 }

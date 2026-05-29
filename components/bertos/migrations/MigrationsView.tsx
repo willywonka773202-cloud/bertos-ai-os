@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { buildMigrationAuditPrompt } from '@/lib/bertos/command-center'
 import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
+import { fetchBrowserAwareProviderStatus } from '@/lib/bertos/provider-status-client'
 
 interface ProviderStatusResponse {
   providers?: Array<{ id: string; name: string; status: string; message?: string }>
@@ -28,8 +29,7 @@ export function MigrationsView() {
   const [status, setStatus] = useState<ProviderStatusResponse | null>(null)
 
   useEffect(() => {
-    fetch('/api/providers/status', { cache: 'no-store' })
-      .then(res => res.json())
+    fetchBrowserAwareProviderStatus()
       .then(data => setStatus(data as ProviderStatusResponse))
       .catch(() => setStatus(null))
   }, [])
@@ -43,9 +43,9 @@ export function MigrationsView() {
   }
 
   return (
-    <div className="flex h-full">
-      <main className="min-w-0 flex-1 overflow-hidden">
-        <ScrollArea className="h-full">
+    <div className="flex h-full min-h-0">
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <ScrollArea className="h-full min-h-0">
           <div className="mx-auto max-w-6xl space-y-5 p-6">
             <RouteHero
               eyebrow="migration augury"

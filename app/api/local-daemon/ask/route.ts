@@ -3,7 +3,7 @@ import { askLocalDaemon, type LocalCliProvider } from '@/lib/bertos/local-daemon
 
 export const runtime = 'nodejs'
 
-const VALID_PROVIDERS = new Set(['claude-code', 'codex-cli', 'gemini-cli'])
+const VALID_PROVIDERS = new Set(['claude-code', 'codex-cli', 'gemini-cli', 'openclaw-cli'])
 
 export async function POST(req: NextRequest) {
   let body: {

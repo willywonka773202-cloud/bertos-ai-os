@@ -134,7 +134,7 @@ export function PromptLibraryView() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="min-h-full">
       {/* Header */}
       <div className="border-b border-cyan-300/10 px-6 py-4 flex-shrink-0">
         <RouteHero
@@ -177,9 +177,10 @@ export function PromptLibraryView() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex min-h-0">
         {/* Category Sidebar */}
-        <div className="w-56 border-r border-zinc-800/50 p-4 space-y-1 flex-shrink-0 hidden md:block">
+        <div className="hidden min-h-0 w-56 flex-shrink-0 overflow-y-auto border-r border-zinc-800/50 p-4 md:block">
+          <div className="space-y-1">
           <button
             onClick={() => setSelectedCategory('all')}
             className={cn(
@@ -231,10 +232,11 @@ export function PromptLibraryView() {
               </button>
             )
           })}
+          </div>
         </div>
 
         {/* Prompts Grid */}
-        <ScrollArea className="flex-1">
+        <div className="min-w-0 flex-1">
           <div className="p-6">
             {filteredPrompts.length === 0 ? (
               <EmptyChamber
@@ -267,7 +269,7 @@ export function PromptLibraryView() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       {/* Edit/New Prompt Dialog */}
@@ -441,7 +443,7 @@ function PromptDialog({ prompt, onClose, onSave }: PromptDialogProps) {
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 20 }}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl"
       >
         <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-zinc-100">
@@ -455,7 +457,7 @@ function PromptDialog({ prompt, onClose, onSave }: PromptDialogProps) {
           </button>
         </div>
 
-        <ScrollArea className="max-h-[70vh]">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-zinc-300 mb-2">Title</label>
@@ -532,7 +534,7 @@ function PromptDialog({ prompt, onClose, onSave }: PromptDialogProps) {
           </div>
         </ScrollArea>
 
-        <div className="px-6 py-4 border-t border-zinc-800 flex items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-3 border-t border-zinc-800 px-6 py-4">
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>

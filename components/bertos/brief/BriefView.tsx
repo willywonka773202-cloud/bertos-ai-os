@@ -10,11 +10,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChamberCard, EmptyChamber, RouteHero } from '@/components/bertos/hermes'
+import { fetchBrowserAwareProviderStatus } from '@/lib/bertos/provider-status-client'
 
 interface ProviderStatus {
   id: string
   name: string
-  status: 'online' | 'offline' | 'unknown'
+  status: string
   message?: string
 }
 
@@ -26,8 +27,7 @@ export function BriefView() {
   const activeProject = projects.find(project => project.id === activeProjectId)
 
   useEffect(() => {
-    fetch('/api/providers/status', { cache: 'no-store' })
-      .then(res => res.ok ? res.json() : null)
+    fetchBrowserAwareProviderStatus()
       .then(data => setProviders(data?.providers ?? []))
       .catch(() => setProviders([]))
   }, [])
@@ -48,7 +48,7 @@ export function BriefView() {
   ]
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-cyan-300/10 px-6 py-4">
         <RouteHero
           eyebrow="daily oracle brief"
@@ -74,7 +74,7 @@ export function BriefView() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-5 p-6">
           <DaemonHealthBanner health={health} loading={loading} onRefresh={refresh} />
 
