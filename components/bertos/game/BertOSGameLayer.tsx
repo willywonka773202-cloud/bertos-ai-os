@@ -55,6 +55,7 @@ const moduleIcons: Record<GameModuleId, LucideIcon> = {
   dashboard: LayoutDashboard,
   cockpit: Code2,
   approvals: GitCompare,
+  providers: Cpu,
   chat: MessageSquare,
   hermes: Sparkles,
   prompts: Library,

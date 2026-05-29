@@ -105,6 +105,15 @@ export function CommandPalette() {
       action: () => navigate('chat', '/assistant'),
     },
     {
+      id: 'open-providers',
+      label: 'Open AI Provider Hub',
+      description: 'Use Claude/Codex/Gemini/Ollama/Hermes from one place — status, test, setup',
+      icon: <Cpu className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['providers', 'models', 'ollama', 'claude', 'codex', 'gemini', 'hermes', 'hub', 'test'],
+      action: () => navigate('providers', '/providers'),
+    },
+    {
       id: 'open-onboarding',
       label: 'Setup & Onboarding',
       description: 'Guided first-run setup: storage, provider, project, safety',

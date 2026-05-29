@@ -2,6 +2,7 @@ export type GameModuleId =
   | 'dashboard'
   | 'cockpit'
   | 'approvals'
+  | 'providers'
   | 'chat'
   | 'hermes'
   | 'prompts'
@@ -81,6 +82,20 @@ export const GAME_MODULES: GameModule[] = [
     secondaryColor: '#86C9A0',
     accent: '#FFE4E6',
     lane: 'command',
+  },
+  {
+    id: 'providers',
+    href: '/providers',
+    navLabel: 'Providers',
+    title: 'AI Provider Hub',
+    callsign: 'Model Pantheon',
+    objective: 'Use Claude, Codex, Gemini, Ollama and Hermes from one place — status, capabilities, cost, setup, and live tests.',
+    reward: 'Unified AI access',
+    geometry: 'orb',
+    color: '#A78BFA',
+    secondaryColor: '#7ABCD6',
+    accent: '#E9D5FF',
+    lane: 'oracle',
   },
   {
     id: 'chat',

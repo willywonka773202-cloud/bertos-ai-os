@@ -22,6 +22,7 @@ import { getPrimaryAgentEngines, type AgentEngineId } from '@/lib/bertos/agent-e
 const NAV_ITEMS = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Olympus', href: '/dashboard' },
   { id: 'cockpit', icon: Terminal, label: 'Cockpit', href: '/cockpit' },
+  { id: 'providers', icon: Plug, label: 'Providers', href: '/providers' },
   { id: 'chat', icon: MessageSquare, label: 'Oracle', href: '/chat' },
   { id: 'hermes', icon: Sparkles, label: 'Hermes', href: '/hermes' },
   { id: 'prompts', icon: Library, label: 'Prompts', href: '/prompts' },

@@ -10,6 +10,10 @@ import { listPatchProposals } from './patches'
 import { buildWorkflowContent, type CodingWorkflowId } from './workflows'
 import { recordCodingRun } from './agent-runs'
 import { proposeCodingMemory } from './memory-bridge'
+import {
+  askMultipleProviders, selectProviderForMode, synthesizeProviderResponses,
+  type ProviderRoutingMode, type ProviderRunLane,
+} from './provider-routing'
 import { CodingOSError, type CodingProject } from './types'
 import type { MemoryKind } from '../types'
 
@@ -41,6 +45,9 @@ export interface AssistantResult {
   providers: AssistantProviderStatus[]
   projectSlug?: string
   suggestedActions: string[]
+  requestedProviderId?: string
+  routingMode?: ProviderRoutingMode
+  selectionReason?: string
 }
 
 const INTENT_TO_SUGGESTIONS: Record<AssistantIntent, string[]> = {
@@ -239,6 +246,11 @@ function buildPrompt(intent: AssistantIntent, message: string, grounding: string
 export interface RunAssistantInput {
   message: string
   projectId?: string
+  /** Force a specific router provider id (e.g. 'ollama-pro', 'claude-code'). */
+  providerId?: string
+  /** Routing mode used when no explicit providerId is given. */
+  routingMode?: ProviderRoutingMode
+  allowPaid?: boolean
 }
 
 export async function runAssistant(input: RunAssistantInput): Promise<AssistantResult> {
@@ -249,6 +261,18 @@ export async function runAssistant(input: RunAssistantInput): Promise<AssistantR
   const providers = await getAssistantProviderStatuses()
   const anyOnline = providers.some(p => p.online)
   const intent = detectIntent(message)
+
+  // Resolve which provider to prefer: explicit id > routing mode > auto.
+  let preferred: AIModel = 'auto'
+  let selectionReason: string | undefined
+  if (input.providerId) {
+    preferred = input.providerId as AIModel
+    selectionReason = `Manually selected ${input.providerId}.`
+  } else if (input.routingMode && input.routingMode !== 'auto' && input.routingMode !== 'ask-all') {
+    const selection = await selectProviderForMode(input.routingMode, { allowPaid: input.allowPaid })
+    if (selection.providerId) preferred = selection.providerId as AIModel
+    selectionReason = selection.reason
+  }
 
   // No active project: answer generally but explain that project context is unavailable.
   if (!project) {
@@ -275,8 +299,9 @@ export async function runAssistant(input: RunAssistantInput): Promise<AssistantR
   let degradedReason: string | undefined
 
   if (anyOnline) {
-    const result = await askWithProviderRouter(buildPrompt(intent, message, grounding), 'auto', {
+    const result = await askWithProviderRouter(buildPrompt(intent, message, grounding), preferred, {
       purpose: 'chat', mode: 'chat', temperature: 0.3, maxTokens: 2048,
+      deprioritizedProviders: input.allowPaid ? [] : ['gemini-api-native'],
     })
     if (result.ok && result.text.trim()) {
       reply = result.text.trim()
@@ -390,5 +415,69 @@ export async function runAssistant(input: RunAssistantInput): Promise<AssistantR
     outputId, workflowRunId, agentRunId, createdTaskIds, memoryProposalIds,
     groundedIn, providers, projectSlug: project.slug,
     suggestedActions: INTENT_TO_SUGGESTIONS[intent],
+    requestedProviderId: input.providerId,
+    routingMode: input.routingMode,
+    selectionReason,
   }
+}
+
+// ── Multi-provider compare ────────────────────────────────────────────────────
+
+export interface ProviderCompareResult {
+  reply: string
+  lanes: ProviderRunLane[]
+  succeeded: string[]
+  failed: string[]
+  outputId?: string
+  agentRunId?: string
+  workflowRunId?: string
+  providersQueried: string[]
+}
+
+export async function runProviderCompare(input: { message: string; projectId?: string; providerIds?: string[]; allowPaid?: boolean }): Promise<ProviderCompareResult> {
+  const message = (input.message ?? '').trim()
+  if (!message) throw new CodingOSError('invalid-input', 'A message is required.')
+  const project = input.projectId ? await getProject(input.projectId) : await getActiveProject()
+
+  const providers = await getAssistantProviderStatuses()
+  const onlineIds = providers.filter(p => p.online).map(p => p.providerId)
+  const targets = (input.providerIds?.length ? input.providerIds : onlineIds).filter(id => onlineIds.includes(id))
+
+  const grounding = project ? (await buildGroundingContext(project)).text : 'No active project — answer generally.'
+  const prompt = buildPrompt('general', message, grounding)
+
+  if (targets.length === 0) {
+    return { reply: 'No AI provider is online to compare. Configure a provider, then try Ask-all again.', lanes: [], succeeded: [], failed: [], providersQueried: [] }
+  }
+
+  const lanes = await askMultipleProviders(prompt, targets, { allowPaid: input.allowPaid })
+  const synthesis = synthesizeProviderResponses(lanes)
+  const succeeded = lanes.filter(l => l.ok).map(l => l.providerId)
+  const failed = lanes.filter(l => !l.ok).map(l => l.providerId)
+
+  let outputId: string | undefined
+  try {
+    const { createOutputArtifact } = await import('../outputs/registry')
+    const artifact = await createOutputArtifact({
+      type: 'diff_review', title: `Provider comparison: ${message.slice(0, 50)}`,
+      project: project?.slug, status: 'ready', tags: ['coding-os', 'compare', ...succeeded],
+      content: synthesis, fileName: 'provider-comparison.md',
+    })
+    outputId = artifact.outputId
+  } catch { /* best-effort */ }
+
+  let agentRunId: string | undefined
+  let workflowRunId: string | undefined
+  try {
+    const recorded = await recordCodingRun({
+      workflowId: 'assistant:compare', title: `Compare ${targets.length} providers: ${message.slice(0, 40)}`,
+      objective: message.slice(0, 120), projectSlug: project?.slug, skillIds: ['provider-compare'],
+      lanes: lanes.map(l => ({ role: `provider:${l.name}`, status: (l.ok ? 'completed' : 'failed') as 'completed' | 'failed', summary: l.ok ? `${l.latencyMs}ms` : (l.error ?? 'failed') })),
+      outputIds: outputId ? [outputId] : [], providerName: `multi (${succeeded.length}/${targets.length})`, llmUsed: succeeded.length > 0,
+    })
+    agentRunId = recorded.agentRunId
+    workflowRunId = recorded.workflowRunId
+  } catch { /* best-effort */ }
+
+  return { reply: synthesis, lanes, succeeded, failed, outputId, agentRunId, workflowRunId, providersQueried: targets }
 }

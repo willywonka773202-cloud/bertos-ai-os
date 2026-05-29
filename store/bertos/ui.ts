@@ -7,7 +7,7 @@ interface UIStore {
   rightPanelOpen: boolean
   rightPanelTab: 'logs' | 'memory' | 'tasks' | 'files' | 'terminal'
   sidebarCollapsed: boolean
-  activeView: 'dashboard' | 'cockpit' | 'approvals' | 'chat' | 'hermes' | 'prompts' | 'compare' | 'coding' | 'max' | 'workspace' | 'evolution' | 'agents' | 'skills' | 'plugins' | 'outputs' | 'runs' | 'studio' | 'content-lab' | 'inbox-deals' | 'publishing-queue' | 'memory' | 'memory-review' | 'brief' | 'playbooks' | 'tasks' | 'migrations' | 'github' | 'settings' | 'launch' | 'autopilot'
+  activeView: 'dashboard' | 'cockpit' | 'approvals' | 'providers' | 'chat' | 'hermes' | 'prompts' | 'compare' | 'coding' | 'max' | 'workspace' | 'evolution' | 'agents' | 'skills' | 'plugins' | 'outputs' | 'runs' | 'studio' | 'content-lab' | 'inbox-deals' | 'publishing-queue' | 'memory' | 'memory-review' | 'brief' | 'playbooks' | 'tasks' | 'migrations' | 'github' | 'settings' | 'launch' | 'autopilot'
   selectedModel: AIModel
   settings: BertOSSettings
   pendingWorkspaceTask: string | null

@@ -41,7 +41,14 @@ export function AICommandCenter({ projectId, projectName, onActivity, threadId: 
   const [busy, setBusy] = useState(false)
   const [testResult, setTestResult] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
+  const [selection, setSelection] = useState('auto') // 'auto' | routing-mode | 'provider:<id>'
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  const selectionToBody = () => {
+    if (selection.startsWith('provider:')) return { providerId: selection.slice('provider:'.length) }
+    if (selection !== 'auto') return { routingMode: selection }
+    return {}
+  }
 
   useEffect(() => { setMessages(initialMessages ?? []); setThreadId(threadIdProp) }, [threadIdProp, initialMessages])
   useEffect(() => {
@@ -58,7 +65,19 @@ export function AICommandCenter({ projectId, projectName, onActivity, threadId: 
     setMessages(prev => [...prev, { role: 'user', content: message }])
     setInput('')
     setBusy(true)
-    const data = await postJson<{ ok: boolean; result?: AssistantResult; threadId?: string; error?: string }>('/api/bertos/coding/assistant', { message, projectId, threadId })
+    if (selection === 'ask-all') {
+      const data = await postJson<{ result?: any; error?: string }>('/api/bertos/coding/assistant/compare', { message, projectId })
+      setBusy(false)
+      const r = data.result
+      if (r) {
+        setMessages(prev => [...prev, { role: 'assistant', content: r.reply, result: { reply: r.reply, intent: 'compare', llmUsed: r.succeeded.length > 0, providerName: `${r.succeeded.length}/${r.providersQueried.length} providers`, degraded: r.succeeded.length === 0, outputId: r.outputId, agentRunId: r.agentRunId, createdTaskIds: [], memoryProposalIds: [], groundedIn: ['multi-provider'] } }])
+        onActivity?.()
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ ${data.error ?? 'Compare failed.'}` }])
+      }
+      return
+    }
+    const data = await postJson<{ ok: boolean; result?: AssistantResult; threadId?: string; error?: string }>('/api/bertos/coding/assistant', { message, projectId, threadId, ...selectionToBody() })
     setBusy(false)
     if (data.ok && data.result) {
       setMessages(prev => [...prev, { role: 'assistant', content: data.result!.reply, result: data.result }])
@@ -152,13 +171,36 @@ export function AICommandCenter({ projectId, projectName, onActivity, threadId: 
         </div>
       )}
 
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-600">Route</span>
+        <select value={selection} onChange={e => setSelection(e.target.value)} className="h-8 rounded-md border border-zinc-800 bg-black/40 px-2 text-xs text-zinc-200 outline-none focus:border-cyan-500/40">
+          <optgroup label="Routing">
+            <option value="auto">Auto router</option>
+            <option value="local-only">Local / free only</option>
+            <option value="best-planner">Best planner</option>
+            <option value="best-coder">Best code editor</option>
+            <option value="best-reviewer">Best reviewer</option>
+            <option value="long-context">Long-context</option>
+            <option value="fast-cheap">Fast & cheap</option>
+            <option value="ask-all">Ask all & compare</option>
+          </optgroup>
+          {providers.filter(p => p.online).length > 0 && (
+            <optgroup label="Use a specific provider">
+              {providers.filter(p => p.online).map(p => <option key={p.providerId} value={`provider:${p.providerId}`}>{p.providerName}</option>)}
+            </optgroup>
+          )}
+        </select>
+        {selection === 'ask-all' && <span className="text-[10px] text-cyan-300/70">queries all online providers</span>}
+        <a href="/providers" className="ml-auto text-[10px] text-zinc-600 hover:text-cyan-300">Provider Hub →</a>
+      </div>
+
       <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-black/30 px-3">
         <Bot className="h-4 w-4 shrink-0 text-cyan-300/70" />
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(input) } }}
-          placeholder={projectId ? 'Ask the AI about this project…' : 'Activate a project, then ask…'}
+          placeholder={projectId ? (selection === 'ask-all' ? 'Ask all providers about this project…' : 'Ask the AI about this project…') : 'Activate a project, then ask…'}
           className="h-10 flex-1 bg-transparent text-sm text-zinc-100 outline-none"
         />
         <Button size="sm" disabled={busy || !input.trim()} onClick={() => send(input)}><Send className="h-3.5 w-3.5" /></Button>

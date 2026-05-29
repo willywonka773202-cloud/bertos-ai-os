@@ -71,6 +71,8 @@ const agentRuns = req('lib/bertos/coding/agent-runs.ts')
 const runsRegistry = req('lib/bertos/runs/registry.ts')
 const storage = req('lib/bertos/coding/storage.ts')
 const threads = req('lib/bertos/coding/threads.ts')
+const providerHub = req('lib/bertos/coding/provider-hub.ts')
+const providerRouting = req('lib/bertos/coding/provider-routing.ts')
 
 async function main() {
   // Build a throwaway sandbox repo to act as a registered project.
@@ -234,6 +236,26 @@ async function main() {
   const turn2 = await threads.appendTurn({ threadId: turn.threadId, projectId: project.projectId, userMessage: 'thanks', assistant: { reply: 'ok', intent: 'general', llmUsed: false, createdTaskIds: [], memoryProposalIds: [] } })
   assert(turn2.messages.length === 4, 'appendTurn: continues an existing thread')
   assert(await threads.deleteThread(turn.threadId) === true, 'deleteThread: removes the thread')
+
+  // ── Provider Hub: setup guides, paid gating, multi-provider synthesis (network-free) ──
+  for (const pid of ['ollama-pro', 'claude-code', 'codex-cli', 'gemini-cli', 'gemini-api-native', 'hermes-nous', 'openclaw-cli']) {
+    const guide = providerHub.getProviderSetupGuide(pid)
+    assert(guide && guide.name && Array.isArray(guide.envVars) && guide.howBertosDetects, `setup guide exists for ${pid}`)
+  }
+  assert(providerHub.isPaidProvider('gemini-api-native') === true, 'isPaidProvider: gemini-api-native is paid')
+  assert(providerHub.isPaidProvider('ollama-pro') === false, 'isPaidProvider: ollama-pro is free')
+  assert(providerHub.getProviderSetupGuide('gemini-api-native').doNotCommit.includes('GEMINI_API_KEY'), 'setup guide: warns not to commit GEMINI_API_KEY')
+
+  const synthOk = providerRouting.synthesizeProviderResponses([
+    { providerId: 'claude-code', name: 'Claude Code CLI', ok: true, text: 'Use a registry pattern.', latencyMs: 800 },
+    { providerId: 'ollama-pro', name: 'Ollama Local', ok: false, text: '', latencyMs: 100, error: 'timeout' },
+  ])
+  assert(synthOk.includes('Claude Code CLI') && /Did not answer/.test(synthOk) && /Recommendation/.test(synthOk), 'synthesizeProviderResponses: one success + one failure synthesized')
+  const synthNone = providerRouting.synthesizeProviderResponses([{ providerId: 'ollama-pro', name: 'Ollama Local', ok: false, text: '', latencyMs: 1, error: 'offline' }])
+  assert(/No provider produced an answer/.test(synthNone), 'synthesizeProviderResponses: all-failed handled')
+
+  const health = await providerHub.recordProviderHealth({ providerId: 'ollama-pro', status: 'online', online: true, ranLiveGeneration: true, latencyMs: 1200, replyPreview: 'OK' })
+  assert(health.providerId === 'ollama-pro' && health.lastTestedAt, 'recordProviderHealth: persists a health record')
 
   // Cleanup sandbox repo.
   fs.rmSync(sandbox, { recursive: true, force: true })
