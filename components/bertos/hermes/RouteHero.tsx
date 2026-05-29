@@ -27,7 +27,8 @@ type RouteHeroProps = {
 
 export function RouteHero({ eyebrow, title, subtitle, status = 'active', seal, metrics = [], children, compact = false }: RouteHeroProps) {
   return (
-    <HologramPanel tone="bronze" className={cn('overflow-hidden', compact ? 'mb-3 p-4' : 'mb-5 p-5 md:p-6')}>
+    <HologramPanel tone="bronze" className={cn('imperium-sweep overflow-hidden', compact ? 'mb-3 p-4' : 'mb-5 p-5 md:p-6')}>
+      <span className="imperium-sweep__beam" aria-hidden="true" />
       {/* Imperial stone grid overlay */}
       <div className="pointer-events-none absolute inset-0 hermes-grid opacity-30" />
       {/* Monumental arch-light at top center */}
@@ -57,7 +58,7 @@ export function RouteHero({ eyebrow, title, subtitle, status = 'active', seal, m
               {eyebrow}
             </div>
             {/* Monumental title */}
-            <h1 className={cn('mt-1 font-semibold tracking-tight text-hermes-gradient', compact ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-3xl')}>
+            <h1 className={cn('font-imperial text-imperial-gold mt-1 font-semibold tracking-tight', compact ? 'text-xl sm:text-2xl' : 'text-2xl sm:text-[28px] lg:text-3xl')}>
               {title}
             </h1>
             {/* Subtitle — parchment tone */}

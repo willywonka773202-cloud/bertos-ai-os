@@ -182,8 +182,8 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
           <AnimatePresence>
             {!collapsed && (
               <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} className="min-w-0">
-                <p className="text-sm font-bold leading-none tracking-tight text-hermes-gradient">BERTOS</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-[rgba(103,232,249,0.62)]">Olympus Core</p>
+                <p className="font-imperial text-imperial-gold text-base font-semibold leading-none tracking-[0.14em]">BERTOS</p>
+                <p className="font-imperial mt-1 text-[8px] uppercase tracking-[0.3em] text-[rgba(212,180,131,0.6)]">AI Operating System</p>
               </motion.div>
             )}
           </AnimatePresence>

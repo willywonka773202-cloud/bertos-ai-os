@@ -203,11 +203,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="relative z-10 flex-1 flex min-h-0 flex-col min-w-0 overflow-hidden">
           <DemoBanner />
           <TopBar onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
-          <BertOSGameLayer />
+          {/* The gamified HUD is reserved for the dashboard so work routes stay a clean command center. */}
+          {(pathname === '/dashboard' || pathname === '/') && <BertOSGameLayer />}
           <main ref={mainScrollRef} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain md:pl-16">
             <ErrorBoundary>
               {children}
             </ErrorBoundary>
+            <div className="imperium-divider pointer-events-none px-6 py-5 opacity-70">Dominabitur Astra · Non Vi, Sed Mente</div>
           </main>
         </div>
 

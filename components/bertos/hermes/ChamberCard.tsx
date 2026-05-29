@@ -29,7 +29,7 @@ export function ChamberCard({
   return (
     <section
       className={cn(
-        'group relative overflow-hidden rounded-xl border backdrop-blur-xl',
+        'imperium-corners group relative overflow-hidden rounded-xl border backdrop-blur-xl',
         'bg-[linear-gradient(160deg,rgba(16,13,9,0.82),rgba(7,5,3,0.72))]',
         'shadow-[inset_0_1px_0_rgba(240,232,208,0.04),0_16px_50px_rgba(0,0,0,0.24)]',
         toneClasses(tone),
@@ -50,7 +50,7 @@ export function ChamberCard({
                   {eyebrow}
                 </div>
               )}
-              {title && <h3 className="text-sm font-semibold text-[#F0E8D0]">{title}</h3>}
+              {title && <h3 className="font-imperial text-sm font-semibold tracking-wide text-[#F0E8D0]">{title}</h3>}
               {description && <p className="mt-1 text-xs leading-relaxed text-[#8A7A5A]">{description}</p>}
               {meta && <div className="mt-2 text-[11px] text-[#6A5A3A]">{meta}</div>}
             </div>
