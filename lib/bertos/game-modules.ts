@@ -1,5 +1,7 @@
 export type GameModuleId =
   | 'dashboard'
+  | 'cockpit'
+  | 'approvals'
   | 'chat'
   | 'hermes'
   | 'prompts'
@@ -50,6 +52,34 @@ export const GAME_MODULES: GameModule[] = [
     color: '#D4B483',
     secondaryColor: '#7ABCD6',
     accent: '#F0E8D0',
+    lane: 'command',
+  },
+  {
+    id: 'cockpit',
+    href: '/cockpit',
+    navLabel: 'Cockpit',
+    title: 'Dev Cockpit',
+    callsign: 'Daily Sanctuary',
+    objective: 'Register repos, browse safely, run validation, forge patches behind approval, and keep every run in one place.',
+    reward: 'Daily build flow',
+    geometry: 'forge',
+    color: '#7ABCD6',
+    secondaryColor: '#D4B483',
+    accent: '#CFFAFE',
+    lane: 'forge',
+  },
+  {
+    id: 'approvals',
+    href: '/approvals',
+    navLabel: 'Gates',
+    title: 'Approval Center',
+    callsign: 'Guardian Gates',
+    objective: 'Review and approve every risky action — patch applies, pushes, deploys, deletions, paid APIs.',
+    reward: 'Safety integrity',
+    geometry: 'tribunal',
+    color: '#FB7185',
+    secondaryColor: '#86C9A0',
+    accent: '#FFE4E6',
     lane: 'command',
   },
   {

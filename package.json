@@ -23,8 +23,10 @@
     "smoke:payload": "node scripts/test-patch-payload.mjs",
     "smoke:memory": "node scripts/test-memory-engine.mjs",
     "smoke:creator-os": "node scripts/test-creator-os.mjs",
+    "smoke:coding-os": "node scripts/test-coding-os.mjs",
     "smoke:hermes-free": "node scripts/test-hermes-free.mjs",
-    "validate": "npm run typecheck && npm run build && npm run bertos:safety && npm run smoke && npm run smoke:payload && npm run smoke:memory && npm run smoke:creator-os && npm run smoke:hermes-free"
+    "test": "npm run smoke && npm run smoke:payload && npm run smoke:memory && npm run smoke:creator-os && npm run smoke:coding-os",
+    "validate": "npm run typecheck && npm run build && npm run bertos:safety && npm run smoke && npm run smoke:payload && npm run smoke:memory && npm run smoke:creator-os && npm run smoke:coding-os && npm run smoke:hermes-free"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",

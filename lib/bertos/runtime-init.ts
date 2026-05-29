@@ -47,6 +47,15 @@ export const BERTOS_RUNTIME_DIRS = [
   ['publishing', 'queue'],
   ['grounding'],
   ['grounding', 'packs'],
+  ['coding'],
+  ['coding', 'projects'],
+  ['coding', 'tasks'],
+  ['coding', 'patches'],
+  ['coding', 'commands'],
+  ['coding', 'validation'],
+  ['coding', 'git'],
+  ['coding', 'decisions'],
+  ['coding', 'indexes'],
 ] as const
 
 const MEMORY_CORE_FILES = [

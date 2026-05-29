@@ -53,6 +53,8 @@ import { fetchBrowserAwareProviderStatus } from '@/lib/bertos/provider-status-cl
 
 const moduleIcons: Record<GameModuleId, LucideIcon> = {
   dashboard: LayoutDashboard,
+  cockpit: Code2,
+  approvals: GitCompare,
   chat: MessageSquare,
   hermes: Sparkles,
   prompts: Library,

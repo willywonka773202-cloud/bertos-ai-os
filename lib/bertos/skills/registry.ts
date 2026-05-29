@@ -246,6 +246,72 @@ Extract ideas, create captions, create platform variants, save to local queue or
 ## Safety Policy
 Never publish or schedule without approval.
 `,
+  ...buildCodingSeedSkills(),
+}
+
+function codingSkill(opts: {
+  id: string; name: string; command: string; description: string; outputs: string; purpose: string
+  workflow: string[]; degraded: string; example: string; approval?: string
+}): string {
+  return `---
+id: ${opts.id}
+name: ${opts.name}
+version: 1.0.0
+command: ${opts.command}
+description: ${opts.description}
+required_plugins: [filesystem, project-registry, code-search]
+optional_plugins: [git, command-runner, patcher, test-runner, provider, outputs, memory, approvals, runs]
+default_agent: bertos-coding-agent
+output_types: [${opts.outputs}]
+memory_access: read_project_write_proposals
+permissions: [read_files, read_git, run_allowlisted_commands, propose_patch, write_outputs, propose_memory]
+approval_required_for: [${opts.approval ?? 'patch_apply, git_push, package_install, deploy, paid_api'}]
+---
+
+## Purpose
+${opts.purpose}
+
+## Inputs
+- active project, user request, file paths, git status/diff, validation output
+
+## Workflow
+${opts.workflow.map((step, i) => `${i + 1}. ${step}`).join('\n')}
+
+## Output Policy
+Save a grounded artifact to the Output Registry and record an AgentRun + WorkflowRun with lane logs.
+
+## Memory Policy
+Propose durable lessons (decisions, failure lessons, patterns) for review only. Never write memory automatically. Secrets are blocked.
+
+## Safety Policy
+Read-only by default. Patch apply, git push/commit, deploys, deletions, package installs, and paid APIs require explicit approval. Commands are allowlisted; sensitive files are blocked.
+
+## Degraded Mode
+${opts.degraded}
+
+## Examples
+- ${opts.example}
+`
+}
+
+function buildCodingSeedSkills(): Record<string, string> {
+  const defs = [
+    { id: 'codebase-explainer', name: 'Codebase Explainer', command: '/explain-codebase', description: 'Explain a repo: structure, stack, important files, and how it fits together.', outputs: 'repo_map, code_search_summary', purpose: 'Produce a grounded map of the active project so you can orient quickly.', workflow: ['Read project structure, important files, and tech stack.', 'Summarize architecture and entry points.', 'Cite real files only.'], degraded: 'With no provider, returns a deterministic grounded repo map from real structure.', example: '/explain-codebase' },
+    { id: 'feature-builder', name: 'Feature Builder', command: '/build-feature', description: 'Turn a feature request into a plan and a safe patch proposal.', outputs: 'feature_plan, implementation_plan, patch_proposal', purpose: 'Plan and scaffold a feature, ending in an approval-gated patch proposal.', workflow: ['Locate affected modules via code search.', 'Draft a scoped plan and follow-up tasks.', 'Create a patch proposal (never auto-applied).'], degraded: 'With no provider, emits a deterministic plan + follow-up tasks.', example: '/build-feature add a settings page' },
+    { id: 'bug-hunter', name: 'Bug Hunter', command: '/debug', description: 'Investigate a bug from symptoms, logs, and the current diff.', outputs: 'bug_report, implementation_plan', purpose: 'Localize a defect and propose the smallest safe fix.', workflow: ['Reproduce from validation/command output.', 'Localize with code search.', 'Propose a minimal patch.'], degraded: 'With no provider, summarizes failing validation and likely files.', example: '/debug the build is failing on typecheck' },
+    { id: 'test-writer', name: 'Test Writer', command: '/write-tests', description: 'Plan and draft tests for changed or critical code.', outputs: 'test_report, implementation_plan', purpose: 'Increase coverage on safety-critical and changed code.', workflow: ['Detect test tooling.', 'Identify untested critical paths.', 'Draft test cases / a patch proposal.'], degraded: 'With no provider, lists suggested coverage from real structure.', example: '/write-tests for the patch pipeline' },
+    { id: 'build-fixer', name: 'Build Fixer', command: '/fix-build', description: 'Triage a failing build/validation and propose a fix.', outputs: 'bug_report, implementation_plan', purpose: 'Get back to green from a failing validation run.', workflow: ['Read the latest validation report.', 'Reproduce the failing command.', 'Propose the smallest fix.'], degraded: 'With no provider, returns a deterministic triage from the last validation run.', example: '/fix-build' },
+    { id: 'refactor-planner', name: 'Refactor Planner', command: '/refactor', description: 'Plan a safe, incremental refactor.', outputs: 'implementation_plan, feature_plan', purpose: 'Sequence a refactor into small, verifiable steps.', workflow: ['Map the target area.', 'Propose incremental steps.', 'Create follow-up tasks; defer edits to patches.'], degraded: 'With no provider, returns a deterministic step list grounded in structure.', example: '/refactor extract the provider router' },
+    { id: 'docs-writer', name: 'Docs Writer', command: '/write-docs', description: 'Draft or update documentation grounded in the code.', outputs: 'docs_update', purpose: 'Produce accurate docs from real files and structure.', workflow: ['Read relevant files.', 'Draft docs.', 'Propose a docs patch for review.'], degraded: 'With no provider, outlines doc sections from real structure.', example: '/write-docs for the coding API', approval: 'patch_apply, publishing' },
+    { id: 'release-manager', name: 'Release Manager', command: '/release-check', description: 'Assess release readiness from validation, git, and decisions.', outputs: 'release_checklist', purpose: 'Produce a release readiness checklist; releasing stays manual.', workflow: ['Check validation status.', 'Check working-tree cleanliness and upstream.', 'List blockers.'], degraded: 'Deterministic readiness checklist from real state.', example: '/release-check', approval: 'git_push, deploy, publishing' },
+    { id: 'daily-coding-planner', name: 'Daily Coding Planner', command: '/daily-dev', description: 'A grounded daily briefing of tasks, patches, and validation.', outputs: 'daily_dev_briefing', purpose: 'Start the day with a focused, grounded plan.', workflow: ['Gather open tasks, pending patches, validation.', 'Suggest a focus.', 'Optionally create tasks.'], degraded: 'Deterministic briefing from real tasks/patches/validation.', example: '/daily-dev' },
+    { id: 'pr-reviewer', name: 'PR Reviewer', command: '/review-diff', description: 'Review the current working-tree diff for issues.', outputs: 'diff_review', purpose: 'Catch problems in changes before commit.', workflow: ['Read git status/diff.', 'Review for correctness, safety, and secrets.', 'Summarize findings.'], degraded: 'Deterministic diff summary + checklist from real git state.', example: '/review-diff' },
+    { id: 'dependency-auditor', name: 'Dependency Auditor', command: '/dependency-audit', description: 'Inspect dependencies and flag risks (read-only).', outputs: 'bug_report, code_search_summary', purpose: 'Surface dependency risks; installs require approval.', workflow: ['Read package manifests.', 'Flag outdated/risky deps.', 'Propose follow-up tasks.'], degraded: 'Deterministic summary of declared dependencies.', example: '/dependency-audit', approval: 'package_install, paid_api' },
+    { id: 'ui-polisher', name: 'UI Polisher', command: '/polish-ui', description: 'Plan UI/UX polish grounded in real components.', outputs: 'implementation_plan, diff_review', purpose: 'Identify polish opportunities and propose safe patches.', workflow: ['Locate UI components.', 'List polish opportunities.', 'Propose patches for review.'], degraded: 'Deterministic polish checklist from real component files.', example: '/polish-ui the cockpit' },
+  ]
+  const record: Record<string, string> = {}
+  for (const def of defs) record[def.id] = codingSkill(def)
+  return record
 }
 
 function parseList(value: string) {

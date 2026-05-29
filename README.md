@@ -18,6 +18,29 @@ BertOS is its own project. The app surface is limited to the AI operating system
 
 Legacy clothing catalog, commerce, outfit-building, and discovery routes from the original scaffold are intentionally removed from this repository.
 
+## Everyday Coding OS
+
+BertOS includes a local-first **Everyday Coding OS** — a daily AI coding cockpit:
+
+- **`/cockpit`** — register repos, browse files, read-only git, run validation, an embedded **AI Command Center**, the Patch Forge (approve→apply with backups + live diffs), Guardian Gates, Memory Chapel, Task Phalanx, Decision Ledger, Oracle Search, Recent Runs, and a Readiness card.
+- **`/assistant`** — a dedicated, project-aware AI interface (explain repo, plan a feature, review the diff, fix the build, write tests, what's next). Uses the configured provider; falls back to honest **local deterministic mode** with none.
+- **`/onboarding`** — guided first-run setup (storage → provider → project → first action → safety).
+- **`/approvals`** — the Approval Center for every risky action.
+
+Each meaningful AI/workflow action creates a real **run** (with lane logs), an **output artifact**, and — when useful — **tasks** and **memory proposals** (review-only).
+
+### Ready vs not ready (honest)
+
+| Capability | Status |
+| --- | --- |
+| Local single-user use | ✅ Ready |
+| Main AI interface (provider or local fallback) | ✅ Ready |
+| Patch forge / runs / memory proposals / file browser | ✅ Ready |
+| Hosted single-user demo | ⚠️ Works, ephemeral storage |
+| Hosted multi-user production | ❌ No auth/isolation + ephemeral storage |
+
+See `docs/bertos/public-readiness.md`, `provider-setup.md`, `storage.md`, `safety.md`, and `known-limitations.md`.
+
 ## Quick Start
 
 Double-click `Open BertOS.command` on macOS for the normal local launch. It safely checks GitHub for fast-forward updates, refreshes dependencies when needed, starts the local daemon, starts `localhost:3000`, and opens BertOS in the browser.

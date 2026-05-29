@@ -6,7 +6,7 @@ import {
   Inbox,
   Compass, Cpu, FlaskConical, Github, GitCompare, Hash, KanbanSquare, LayoutDashboard,
   Library, MessageSquare, Moon, PackageSearch, Plug, Plus, Send, Settings, ShieldCheck, Sparkles, Trash2, WandSparkles, Zap, Activity, Images,
-  Rocket,
+  Rocket, Terminal,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { getModelLabel } from '@/lib/bertos/router'
@@ -21,6 +21,7 @@ import { getPrimaryAgentEngines, type AgentEngineId } from '@/lib/bertos/agent-e
 
 const NAV_ITEMS = [
   { id: 'dashboard', icon: LayoutDashboard, label: 'Olympus', href: '/dashboard' },
+  { id: 'cockpit', icon: Terminal, label: 'Cockpit', href: '/cockpit' },
   { id: 'chat', icon: MessageSquare, label: 'Oracle', href: '/chat' },
   { id: 'hermes', icon: Sparkles, label: 'Hermes', href: '/hermes' },
   { id: 'prompts', icon: Library, label: 'Prompts', href: '/prompts' },
@@ -40,6 +41,7 @@ const NAV_ITEMS = [
   { id: 'publishing-queue', icon: Send, label: 'Publish', href: '/publishing-queue' },
   { id: 'memory', icon: Brain, label: 'Memory', href: '/memory' },
   { id: 'memory-review', icon: ShieldCheck, label: 'Memory Review', href: '/memory-review' },
+  { id: 'approvals', icon: ShieldCheck, label: 'Gates', href: '/approvals' },
   { id: 'brief', icon: CalendarDays, label: 'Brief', href: '/brief' },
   { id: 'playbooks', icon: ClipboardList, label: 'Doctrine', href: '/playbooks' },
   { id: 'tasks', icon: KanbanSquare, label: 'Tasks', href: '/tasks' },

@@ -87,6 +87,42 @@ export function CommandPalette() {
   const COMMANDS: Command[] = [
     // Quick Actions
     {
+      id: 'open-cockpit',
+      label: 'Open Dev Cockpit',
+      description: 'Your daily coding sanctuary — projects, validation, patch forge, gates',
+      icon: <Terminal className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['cockpit', 'coding', 'dev', 'daily', 'home', 'forge', 'patch'],
+      action: () => navigate('cockpit', '/cockpit'),
+    },
+    {
+      id: 'open-assistant',
+      label: 'Open AI Assistant',
+      description: 'Project-aware AI — explain repo, plan, review diff, fix build, write tests',
+      icon: <Bot className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['assistant', 'ai', 'chat', 'agent', 'explain', 'plan', 'review', 'project'],
+      action: () => navigate('chat', '/assistant'),
+    },
+    {
+      id: 'open-onboarding',
+      label: 'Setup & Onboarding',
+      description: 'Guided first-run setup: storage, provider, project, safety',
+      icon: <Sparkles className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['onboarding', 'setup', 'getting started', 'guide', 'first run', 'welcome'],
+      action: () => navigate('dashboard', '/onboarding'),
+    },
+    {
+      id: 'open-approvals',
+      label: 'Open Approval Center',
+      description: 'Review and approve risky actions (Guardian Gates)',
+      icon: <Shield className="w-4 h-4" />,
+      category: 'Actions',
+      keywords: ['approvals', 'gates', 'guardian', 'approve', 'risk', 'safety'],
+      action: () => navigate('approvals', '/approvals'),
+    },
+    {
       id: 'new-chat',
       label: 'New Chat',
       description: 'Start a fresh conversation',

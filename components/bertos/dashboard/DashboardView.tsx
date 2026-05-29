@@ -766,8 +766,11 @@ export function DashboardView() {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
               {[
+                { label: 'Dev Cockpit', href: '/cockpit', view: 'cockpit' as const, icon: <Terminal className="w-4 h-4" /> },
+                { label: 'AI Assistant', href: '/assistant', view: 'chat' as const, icon: <Bot className="w-4 h-4" /> },
                 { label: 'Chat', href: '/chat', view: 'chat' as const, icon: <MessageSquare className="w-4 h-4" /> },
                 { label: 'Builder', href: '/builder', view: 'coding' as const, icon: <Zap className="w-4 h-4" /> },
+                { label: 'Gates', href: '/approvals', view: 'approvals' as const, icon: <ShieldCheck className="w-4 h-4" /> },
                 { label: 'Settings', href: '/settings', view: 'settings' as const, icon: <Server className="w-4 h-4" /> },
                 { label: 'Daily Brief', href: '/brief', view: 'brief' as const, icon: <CalendarDays className="w-4 h-4" /> },
                 { label: 'Playbooks', href: '/playbooks', view: 'playbooks' as const, icon: <ClipboardList className="w-4 h-4" /> },
