@@ -67,6 +67,15 @@ const {
 
 resetHermesEnv()
 assert(normalizeHermesApiBase(' http://127.0.0.1:8642/v1/ ') === 'http://127.0.0.1:8642', 'Hermes base URL normalization strips trailing /v1')
+// Bare hosts (no scheme) must get one prepended so fetch()/new URL() can parse them.
+assert(normalizeHermesApiBase('bos2.hostingervps.com/3207') === 'https://bos2.hostingervps.com/3207', 'Hermes base URL prepends https for a bare remote host')
+assert(normalizeHermesApiBase('bos2.hostingervps.com:3207') === 'https://bos2.hostingervps.com:3207', 'Hermes base URL prepends https for a bare host:port')
+assert(normalizeHermesApiBase('127.0.0.1:8642/v1') === 'http://127.0.0.1:8642', 'Hermes base URL prepends http for a bare local host')
+assert(normalizeHermesApiBase('localhost:8642') === 'http://localhost:8642', 'Hermes base URL prepends http for bare localhost')
+assert(normalizeHermesApiBase('http://example.com:3207') === 'http://example.com:3207', 'Hermes base URL preserves an explicit http scheme')
+assert(normalizeHermesApiBase('') === '', 'Hermes base URL normalization tolerates empty input')
+// The exact value a bare host produces must be a parseable URL (the bug being fixed).
+assert((() => { try { new URL(`${normalizeHermesApiBase('bos2.hostingervps.com/3207')}/v1/chat/completions`); return true } catch { return false } })(), 'Hermes normalized URL parses with new URL()')
 
 let ready = validateHermesProxyReady()
 assert(!ready.ok && ready.error.includes('HERMES_ENABLED'), 'Hermes proxy reports disabled state without env')

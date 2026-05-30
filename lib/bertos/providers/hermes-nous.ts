@@ -5,7 +5,17 @@ export const DEFAULT_HERMES_NOUS_MODEL = 'hermes-agent'
 const DEFAULT_HERMES_TIMEOUT_MS = 120_000
 
 export function normalizeHermesApiBase(apiUrl: string) {
-  return apiUrl.trim().replace(/\/+$/, '').replace(/\/v1$/, '')
+  let url = apiUrl.trim()
+  if (!url) return ''
+  // Ensure an explicit scheme so fetch()/new URL() can parse it. A bare host like
+  // "bos2.hostingervps.com:3207" or "bos2.hostingervps.com/3207" otherwise throws
+  // "Failed to parse URL". Local hosts default to http; everything else to https.
+  if (!/^https?:\/\//i.test(url)) {
+    const host = (url.split('/')[0].split(':')[0] || '').toLowerCase()
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.endsWith('.local')
+    url = `${isLocal ? 'http' : 'https'}://${url}`
+  }
+  return url.replace(/\/+$/, '').replace(/\/v1$/, '')
 }
 
 function numberFromEnv(value: string | undefined, fallback: number) {

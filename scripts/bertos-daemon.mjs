@@ -808,8 +808,8 @@ async function detectTool(tool, options = {}) {
       const statusCode = 'not_installed'
       const error = resolved.cacheOnly
         ? 'Codex app cache detected, but no usable codex CLI command is installed or on PATH.'
-        : resolved.error || 'codex was not found on PATH. Install the Codex CLI or set CODEX_CLI_PATH.'
-      return { ...tool, installed: false, resolvedPath: undefined, candidates: resolved.candidates, statusCode, loginStatus: loginStatusFor(statusCode), error: truncateText(error), troubleshooting: 'Install a real codex CLI on PATH, or set CODEX_CLI_PATH to a valid executable. Do not point it at ~/.codex cache files.' }
+        : 'No codex CLI found on PATH. Install it (npm i -g @openai/codex, then codex login) or start the daemon with CODEX_CLI_PATH set to a working codex binary.'
+      return { ...tool, installed: false, resolvedPath: undefined, candidates: resolved.candidates, statusCode, loginStatus: loginStatusFor(statusCode), error: truncateText(error), troubleshooting: truncateText(`Install a real codex CLI on PATH, or set CODEX_CLI_PATH to a valid executable verified by 'codex --version'. Do not point it at ~/.codex cache files.${resolved.error ? ` (lookup: ${resolved.error})` : ''}`, 600) }
     }
     const alreadyVerified = verification?.loginStatus === 'available' && verification?.error === undefined
     let cache = verification
