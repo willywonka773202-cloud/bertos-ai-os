@@ -45,7 +45,10 @@ const OPENCLAW_AGENT_ID = process.env.OPENCLAW_AGENT_ID || 'main'
 const OPENCLAW_SESSION_KEY = process.env.OPENCLAW_SESSION_KEY || 'bertos'
 const OPENCLAW_THINKING_LEVEL = process.env.OPENCLAW_THINKING_LEVEL || 'off'
 const EXTRA_PATHS = [
-  '/Applications/Codex.app/Contents/Resources',
+  // NOTE: the Codex.app bundle is intentionally NOT on this list. Its
+  // Contents/Resources/codex is an app runtime, not a usable codex CLI, and
+  // injecting it made BertOS falsely report Codex installed. Set CODEX_CLI_PATH
+  // to opt in explicitly.
   '/opt/homebrew/opt/node@22/bin',
   '/opt/homebrew/bin',
   '/opt/homebrew/sbin',
@@ -687,41 +690,179 @@ function buildAskCommand(providerId, prompt, mode = 'chat') {
   }
 }
 
+// Active non-interactive bridge probe per CLI. The prompt is passed as ONE safe argument
+// (via buildAskCommand -> ['-p', prompt]); runResolvedCommand uses execFile with shell:false.
+const BRIDGE_PROBES = {
+  'claude-code': { prompt: 'Reply with exactly: BertOS Claude bridge OK', expect: 'BertOS Claude bridge OK' },
+  'gemini-cli': { prompt: 'Reply with exactly: BertOS Gemini bridge OK', expect: 'BertOS Gemini bridge OK' },
+}
+
+/**
+ * Run the CLI's bridge prompt as a single safe argument, capture and truncate output, and
+ * decide login readiness from whether stdout/stderr contains the expected bridge string.
+ * Never uses a shell string; relies on runResolvedCommand (execFile, shell:false, timeout).
+ */
+async function verifyToolBridge(toolId) {
+  const spec = BRIDGE_PROBES[toolId]
+  if (!spec) return null
+  const command = buildAskCommand(toolId, spec.prompt, 'chat')
+  const result = await runResolvedCommand({
+    executable: command.executable,
+    args: command.args,
+    timeoutMs: 60000,
+  })
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`
+  const ready = result.ok && output.includes(spec.expect)
+  return {
+    loginStatus: ready ? 'available' : 'error',
+    checkedAt: new Date().toISOString(),
+    error: ready
+      ? undefined
+      : truncateText(
+          result.stderr?.trim() ||
+            result.error ||
+            `${toolId} did not return the expected bridge reply. Run "${command.executable} -p \\"${spec.prompt}\\"" manually to check login.`,
+          1200,
+        ),
+    troubleshooting: ready ? undefined : truncateText(result.troubleshooting, 800),
+  }
+}
+
+const CODEX_CLI_PATH = process.env.CODEX_CLI_PATH || ''
+
+// Internal Codex app/plugin runtimes (e.g. ~/.codex/plugins/cache/.../app-server-runtime/codex)
+// are NOT a usable codex CLI and must never be launched as a provider verifier.
+function isCodexNonCliPath(p) {
+  const s = String(p || '').replace(/\\/g, '/').toLowerCase()
+  if (!s) return false
+  // Reject internal Codex app/plugin runtimes and the Codex.app bundle resource binary;
+  // do NOT reject a real CLI like ~/.codex/bin/codex or a homebrew/npm install.
+  return (
+    s.includes('/.codex/plugins/cache/') ||
+    s.includes('/.codex/.tmp/') ||
+    s.includes('/app-server-runtime/') ||
+    s.includes('/bundled-marketplaces/') ||
+    s.includes('/codex.app/')
+  )
+}
+
+// Resolve a usable codex CLI: CODEX_CLI_PATH (valid file, not a cache binary) or codex on PATH.
+async function resolveCodexCli() {
+  // Explicitly-configured path is trusted (even the app bundle) — verified later via --version.
+  if (CODEX_CLI_PATH) {
+    try {
+      const info = await stat(CODEX_CLI_PATH)
+      if (info.isFile()) return { resolvedPath: CODEX_CLI_PATH, candidates: [CODEX_CLI_PATH], explicit: true }
+    } catch {}
+    return { resolvedPath: undefined, candidates: [], error: `CODEX_CLI_PATH does not point to a valid file: ${CODEX_CLI_PATH}` }
+  }
+  // Auto-discovery: only a real codex on PATH counts — never the app bundle or cache runtimes.
+  const found = await whereExecutable('codex')
+  if (found.resolvedPath && !isCodexNonCliPath(found.resolvedPath)) return found
+  if (found.resolvedPath && isCodexNonCliPath(found.resolvedPath)) {
+    return { resolvedPath: undefined, candidates: found.candidates || [found.resolvedPath], cacheOnly: true }
+  }
+  return { resolvedPath: undefined, candidates: found.candidates || [], error: found.error }
+}
+
+// Verify a real codex CLI non-interactively via `--version` (execFile on the exact path,
+// wrapping Windows .cmd/.bat shims through cmd.exe so we never use a shell string).
+async function verifyCodexCli(resolved) {
+  const resolvedPath = resolved.resolvedPath
+  const viaCmd = Boolean(resolved.viaCmd) || /\.(cmd|bat)$/i.test(String(resolvedPath || ''))
+  const command = viaCmd ? 'cmd.exe' : resolvedPath
+  const args = viaCmd ? ['/d', '/c', 'call', resolvedPath, '--version'] : ['--version']
+  try {
+    const { stdout, stderr } = await execRaw(command, args, { timeoutMs: 8000 })
+    const out = `${stdout || ''}${stderr || ''}`.trim()
+    const ok = /\d+\.\d+/.test(out) || /codex/i.test(out)
+    return ok
+      ? { statusCode: 'ready', version: truncateText(out, 200) }
+      : { statusCode: 'command_failed', error: truncateText(out || 'codex --version produced no usable output.', 600) }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    const combined = `${msg}${error?.stderr || ''}`
+    const timedOut = /timed out|ETIMEDOUT/i.test(combined)
+    const authy = /auth|login|sign in|unauthor/i.test(combined)
+    return { statusCode: timedOut ? 'timed_out' : authy ? 'auth_required' : 'command_failed', error: truncateText(error?.stderr || msg, 800) }
+  }
+}
+
+// Map a granular statusCode to the legacy loginStatus the app's provider layer reads.
+function loginStatusFor(statusCode) {
+  if (statusCode === 'ready') return 'available'
+  if (statusCode === 'not_installed') return 'missing'
+  if (statusCode === 'auth_required' || statusCode === 'command_failed' || statusCode === 'timed_out') return 'error'
+  return 'unknown'
+}
+
 async function detectTool(tool, options = {}) {
+  const shouldVerifyVersion = Boolean(options.verifyVersion)
+  let verification = toolVerificationCache.get(tool.id)
+
+  // ── Codex: only a real CLI on PATH or via CODEX_CLI_PATH counts — never a cache binary. ──
+  if (tool.id === 'codex-cli') {
+    const resolved = await resolveCodexCli()
+    const installed = Boolean(resolved.resolvedPath)
+    if (!installed) {
+      const statusCode = 'not_installed'
+      const error = resolved.cacheOnly
+        ? 'Codex app cache detected, but no usable codex CLI command is installed or on PATH.'
+        : resolved.error || 'codex was not found on PATH. Install the Codex CLI or set CODEX_CLI_PATH.'
+      return { ...tool, installed: false, resolvedPath: undefined, candidates: resolved.candidates, statusCode, loginStatus: loginStatusFor(statusCode), error: truncateText(error), troubleshooting: 'Install a real codex CLI on PATH, or set CODEX_CLI_PATH to a valid executable. Do not point it at ~/.codex cache files.' }
+    }
+    const alreadyVerified = verification?.loginStatus === 'available' && verification?.error === undefined
+    let cache = verification
+    let probe
+    if (alreadyVerified) {
+      probe = { statusCode: 'ready', version: undefined }
+    } else {
+      probe = await verifyCodexCli(resolved)
+      cache = { loginStatus: loginStatusFor(probe.statusCode), checkedAt: new Date().toISOString(), error: probe.error }
+      toolVerificationCache.set(tool.id, cache)
+      toolsCache = null; toolsCacheAt = 0
+      await persistToolVerificationCache().catch(() => null)
+    }
+    return { ...tool, installed: true, resolvedPath: resolved.resolvedPath, candidates: resolved.candidates, version: probe.version, statusCode: probe.statusCode, loginStatus: cache?.loginStatus ?? 'available', lastVerifiedAt: cache?.checkedAt, error: truncateText(probe.error) }
+  }
+
+  // ── claude / gemini / openclaw ──
   const resolved = await whereExecutable(tool.executable)
   const installed = Boolean(resolved.resolvedPath)
-  const verification = toolVerificationCache.get(tool.id)
-  const shouldVerifyVersion = Boolean(options.verifyVersion)
   const result = shouldVerifyVersion
-    ? await runResolvedCommand({
-        executable: tool.executable,
-        args: ['--version'],
-        timeoutMs: 3000,
-      })
+    ? await runResolvedCommand({ executable: tool.executable, args: ['--version'], timeoutMs: 3000 })
     : null
-  const versionStatus = result?.ok
-    ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id)
-      ? 'available'
-      : 'unknown'
-    : installed
-      ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id)
-        ? 'available'
-        : 'unknown'
-      : 'missing'
-  const needsAskVerification =
-    installed &&
-    result?.ok &&
-    ASK_VERIFIED_CLI_TOOLS.has(tool.id) &&
-    !verification
+
+  // Deep verification actively probes ASK-verified CLIs (claude-code, gemini-cli) with a
+  // single-argument bridge prompt, then caches the result so /status reflects readiness.
+  if (shouldVerifyVersion && installed && ASK_VERIFIED_CLI_TOOLS.has(tool.id) && BRIDGE_PROBES[tool.id] && verification?.loginStatus !== 'available') {
+    const probe = await verifyToolBridge(tool.id)
+    if (probe) {
+      verification = probe
+      toolVerificationCache.set(tool.id, probe)
+      toolsCache = null; toolsCacheAt = 0
+      await persistToolVerificationCache().catch(() => null)
+    }
+  }
+
+  const versionStatus = installed
+    ? VERSION_VERIFIED_CLI_TOOLS.has(tool.id) && result?.ok ? 'available' : 'unknown'
+    : 'missing'
+  const needsAskVerification = installed && ASK_VERIFIED_CLI_TOOLS.has(tool.id) && !verification
+  const loginStatus = verification?.loginStatus ?? versionStatus
+  const statusCode = loginStatus === 'available' ? 'ready'
+    : !installed ? 'not_installed'
+    : loginStatus === 'error' ? (/(auth|login|sign in)/i.test(String(verification?.error || '')) ? 'auth_required' : 'command_failed')
+    : 'unknown'
+
   return {
     ...tool,
     installed,
     resolvedPath: resolved.resolvedPath,
     candidates: resolved.candidates,
-    version: result?.ok
-      ? result.stdout.trim() || result.stderr.trim()
-      : undefined,
-    loginStatus: verification?.loginStatus ?? versionStatus,
+    version: result?.ok ? result.stdout.trim() || result.stderr.trim() : undefined,
+    statusCode,
+    loginStatus,
     lastVerifiedAt: verification?.checkedAt,
     error: truncateText(
       verification?.error ??
@@ -729,10 +870,7 @@ async function detectTool(tool, options = {}) {
         (result && !result.ok ? result.error || result.stderr : undefined) ??
         (!installed ? resolved.error || 'Not found on PATH.' : undefined),
     ),
-    troubleshooting: truncateText(
-      verification?.troubleshooting ?? result?.troubleshooting,
-      800,
-    ),
+    troubleshooting: truncateText(verification?.troubleshooting ?? result?.troubleshooting, 800),
   }
 }
 
@@ -1170,6 +1308,13 @@ server.on('listening', () => {
   consoleLog(
     'Allowed executables: claude, codex, gemini, openclaw, git, npm, node, pnpm',
   )
+  // Background, non-blocking provider verification so CLIs self-verify (claude/gemini bridge
+  // probe + codex --version) without a manual Test and without blocking /status.
+  setTimeout(() => {
+    detectTools({ verifyVersion: true })
+      .then((tools) => consoleLog(`Provider verification: ${tools.map((t) => `${t.id}=${t.statusCode || t.loginStatus}`).join(', ')}`))
+      .catch(() => {})
+  }, 1500)
 })
 
 server.on('error', (error) => {
