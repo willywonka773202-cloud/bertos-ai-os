@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { getActiveProject, getProject, getProjectHealthSummary, listProjects } from '@/lib/bertos/coding/projects'
+import { ensureDefaultProject, getActiveProject, getProject, getProjectHealthSummary, listProjects } from '@/lib/bertos/coding/projects'
 import { getGitStatus, getRecentCommits, isGitRepo } from '@/lib/bertos/coding/git'
 import { listPatchProposals } from '@/lib/bertos/coding/patches'
 import { listApprovalRequests } from '@/lib/bertos/coding/approvals'
@@ -14,8 +14,15 @@ export const runtime = 'nodejs'
 export async function GET(req: NextRequest) {
   try {
     const requested = req.nextUrl.searchParams.get('projectId')
-    const projects = await listProjects(true)
-    const project = requested ? await getProject(requested) : await getActiveProject()
+    let projects = await listProjects(true)
+    let project = requested ? await getProject(requested) : await getActiveProject()
+
+    // Never-empty: on first run (no projects registered), auto-seed the working
+    // directory so the cockpit opens with real context instead of a dead-end.
+    if (!requested && !project) {
+      project = await ensureDefaultProject()
+      if (project) projects = await listProjects(true)
+    }
 
     if (!project) {
       return ok({ projects, project: null })

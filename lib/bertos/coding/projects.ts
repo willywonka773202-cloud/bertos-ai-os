@@ -106,6 +106,38 @@ export async function createProject(input: CreateProjectInput): Promise<CodingPr
   return project
 }
 
+/**
+ * Make the coding OS "never empty": if no projects are registered yet, auto-register
+ * the directory BertOS is running in as the first project so the cockpit, assistant,
+ * and runs all have real context to work with on first launch. Returns the active
+ * (or newly seeded) project, or null if seeding isn't possible/appropriate.
+ *
+ * Skipped on ephemeral hosted deploys (Vercel) where the filesystem resets each cold
+ * start, and can be disabled with BERTOS_NO_AUTOSEED=true. Best-effort and idempotent.
+ */
+export async function ensureDefaultProject(): Promise<CodingProject | null> {
+  const existing = await projects.all()
+  if (existing.length > 0) return getActiveProject()
+  if (process.env.VERCEL || process.env.BERTOS_NO_AUTOSEED === 'true') return null
+
+  const cwd = process.cwd()
+  const verification = await verifyProjectPath(cwd)
+  if (!verification.ok) return null
+
+  try {
+    const name = path.basename(verification.resolved) || 'My Workspace'
+    return await createProject({
+      name,
+      repoPath: cwd,
+      description: 'Auto-registered workspace — the directory BertOS is running in. Register your own projects anytime in the Cockpit.',
+      tags: ['auto-seeded'],
+    })
+  } catch {
+    // A race or conflict means a project now exists; fall back to whatever is active.
+    return getActiveProject()
+  }
+}
+
 export async function listProjects(includeArchived = false): Promise<CodingProject[]> {
   const all = await projects.list()
   const filtered = includeArchived ? all : all.filter(project => project.status !== 'archived')

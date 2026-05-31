@@ -1,6 +1,6 @@
 import { askWithProviderRouter, getVerifiedProviderStatuses } from '../providers/router'
 import type { AIModel } from '../types'
-import { getActiveProject, getProject } from './projects'
+import { ensureDefaultProject, getActiveProject, getProject } from './projects'
 import { summarizeProjectStructure } from './files'
 import { getGitStatus, isGitRepo } from './git'
 import { getLatestValidationReport, listCommandRuns } from './commands'
@@ -276,7 +276,10 @@ export async function runAssistant(input: RunAssistantInput): Promise<AssistantR
   const message = (input.message ?? '').trim()
   if (!message) throw new CodingOSError('invalid-input', 'A message is required.')
 
-  const project = input.projectId ? await getProject(input.projectId) : await getActiveProject()
+  let project = input.projectId ? await getProject(input.projectId) : await getActiveProject()
+  // First run with no project registered: auto-seed the working directory so the
+  // assistant can ground in a real repo instead of bailing out.
+  if (!project && !input.projectId) project = await ensureDefaultProject()
   const providers = await getAssistantProviderStatuses()
   const anyOnline = providers.some(p => p.online)
   const intent = detectIntent(message)
