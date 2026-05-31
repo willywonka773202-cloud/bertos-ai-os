@@ -6,6 +6,14 @@ import {
   type CommandCenterMode,
   type CommandCenterTaskType,
 } from '@/lib/bertos/command-center'
+import {
+  buildAgentOSPromptSection,
+  recommendAgentOSPatterns,
+  summarizeAgentOSPatterns,
+  type AgentOSPatternId,
+} from '@/lib/bertos/agent-os-patterns'
+import { routePrompt } from '@/lib/bertos/router'
+import type { AgentOrchestrationPlan } from '@/lib/bertos/types'
 
 export interface Mission {
   title: string
@@ -20,6 +28,9 @@ export interface Mission {
   validation: string[]
   doneWhen: string[]
   warnings: string[]
+  agentOSPatterns: AgentOSPatternId[]
+  agentOSPatternSummary: string[]
+  orchestrationPlan?: AgentOrchestrationPlan
   recommendedAgent: CommandCenterAgentId
   suggestedPrompt: string
 }
@@ -120,14 +131,22 @@ export function buildMission(rawTask: string, fileTree: string[] = []): Mission 
   if (agent.copyPromptOnly || agent.status === 'planned') warnings.push(`${agent.name} is copy-prompt/planned unless a verified backend exists.`)
 
   const commandCenterMode: CommandCenterMode = mode === 'plan' ? 'plan-only' : mode === 'worktree' ? 'plan-only' : 'patch-proposal'
-  const suggestedPrompt = buildSelfCodingPrompt({
-    title: titleFromTask(rawTask),
-    description: rawTask,
-    taskType,
-    mode: commandCenterMode,
-    agentId: agent.id,
-    extraContext: likelyFiles,
-  })
+  const estimatedScope = words.length > 90 || likelyFiles.length > 8 ? 'large' : risk === 'high' || likelyFiles.length > 4 ? 'medium' : 'small'
+  const agentOSPatterns = recommendAgentOSPatterns({ prompt: rawTask, mode, risk, estimatedScope })
+  const orchestrationPlan = routePrompt(rawTask, provider === 'team' ? 'auto' : provider).orchestration
+  const suggestedPrompt = [
+    buildSelfCodingPrompt({
+      title: titleFromTask(rawTask),
+      description: rawTask,
+      taskType,
+      mode: commandCenterMode,
+      agentId: agent.id,
+      extraContext: likelyFiles,
+    }),
+    '',
+    'Agent OS execution contract:',
+    ...buildAgentOSPromptSection(agentOSPatterns),
+  ].join('\n')
 
   return {
     title: titleFromTask(rawTask),
@@ -142,6 +161,9 @@ export function buildMission(rawTask: string, fileTree: string[] = []): Mission 
     validation,
     doneWhen,
     warnings,
+    agentOSPatterns: agentOSPatterns.map(pattern => pattern.id),
+    agentOSPatternSummary: summarizeAgentOSPatterns(agentOSPatterns),
+    orchestrationPlan,
     recommendedAgent: agent.id,
     suggestedPrompt,
   }

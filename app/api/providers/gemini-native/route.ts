@@ -25,14 +25,21 @@ function isMode(value: unknown): value is GeminiNativeMode {
 
 export async function GET() {
   const hasApiKey = Boolean(getGeminiNativeApiKey())
+  const serverGateEnabled = process.env.ENABLE_API_PROVIDERS === 'true'
+  const available = hasApiKey && serverGateEnabled
   return NextResponse.json({
-    available: hasApiKey,
+    available,
     provider: 'gemini-api-native',
     hasApiKey,
+    serverGateEnabled,
     supportedModes: SUPPORTED_MODES,
     models: GEMINI_NATIVE_MODELS,
     capabilities: GEMINI_NATIVE_CAPABILITIES,
-    error: hasApiKey ? undefined : 'Missing GEMINI_API_KEY. GOOGLE_API_KEY is also supported as a fallback.',
+    error: available
+      ? undefined
+      : hasApiKey
+        ? 'Gemini Native API key is configured, but ENABLE_API_PROVIDERS=true is required server-side before routing can use it.'
+        : 'Missing GEMINI_API_KEY. GOOGLE_API_KEY is also supported as a fallback.',
   }, {
     headers: { 'Cache-Control': 'no-store' },
   })
@@ -61,6 +68,12 @@ export async function POST(req: NextRequest) {
   }
   if (prompt.length > 200000) {
     return NextResponse.json({ ok: false, error: 'prompt is too large for this route.' }, { status: 413 })
+  }
+  if (process.env.ENABLE_API_PROVIDERS !== 'true') {
+    return NextResponse.json({
+      ok: false,
+      error: 'Gemini Native API is disabled until ENABLE_API_PROVIDERS=true is set server-side.',
+    }, { status: 403 })
   }
 
   const mode = isMode(body.mode) ? body.mode : 'chat'

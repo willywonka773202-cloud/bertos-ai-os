@@ -6,8 +6,11 @@ out
 .env.*.local
 .DS_Store
 *.log
+logs/
 .vercel
 .turbo
 coverage
 *.tsbuildinfo
+.bertos-runtime/
+data/bertos/
 .claude/launch.json

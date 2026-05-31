@@ -15,7 +15,8 @@ import {
   type CommandCenterMode,
   type CommandCenterTaskType,
 } from '@/lib/bertos/command-center'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
+import { useProgressionStore } from '@/store/bertos/progression'
 
 type TaskStatus =
   | 'Draft'
@@ -80,6 +81,7 @@ export function TasksView() {
   const [taskType, setTaskType] = useState<CommandCenterTaskType>('bug-fix')
   const [agentId, setAgentId] = useState<CommandCenterAgentId>('codex-cli')
   const [mode, setMode] = useState<CommandCenterMode>('external-prompt')
+  const recordAction = useProgressionStore(s => s.recordAction)
 
   useEffect(() => {
     setTasks(loadTasks())
@@ -126,11 +128,14 @@ export function TasksView() {
       prompt,
     }
     persist([task, ...tasks])
+    recordAction('task-created')
     setTitle('')
     toast.success('Task created.')
   }
 
   const updateStatus = (id: string, status: TaskStatus) => {
+    const previous = tasks.find(task => task.id === id)?.status
+    if (status === 'Complete' && previous !== 'Complete') recordAction('task-completed')
     persist(tasks.map(task => task.id === id ? { ...task, status } : task))
   }
 
@@ -140,8 +145,8 @@ export function TasksView() {
   }
 
   return (
-    <div className="flex h-full">
-      <aside className="hidden w-80 shrink-0 border-r border-zinc-800/50 bg-zinc-950/70 lg:block">
+    <div className="flex h-full min-h-0">
+      <aside className="hidden min-h-0 w-80 shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950/70 lg:flex">
         <div className="border-b border-zinc-800/50 p-4">
           <div className="flex items-center gap-2">
             <KanbanSquare className="h-4 w-4 text-violet-400" />
@@ -149,7 +154,7 @@ export function TasksView() {
           </div>
           <p className="mt-1 text-xs text-zinc-600">Local task tracker for prompts, reviews, and self-coding work.</p>
         </div>
-        <div className="space-y-3 p-4">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           <input
             value={title}
             onChange={event => setTitle(event.target.value)}
@@ -186,8 +191,8 @@ export function TasksView() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-hidden">
-        <div className="border-b border-cyan-300/10 p-5">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="shrink-0 border-b border-cyan-300/10 p-5">
           <RouteHero
             eyebrow="legion task board"
             title="BertOS Task Board"
@@ -223,7 +228,7 @@ export function TasksView() {
           </div>
         </div>
 
-        <ScrollArea className="h-[calc(100%-105px)]">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="grid min-w-[920px] gap-3 p-4 xl:grid-cols-7">
             {STATUSES.map(status => {
               const group = filtered.filter(task => task.status === status)
@@ -234,11 +239,11 @@ export function TasksView() {
                     <Badge variant="default" className="text-[10px]">{group.length}</Badge>
                   </div>
                   <div className="space-y-2">
-                    {group.length === 0 && <div className="rounded-lg border border-dashed border-zinc-800 p-3 text-[11px] text-zinc-700">No tasks</div>}
+                    {group.length === 0 && <div className="rounded-lg border border-dashed border-[rgba(212,180,131,0.14)] p-3 text-[11px] text-[#5A4A2A]">Idle lane</div>}
                     {group.map(task => {
                       const agent = AGENT_ROSTER.find(item => item.id === task.agentId)
                       return (
-                        <article key={task.id} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+                        <ChamberCard key={task.id} tone={task.status === 'Complete' ? 'emerald' : task.status === 'Blocked' ? 'red' : 'zinc'} className="p-0" interactive>
                           <div className="mb-2 flex items-start justify-between gap-2">
                             <h4 className="text-xs font-semibold text-zinc-100">{task.title}</h4>
                             <button onClick={() => void copyPrompt(task)} className="text-zinc-600 hover:text-zinc-300" title="Copy task prompt">
@@ -258,7 +263,7 @@ export function TasksView() {
                           >
                             {STATUSES.map(item => <option key={item} value={item}>{item}</option>)}
                           </select>
-                        </article>
+                        </ChamberCard>
                       )
                     })}
                   </div>

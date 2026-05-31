@@ -9,10 +9,12 @@ type HealthStatus = {
   'claude-code': boolean
   'gemini-cli':  boolean
   'codex-cli':   boolean
+  'openclaw-cli': boolean
   'claude-api':  boolean
   'openai-api':  boolean
   'gemini-api':  boolean
   'gemini-api-native': boolean
+  'hermes-nous': boolean
   enableApiProviders: boolean
 }
 
@@ -20,9 +22,10 @@ type HealthStatus = {
 const ALWAYS_ON = new Set(['auto', 'ollama-pro', 'qwen2.5-coder', 'llama3', 'llama3.2', 'mistral', 'deepseek-coder', 'hermes3'])
 
 // CLI models — available once the local CLI tool is installed
-const CLI_MODELS = new Set(['claude-code', 'gemini-cli', 'codex-cli'])
+const CLI_MODELS = new Set(['claude-code', 'gemini-cli', 'codex-cli', 'openclaw-cli'])
 
-// API models — require API key + enableApiProviders
+// API models — require API key + enableApiProviders. Hermes is handled separately
+// because BertOS supports free/local Hermes backends without enabling paid APIs.
 const API_MODELS = new Set(['claude-api', 'openai-api', 'gemini-api', 'gemini-api-native'])
 
 function isModelConfigured(
@@ -37,6 +40,7 @@ function isModelConfigured(
   if (model === 'openai-api') return enableApiProviders && (health['openai-api'] || !!apiKeys.openai)
   if (model === 'gemini-api') return enableApiProviders && (health['gemini-api'] || !!apiKeys.google)
   if (model === 'gemini-api-native') return enableApiProviders && health['gemini-api-native']
+  if (model === 'hermes-nous') return health['hermes-nous']
   return false
 }
 
@@ -44,10 +48,12 @@ const PROVIDER_LABEL: Record<string, string> = {
   'claude-code': 'Claude Code CLI',
   'gemini-cli':  'Gemini CLI',
   'codex-cli':   'Codex CLI',
+  'openclaw-cli': 'OpenClaw',
   'claude-api':  'Anthropic API',
   'openai-api':  'OpenAI API',
   'gemini-api':  'Gemini API',
   'gemini-api-native': 'Gemini Native API',
+  'hermes-nous': 'Hermes Agent',
 }
 
 function getBannerMessage(model: string, enableApiProviders: boolean): { title: string; body: string } {
@@ -56,10 +62,17 @@ function getBannerMessage(model: string, enableApiProviders: boolean): { title: 
       'claude-code': 'npm install -g @anthropic-ai/claude-code && claude login',
       'gemini-cli':  'npm install -g @google/gemini-cli && gemini auth login',
       'codex-cli':   'npm install -g @openai/codex && codex login',
+      'openclaw-cli': 'ollama launch openclaw --config, or npm install -g openclaw@latest && openclaw onboard --install-daemon',
     }
     return {
       title: `${PROVIDER_LABEL[model]} not detected`,
       body: `Install locally: ${cmds[model] ?? ''}`,
+    }
+  }
+  if (model === 'hermes-nous') {
+    return {
+      title: `Hermes Agent is not connected`,
+      body: 'Set HERMES_ENABLED=true, HERMES_BASE_URL, and server-side HERMES_API_KEY. BertOS can use Ollama/local or custom free OpenAI-compatible backends through Hermes.',
     }
   }
   if (API_MODELS.has(model)) {
@@ -94,9 +107,9 @@ export function DemoBanner() {
       .then(r => r.json() as Promise<HealthStatus>)
       .then(setHealth)
       .catch(() => setHealth({
-        'claude-code': false, 'gemini-cli': false, 'codex-cli': false,
+        'claude-code': false, 'gemini-cli': false, 'codex-cli': false, 'openclaw-cli': false,
         'claude-api': false, 'openai-api': false, 'gemini-api': false,
-        'gemini-api-native': false,
+        'gemini-api-native': false, 'hermes-nous': false,
         enableApiProviders: false,
       }))
   }, [])

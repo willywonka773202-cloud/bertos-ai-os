@@ -1,6 +1,6 @@
 export default function ChatLoading() {
   return (
-    <div className="flex flex-col h-full items-center justify-center">
+    <div className="flex h-full min-h-0 flex-col items-center justify-center">
       <div className="space-y-3 w-full max-w-3xl px-4">
         {[...Array(3)].map((_, i) => (
           <div key={i} className="flex gap-3 animate-pulse">

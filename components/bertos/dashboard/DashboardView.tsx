@@ -6,7 +6,7 @@ import {
   FolderOpen, MessageSquare, Code2, Server,
   Sparkles, GitBranch, Terminal, Box, Bot, Library, Scale, Cpu,
   CalendarDays, ClipboardList, ShieldCheck, KanbanSquare, Compass,
-  Github, Send,
+  Github, Send, Radio, Smartphone,
 } from 'lucide-react'
 import { useProjectStore } from '@/store/bertos/projects'
 import { useChatStore } from '@/store/bertos/chat'
@@ -26,15 +26,76 @@ import type { AutomationRun } from '@/lib/bertos/types'
 import { AGENT_ROSTER } from '@/lib/bertos/command-center'
 import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
 import { AGENT_TEAMS } from '@/lib/bertos/agent-teams'
+import { VisionConceptPanel } from '@/components/bertos/dashboard/VisionConceptPanel'
+import { RecentOutputRail } from '@/components/bertos/dashboard/RecentOutputRail'
 import { HERMES_ROUTE_STATUS } from '@/lib/bertos/hermes-theme'
-import { HologramPanel, ProofOfWorkPanel, ProviderBadge, RouteHero, StatusOrb } from '@/components/bertos/hermes'
+import {
+  AchievementChip,
+  ChamberCard,
+  CommandCore,
+  EmptyChamber,
+  HermesPowerPanel,
+  HologramPanel,
+  LoadingRelay,
+  MissionArena,
+  MissionCard,
+  OlympianInterfaceIdeas,
+  ProofOfWorkPanel,
+  ProviderBadge,
+  RouteHero,
+  StatusOrb,
+} from '@/components/bertos/hermes'
+import {
+  PRAETORIUM_ACHIEVEMENTS,
+  PRAETORIUM_MISSIONS,
+  getRankProgress,
+  useProgressionStore,
+} from '@/store/bertos/progression'
+import { AIIntegrationOrbit, BrandSigil, OraclePanel } from '@/components/bertos/olympus'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
+import { fetchBrowserAwareProviderStatus } from '@/lib/bertos/provider-status-client'
 
 interface ProviderStatus {
   id: string
   name: string
-  status: 'online' | 'offline' | 'unknown'
+  status: string
   latency?: number
   message?: string
+}
+
+interface TelegramRemoteEvent {
+  id: string
+  type: 'incoming' | 'reply' | 'running' | 'completed' | 'failed' | 'ignored'
+  timestamp: number
+  chatId?: string
+  command?: string
+  text?: string
+  detail?: string
+}
+
+interface TelegramRemoteState {
+  ok: boolean
+  configured: boolean
+  communicable?: boolean
+  chatEnabled: boolean
+  plainLocalChatEnabled?: boolean
+  webhookSecretConfigured: boolean
+  webhookEndpoint: string
+  webhook?: {
+    reachable: boolean
+    connected: boolean
+    webhookHost?: string
+    pendingUpdateCount?: number
+    lastErrorMessage?: string
+    error?: string
+  }
+  supportedCommands: string[]
+  remote: {
+    events: TelegramRemoteEvent[]
+    lastCommand?: string
+    lastSeenAt?: number
+  }
+  safety: string
 }
 
 export function DashboardView() {
@@ -51,6 +112,8 @@ export function DashboardView() {
   const [loading, setLoading] = useState(true)
   const [runningCmd, setRunningCmd] = useState<string | null>(null)
   const [cmdResult, setCmdResult] = useState<{ cmd: string; ok: boolean; output: string } | null>(null)
+  const [telegramRemote, setTelegramRemote] = useState<TelegramRemoteState | null>(null)
+  const { operatorName, xp, relayStreak, actionCounts, unlockedAchievements, recordAction } = useProgressionStore()
 
   useEffect(() => {
     let mounted = true
@@ -58,15 +121,14 @@ export function DashboardView() {
       setLoading(true)
       try {
         const [providersRes, repoRes] = await Promise.allSettled([
-          fetch('/api/providers/status'),
-          fetch('/api/local-daemon/repo/status')
+          fetchBrowserAwareProviderStatus(),
+          fetchLocalDaemonBridge('/api/local-daemon/repo/status')
         ])
 
         if (!mounted) return
 
-        if (providersRes.status === 'fulfilled' && providersRes.value.ok) {
-          const data = await providersRes.value.json()
-          setProviders(data.providers || [])
+        if (providersRes.status === 'fulfilled') {
+          setProviders(providersRes.value.providers || [])
         }
         
         if (repoRes.status === 'fulfilled' && repoRes.value.ok) {
@@ -82,6 +144,29 @@ export function DashboardView() {
 
     loadDashboardData()
     return () => { mounted = false }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof setInterval> | undefined
+
+    async function loadTelegramRemote() {
+      try {
+        const res = await fetch('/api/telegram/remote', { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled) setTelegramRemote(data)
+      } catch {
+        if (!cancelled) setTelegramRemote(null)
+      }
+    }
+
+    loadTelegramRemote()
+    timer = setInterval(loadTelegramRemote, 3000)
+    return () => {
+      cancelled = true
+      if (timer) clearInterval(timer)
+    }
   }, [])
 
   const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId])
@@ -111,6 +196,7 @@ export function DashboardView() {
 
   const daemonOnline = Boolean(daemonHealth?.daemonOnline)
   const hermesProvider = providerStats.byId.get('hermes-nous')
+  const rank = getRankProgress(xp)
 
   const featuredTeams = useMemo(
     () => AGENT_TEAMS.filter(team =>
@@ -141,6 +227,14 @@ export function DashboardView() {
     router.push('/agents')
   }
 
+  const navigateTo = (
+    view: Parameters<typeof setActiveView>[0],
+    href: string,
+  ) => {
+    setActiveView(view)
+    router.push(href)
+  }
+
   const handleRunCmd = async (cmd: 'typecheck' | 'build') => {
     if (!daemonOnline) {
       setCmdResult({
@@ -153,7 +247,7 @@ export function DashboardView() {
     setRunningCmd(cmd)
     setCmdResult(null)
     try {
-      const res = await fetch('/api/local-daemon/run', {
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ executable: 'npm', args: ['run', cmd], timeoutMs: 120000 }),
@@ -164,6 +258,7 @@ export function DashboardView() {
         ok: data.exitCode === 0,
         output: (data.stdout || '') + (data.stderr || '') || data.error || 'Done',
       })
+      if (data.exitCode === 0) recordAction('validation-passed')
     } catch (e) {
       setCmdResult({ cmd, ok: false, output: e instanceof Error ? e.message : 'Failed' })
     } finally {
@@ -172,7 +267,7 @@ export function DashboardView() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-[rgba(212,180,131,0.12)] px-6 py-4 flex-shrink-0 bg-[rgba(212,180,131,0.03)]">
         <div className="flex items-center justify-between">
@@ -192,12 +287,12 @@ export function DashboardView() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-6 space-y-6">
           <RouteHero
             eyebrow="bertos mission control"
-            title="Jarvis x Roman Hermes Command Center"
-            subtitle="A live operational cockpit for the daemon, provider pantheon, oracle threads, agent legion, and Autopilot approvals. Every tile below is either wired to an existing store/API or plainly marked by its state."
+            title="BERTOS: Olympus Neural OS"
+            subtitle="A cinematic operating cockpit for the daemon, provider pantheon, oracle threads, agent legion, Autopilot approvals, and local code forge. Live system data stays wired to existing stores and APIs while the Olympus visual layer frames it as divine compute."
             status={automationStats.needsApproval > 0 ? 'warning' : agentStats.running > 0 || automationStats.running > 0 ? 'active' : daemonOnline ? 'nominal' : 'warning'}
             seal={<ShieldCheck className="h-5 w-5" />}
             metrics={[
@@ -236,6 +331,131 @@ export function DashboardView() {
             </div>
           </RouteHero>
 
+          <section className="grid gap-4 xl:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.22fr)]">
+            <div className="relative flex min-h-[360px] items-center justify-center overflow-hidden rounded-3xl border border-[rgba(246,196,83,0.22)] bg-[radial-gradient(circle_at_50%_30%,rgba(246,196,83,0.13),transparent_34%),rgba(5,3,10,0.38)] shadow-[inset_0_1px_0_rgba(248,242,223,0.08),0_24px_90px_rgba(0,0,0,0.35)]">
+              <div className="absolute inset-0 hermes-grid-fine opacity-20" />
+              <div className="absolute inset-x-8 top-8 h-px bg-gradient-to-r from-transparent via-[rgba(103,232,249,0.50)] to-transparent" />
+              <AIIntegrationOrbit />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {[
+                { brand: 'claude' as const, title: 'Claude / Reasoning Oracle', detail: 'Calm architecture review, refactors, and risk analysis through configured CLI/API paths.' },
+                { brand: 'codex' as const, title: 'Codex / Code Architect', detail: 'Implementation, repo edits, patch generation, and task automation inside the guarded workspace.' },
+                { brand: 'ollama' as const, title: 'Ollama / Local Model Forge', detail: 'Local model routing for private fallback, classification, summaries, and offline compute.' },
+                { brand: 'hermes' as const, title: 'Hermes / Messenger Core', detail: 'Server-side routing, orchestration, free/local backend support, and notification/control scaffolds.' },
+              ].map(module => (
+                <OraclePanel
+                  key={module.brand}
+                  title={module.title}
+                  subtitle={module.detail}
+                  action={<BrandSigil brand={module.brand} size="sm" />}
+                >
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-[rgba(248,242,223,0.08)] bg-[rgba(248,242,223,0.04)] px-3 py-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9A8A68]">Pantheon Link</span>
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#67E8F9]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_10px_currentColor]" />
+                      Visual Module
+                    </span>
+                  </div>
+                </OraclePanel>
+              ))}
+            </div>
+          </section>
+
+          <VisionConceptPanel
+            providersOnline={providerStats.online.length}
+            providersTotal={providers.length}
+            daemonOnline={daemonOnline}
+            activeAgents={agentStats.running}
+            automationApprovals={automationStats.needsApproval}
+            recentThreadTitle={recentSessions[0]?.title && recentSessions[0].title !== 'New Chat' ? recentSessions[0].title : 'No active user thread yet'}
+            onOpenBuilder={() => navigateTo('coding', '/builder')}
+            onOpenWorkspace={() => navigateTo('workspace', '/workspace')}
+            onOpenEvolution={() => navigateTo('evolution', '/evolution')}
+          />
+
+          <RecentOutputRail />
+
+          <CommandCore
+            operatorName={operatorName}
+            rank={rank.current.title}
+            nextRank={rank.next.title}
+            xp={xp}
+            rankProgress={rank.progress}
+            relayStreak={relayStreak}
+            daemonOnline={daemonOnline}
+          />
+
+          <MissionArena
+            providersOnline={providerStats.online.length}
+            providersTotal={providers.length}
+            activeAgents={agentStats.running}
+            automationRunning={automationStats.running}
+            chatStreaming={chatStreaming}
+            daemonOnline={daemonOnline}
+            xp={xp}
+            rankTitle={rank.current.title}
+            onOpenOracle={handleNewChat}
+            onOpenBuilder={() => navigateTo('coding', '/builder')}
+            onOpenAgents={() => navigateTo('agents', '/agents')}
+          />
+
+          <OlympianInterfaceIdeas
+            onOpenBuilder={() => navigateTo('coding', '/builder')}
+            onOpenWorkspace={() => navigateTo('workspace', '/workspace')}
+            onOpenAgents={() => navigateTo('agents', '/agents')}
+            onOpenEvolution={() => navigateTo('evolution', '/evolution')}
+          />
+
+          <HermesPowerPanel />
+
+          <TelegramRemotePanel remote={telegramRemote} />
+
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <ChamberCard
+              tone="bronze"
+              eyebrow="active operations"
+              title="Praetorium Missions"
+              description="Progress is recorded from real app actions: messages, tasks, projects, validation, daemon health, and agent completion."
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                {PRAETORIUM_MISSIONS.map(mission => {
+                  const progress = actionCounts[mission.action] ?? 0
+                  return (
+                    <MissionCard
+                      key={mission.id}
+                      title={mission.title}
+                      description={mission.description}
+                      progress={Math.min(progress, mission.target)}
+                      target={mission.target}
+                      xp={mission.xp}
+                      complete={progress >= mission.target}
+                    />
+                  )
+                })}
+              </div>
+            </ChamberCard>
+
+            <ChamberCard
+              tone="cyan"
+              eyebrow="operator honors"
+              title="Achievements"
+              description="Unlocked honors stay attached to the operator panel."
+            >
+              <div className="flex flex-wrap gap-2">
+                {PRAETORIUM_ACHIEVEMENTS.map(achievement => (
+                  <AchievementChip
+                    key={achievement.id}
+                    title={achievement.title}
+                    description={achievement.description}
+                    unlocked={unlockedAchievements.includes(achievement.id)}
+                  />
+                ))}
+              </div>
+            </ChamberCard>
+          </div>
+
           {/* Global Oracle quick-send box */}
           <OracleQuickSend />
 
@@ -266,9 +486,11 @@ export function DashboardView() {
                     </button>
                   )
                 }) : (
-                  <div className="rounded-xl border border-amber-300/15 bg-amber-300/5 p-4 text-sm text-amber-100/75">
-                    No user-authored chat sessions yet. Open Oracle and send a prompt to create the first live thread.
-                  </div>
+                  <EmptyChamber
+                    tone="amber"
+                    title="Idle Oracle Archive"
+                    description="No user-authored chat sessions yet. Open Oracle and send a prompt to create the first live thread."
+                  />
                 )}
               </div>
             </HologramPanel>
@@ -310,11 +532,11 @@ export function DashboardView() {
             ]}
             affectedRoutes={HERMES_ROUTE_STATUS.map(route => route.route)}
             commands={[
-              { label: 'npm run typecheck', status: 'passed' },
-              { label: 'npm run build', status: 'passed' },
-              { label: 'npm run bertos:safety', status: 'passed' },
+              { label: 'npm run typecheck', status: 'not-run', detail: 'available from validation workflow' },
+              { label: 'npm run build', status: 'not-run', detail: 'available from validation workflow' },
+              { label: 'npm run bertos:safety', status: 'not-run', detail: 'available from validation workflow' },
             ]}
-            screenshots={{ available: true, detail: 'All routes verified 200 in browser — /max, /memory, /settings, /coding, /dashboard, /chat, /agents, /workspace' }}
+            screenshots={{ available: false, detail: 'Run visual verification during release checks.' }}
             limitations={['/max plan generation requires Ollama running locally.', 'No code applied without explicit approval gate.']}
           />
 
@@ -415,7 +637,7 @@ export function DashboardView() {
                   ['Provider status exists', providers.length > 0],
                   ['Daemon available', daemonOnline],
                   ['Safe verification available', daemonOnline],
-                  ['Paid providers gated', hermesProvider?.status !== 'online'],
+                  ['Hermes setup honest', hermesProvider?.status === 'online' || hermesProvider?.status === 'offline'],
                 ].map(([label, ok]) => (
                   <div key={String(label)} className="rounded-xl border border-[rgba(212,180,131,0.12)] bg-[rgba(212,180,131,0.03)] p-3">
                     <div className="mb-2 flex items-center gap-2">
@@ -544,8 +766,11 @@ export function DashboardView() {
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
               {[
+                { label: 'Dev Cockpit', href: '/cockpit', view: 'cockpit' as const, icon: <Terminal className="w-4 h-4" /> },
+                { label: 'AI Assistant', href: '/assistant', view: 'chat' as const, icon: <Bot className="w-4 h-4" /> },
                 { label: 'Chat', href: '/chat', view: 'chat' as const, icon: <MessageSquare className="w-4 h-4" /> },
                 { label: 'Builder', href: '/builder', view: 'coding' as const, icon: <Zap className="w-4 h-4" /> },
+                { label: 'Gates', href: '/approvals', view: 'approvals' as const, icon: <ShieldCheck className="w-4 h-4" /> },
                 { label: 'Settings', href: '/settings', view: 'settings' as const, icon: <Server className="w-4 h-4" /> },
                 { label: 'Daily Brief', href: '/brief', view: 'brief' as const, icon: <CalendarDays className="w-4 h-4" /> },
                 { label: 'Playbooks', href: '/playbooks', view: 'playbooks' as const, icon: <ClipboardList className="w-4 h-4" /> },
@@ -575,13 +800,12 @@ export function DashboardView() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {loading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-24 rounded-xl bg-zinc-900/50 animate-pulse" />
-                ))
+                <div className="col-span-full">
+                  <LoadingRelay label="Provider Pantheon Scanning" detail="Checking configured provider status without assuming availability." />
+                </div>
               ) : providers.length === 0 ? (
-                <div className="col-span-full p-8 rounded-xl border border-zinc-800/50 bg-zinc-900/20 text-center">
-                  <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                  <p className="text-zinc-400">No provider data available</p>
+                <div className="col-span-full">
+                  <EmptyChamber icon={<AlertCircle className="h-6 w-6" />} title="Provider Relay Dormant" description="No provider data is available from the status endpoint." tone="amber" />
                 </div>
               ) : (
                 providers.map((provider) => (
@@ -601,18 +825,21 @@ export function DashboardView() {
 
             <TabsContent value="projects" className="space-y-3 mt-4">
               {projects.length === 0 ? (
-                <div className="p-12 rounded-xl border border-zinc-800/50 bg-zinc-900/20 text-center">
-                  <FolderOpen className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
-                  <p className="text-zinc-400 mb-4">No projects yet</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      useProjectStore.getState().createProject({ name: 'New Project' })
-                    }}
-                  >
-                    Create First Project
-                  </Button>
-                </div>
+                <EmptyChamber
+                  icon={<FolderOpen className="h-6 w-6" />}
+                  title="Sealed Project Vault"
+                  description="Create the first project chamber to anchor Memory, Workspace, and Oracle context."
+                  action={(
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        useProjectStore.getState().createProject({ name: 'New Project' })
+                      }}
+                    >
+                      Create First Project
+                    </Button>
+                  )}
+                />
               ) : (
                 projects.map((project) => (
                   <ProjectCard
@@ -871,9 +1098,141 @@ interface ProviderCardProps {
   provider: ProviderStatus
 }
 
+function TelegramRemotePanel({ remote }: { remote: TelegramRemoteState | null }) {
+  const events = remote?.remote.events ?? []
+  const latest = events[0]
+  const configured = Boolean(remote?.configured)
+  const communicable = Boolean(remote?.communicable)
+  const webhookError = remote?.webhook?.error || remote?.webhook?.lastErrorMessage
+  const remoteLabel = !configured
+    ? 'needs setup'
+    : !remote?.webhook?.reachable
+      ? 'token rejected'
+      : !remote.webhook.connected
+        ? 'webhook missing'
+        : 'connected'
+  const lastSeen = remote?.remote.lastSeenAt
+    ? new Date(remote.remote.lastSeenAt).toLocaleTimeString()
+    : 'waiting'
+
+  const stateTone = latest?.type === 'failed'
+    ? 'text-red-300'
+    : latest?.type === 'running'
+      ? 'text-cyan-200'
+      : communicable
+        ? 'text-emerald-300'
+        : 'text-amber-300'
+
+  return (
+    <HologramPanel tone="cyan" className="p-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-cyan-200" />
+            <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-cyan-200/70">telegram remote</p>
+            <StatusOrb state={latest?.type === 'running' ? 'active' : communicable ? 'nominal' : 'warning'} />
+          </div>
+          <h2 className="text-lg font-semibold text-zinc-100">Phone control for the BertOS display</h2>
+          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-zinc-500">
+            Text the configured Telegram bot and this panel updates as commands arrive. Telegram is remote control only:
+            safe checks and status commands can run, while file edits, patch apply, git push, deploys, and paid providers stay behind the BertOS web approval layer.
+          </p>
+        </div>
+        <div className="grid min-w-[260px] gap-2 text-xs sm:grid-cols-2 lg:grid-cols-1">
+          <div className="rounded-lg border border-cyan-300/10 bg-slate-950/45 p-2">
+            <div className="text-[9px] uppercase tracking-widest text-zinc-600">Remote</div>
+            <div className={cn('mt-1 font-semibold', stateTone)}>{remoteLabel}</div>
+            {webhookError && <div className="mt-1 line-clamp-2 text-[10px] text-amber-200/70">{webhookError}</div>}
+          </div>
+          <div className="rounded-lg border border-cyan-300/10 bg-slate-950/45 p-2">
+            <div className="text-[9px] uppercase tracking-widest text-zinc-600">Last signal</div>
+            <div className="mt-1 font-semibold text-zinc-200">{lastSeen}</div>
+          </div>
+          <div className="rounded-lg border border-cyan-300/10 bg-slate-950/45 p-2">
+            <div className="text-[9px] uppercase tracking-widest text-zinc-600">Chat</div>
+            <div className={cn('mt-1 font-semibold', remote?.chatEnabled || remote?.plainLocalChatEnabled ? 'text-emerald-300' : 'text-amber-300')}>
+              {remote?.plainLocalChatEnabled ? 'local Ollama' : remote?.chatEnabled ? 'enabled' : 'disabled'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-cyan-300/10 bg-slate-950/45 p-2">
+            <div className="text-[9px] uppercase tracking-widest text-zinc-600">Webhook</div>
+            <div className="mt-1 font-mono text-[11px] text-zinc-300">{remote?.webhook?.webhookHost ?? remote?.webhookEndpoint ?? '/api/telegram/webhook'}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="rounded-xl border border-cyan-300/10 bg-slate-950/35 p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-600">live timeline</p>
+              <p className="text-sm font-semibold text-zinc-200">{latest?.command ?? 'Awaiting Telegram command'}</p>
+            </div>
+            <Radio className={cn('h-4 w-4', latest?.type === 'running' ? 'animate-pulse text-cyan-200' : 'text-zinc-600')} />
+          </div>
+          <div className="grid max-h-56 gap-2 overflow-auto pr-1">
+            {events.length ? events.slice(0, 8).map(event => (
+              <div key={event.id} className="rounded-lg border border-zinc-800/70 bg-black/25 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={cn(
+                    'text-[10px] font-semibold uppercase tracking-wider',
+                    event.type === 'failed' ? 'text-red-300' : event.type === 'running' ? 'text-cyan-200' : event.type === 'completed' ? 'text-emerald-300' : 'text-zinc-400',
+                  )}>
+                    {event.type}
+                  </span>
+                  <span className="text-[10px] text-zinc-600">{new Date(event.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div className="mt-1 truncate text-xs font-medium text-zinc-200">{event.command ?? 'telegram'}</div>
+                {(event.text || event.detail) && (
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">{event.detail || event.text}</p>
+                )}
+              </div>
+            )) : (
+              <EmptyChamber
+                tone="cyan"
+                title="Remote waiting"
+                description="Send /status, /providers, /brief, /coding, or /run-check from Telegram to make this display move."
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-cyan-300/10 bg-slate-950/35 p-3">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-600">remote commands</p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {(remote?.supportedCommands ?? ['/status', '/daemon', '/providers', '/brief', '/coding', '/run-check']).map(command => (
+              <span key={command} className="rounded-md border border-cyan-300/10 bg-cyan-300/5 px-2 py-1 font-mono text-[10px] text-cyan-100/80">
+                {command}
+              </span>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-zinc-600">
+            TV mode needs the Telegram webhook to reach this exact BertOS server. Localhost works only through a tunnel or a deployed URL that forwards events to this running app.
+          </p>
+        </div>
+      </div>
+    </HologramPanel>
+  )
+}
+
 function ProviderCard({ provider }: ProviderCardProps) {
   const isOnline = provider.status === 'online'
-  const StatusIcon = isOnline ? CheckCircle2 : XCircle
+  const isBlocked = provider.status === 'blocked' || provider.status === 'disabled'
+  const isConfigured = provider.status === 'configured' || provider.status === 'manual-or-api-needed' || provider.status === 'copy-prompt-only' || provider.status === 'planned'
+  const StatusIcon = isOnline ? CheckCircle2 : isConfigured ? AlertCircle : XCircle
+  const statusLabel = isOnline
+    ? 'Available'
+    : provider.status === 'blocked'
+      ? 'Blocked'
+      : provider.status === 'configured'
+        ? 'Needs test'
+        : provider.status === 'planned'
+          ? 'Planned'
+          : provider.status === 'copy-prompt-only'
+            ? 'Copy prompt'
+            : provider.status === 'manual-or-api-needed'
+              ? 'Manual/API'
+              : 'Offline'
 
   return (
     <div
@@ -881,15 +1240,19 @@ function ProviderCard({ provider }: ProviderCardProps) {
         'p-4 rounded-xl border transition-colors',
         isOnline
           ? 'bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40'
+          : isConfigured
+            ? 'bg-amber-500/5 border-amber-500/20 hover:border-amber-500/35'
+            : isBlocked
+              ? 'bg-red-500/5 border-red-500/20 hover:border-red-500/35'
           : 'bg-zinc-900/50 border-zinc-800/50 hover:border-zinc-700/50'
       )}
     >
       <div className="flex items-start justify-between mb-2">
         <div className="text-sm font-medium text-zinc-200">{provider.name}</div>
-        <StatusIcon className={cn('w-4 h-4', isOnline ? 'text-emerald-400' : 'text-zinc-600')} />
+        <StatusIcon className={cn('w-4 h-4', isOnline ? 'text-emerald-400' : isConfigured ? 'text-amber-400' : isBlocked ? 'text-red-400' : 'text-zinc-600')} />
       </div>
-      <div className={cn('text-xs', isOnline ? 'text-emerald-400' : 'text-zinc-500')}>
-        {isOnline ? 'Available' : 'Offline'}
+      <div className={cn('text-xs', isOnline ? 'text-emerald-400' : isConfigured ? 'text-amber-400' : isBlocked ? 'text-red-300' : 'text-zinc-500')}>
+        {statusLabel}
       </div>
       {provider.latency && (
         <div className="text-xs text-zinc-500 mt-1">{provider.latency}ms</div>

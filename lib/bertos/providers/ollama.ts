@@ -30,10 +30,10 @@ export const OLLAMA_MODEL_ALIASES = new Set([
 
 /** All model aliases that are CLI subscription providers. */
 export const CLI_MODEL_ALIASES = new Set([
-  'claude-code', 'gemini-cli', 'codex-cli',
+  'claude-code', 'gemini-cli', 'codex-cli', 'openclaw-cli',
 ])
 
 /** All model aliases that are optional API providers (disabled by default). */
 export const API_MODEL_ALIASES = new Set([
-  'claude-api', 'openai-api', 'gemini-api', 'gemini-api-native',
+  'claude-api', 'openai-api', 'gemini-api', 'gemini-api-native', 'hermes-nous',
 ])

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import process from 'node:process'
 
 function run(args) {
@@ -12,9 +14,10 @@ try {
   const remote = run(['remote', 'get-url', 'origin'])
   const branch = run(['branch', '--show-current'])
   const expected = 'https://github.com/willywonka773202-cloud/bertos-ai-os.git'
+  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 
-  if (!/bertos-ai-os/i.test(root) || !/bertos-ai-os/i.test(cwd)) {
-    throw new Error(`Expected to run inside bertos-ai-os. cwd=${cwd} root=${root}`)
+  if (pkg.name !== 'bertos-ai-os') {
+    throw new Error(`Expected bertos-ai-os package. cwd=${cwd} root=${root} package=${pkg.name}`)
   }
   if (remote !== expected) {
     throw new Error(`Unexpected origin remote: ${remote}. Expected ${expected}`)

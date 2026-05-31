@@ -5,6 +5,7 @@ export type ProviderId =
   | 'claude-code'
   | 'gemini-cli'
   | 'codex-cli'
+  | 'openclaw-cli'
   | 'claude-api'
   | 'openai-api'
   | 'gemini-api'

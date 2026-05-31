@@ -1,16 +1,17 @@
-import { askLocalDaemon, fetchLocalDaemonStatus } from '../local-daemon'
+import { askLocalDaemon, deriveCliProviderOnline, fetchLocalDaemonStatus } from '../local-daemon'
 import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 export async function status(): Promise<ProviderStatusResult> {
   const daemon = await fetchLocalDaemonStatus()
   const tool = daemon.tools.find(item => item.id === 'gemini-cli')
+  const { online, error } = deriveCliProviderOnline(tool, daemon.online)
   return {
-    ok: Boolean(daemon.online && tool?.installed),
+    ok: online,
     providerId: 'gemini-cli',
     providerName: 'Gemini CLI',
     modelOrTool: tool?.resolvedPath ?? 'gemini',
-    online: Boolean(daemon.online && tool?.installed),
-    error: tool?.error ?? daemon.error,
+    online,
+    error: error ?? daemon.error,
     detail: tool,
   }
 }

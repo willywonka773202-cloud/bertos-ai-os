@@ -1,4 +1,5 @@
 import type { CommandCenterAgentId } from '@/lib/bertos/command-center'
+import { routePrompt } from '@/lib/bertos/router'
 
 export type AgentTeamId =
   | 'coding-team'
@@ -671,6 +672,7 @@ export function getAgentTeam(id: AgentTeamId) {
 }
 
 export function buildAgentTeamPrompt(team: AgentTeam, task: string) {
+  const orchestration = routePrompt(task, 'auto').orchestration
   return [
     `MISSION TEAM: ${team.name}`,
     '',
@@ -683,6 +685,14 @@ export function buildAgentTeamPrompt(team: AgentTeam, task: string) {
     '',
     'Team workflow:',
     ...team.workflow.map((step, index) => `${index + 1}. ${step}`),
+    ...(orchestration ? [
+      '',
+      'Execution graph:',
+      `- Mode: ${orchestration.mode}; max parallel lanes: ${orchestration.maxParallelLanes}`,
+      `- Token policy: ~${orchestration.estimatedPromptTokens.toLocaleString()} input tokens; context strategy: ${orchestration.tokenPolicy.contextStrategy}; max output: ${orchestration.tokenPolicy.maxOutputTokens.toLocaleString()}`,
+      ...orchestration.executionGroups.map(group => `- ${group.mode}: ${group.laneIds.join(', ')} — ${group.reason}`),
+      ...orchestration.approvalReasons.map(reason => `- Approval gate: ${reason}`),
+    ] : []),
     '',
     'Agent roles:',
     ...team.agents.map(agent => [

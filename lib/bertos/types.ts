@@ -1,6 +1,6 @@
 export type OllamaModel = 'ollama-pro' | 'qwen2.5-coder' | 'llama3' | 'llama3.2' | 'mistral' | 'deepseek-coder' | 'hermes3'
-export type CLIModel = 'claude-code' | 'gemini-cli' | 'codex-cli'
-export type APIModel = 'claude-api' | 'openai-api' | 'gemini-api' | 'gemini-api-native'
+export type CLIModel = 'claude-code' | 'gemini-cli' | 'codex-cli' | 'openclaw-cli'
+export type APIModel = 'claude-api' | 'openai-api' | 'gemini-api' | 'gemini-api-native' | 'hermes-nous'
 export type AIModel = 'auto' | OllamaModel | CLIModel | APIModel
 
 export type MessageRole = 'user' | 'assistant' | 'system'
@@ -30,6 +30,7 @@ export interface RouterDecision {
   confidence: number
   taskType: TaskType
   strategy: RoutingStrategy
+  orchestration?: AgentOrchestrationPlan
 }
 
 export type TaskType =
@@ -43,6 +44,65 @@ export type TaskType =
   | 'general'
 
 export type RoutingStrategy = 'single' | 'parallel' | 'sequential' | 'best-of'
+
+export type AgentLaneRole =
+  | 'orchestrator'
+  | 'planner'
+  | 'architect'
+  | 'implementer'
+  | 'reviewer'
+  | 'verifier'
+  | 'researcher'
+  | 'writer'
+  | 'memory'
+
+export type AgentLaneRisk = 'safe' | 'approval-required' | 'blocked'
+
+export interface AgentTokenBudget {
+  estimatedPromptTokens: number
+  maxInputTokens: number
+  maxOutputTokens: number
+  reservedResponseTokens: number
+  contextStrategy: 'full' | 'focused' | 'summarize' | 'chunk'
+  warnings: string[]
+}
+
+export interface AgentExecutionLane {
+  id: string
+  label: string
+  role: AgentLaneRole
+  provider: AIModel
+  purpose: string
+  promptFocus: string
+  canRunInParallel: boolean
+  risk: AgentLaneRisk
+  requiresDaemon: boolean
+  requiresApiKey: boolean
+  budget: AgentTokenBudget
+}
+
+export interface AgentExecutionGroup {
+  id: string
+  mode: 'parallel' | 'sequential'
+  laneIds: string[]
+  reason: string
+}
+
+export interface AgentOrchestrationPlan {
+  mode: RoutingStrategy
+  summary: string
+  primaryProvider: AIModel
+  fallbackProviders: AIModel[]
+  estimatedPromptTokens: number
+  maxParallelLanes: number
+  tokenPolicy: AgentTokenBudget
+  lanes: AgentExecutionLane[]
+  executionGroups: AgentExecutionGroup[]
+  approvalRequired: boolean
+  approvalReasons: string[]
+  efficiencyNotes: string[]
+  safetyNotes: string[]
+}
 
 export interface ChatSession {
   id: string
@@ -68,6 +128,27 @@ export interface Project {
   todos: Todo[]
   pinned: boolean
   context: string
+}
+
+export type MemoryKind = 'semantic' | 'episodic' | 'procedural' | 'constraint' | 'preference'
+export type MemorySource = 'human' | 'session-summary' | 'repo' | 'tool-output' | 'import'
+export type MemoryConfidence = 'confirmed' | 'inferred' | 'needs-review'
+export type MemorySensitivity = 'public' | 'internal' | 'private' | 'secret-blocked'
+
+export interface BertOSMemoryItem {
+  id: string
+  kind: MemoryKind
+  projectId?: string
+  title: string
+  content: string
+  source: MemorySource
+  sourceRef?: string
+  confidence: MemoryConfidence
+  sensitivity: MemorySensitivity
+  tags: string[]
+  createdAt: number
+  updatedAt: number
+  expiresAt?: number
 }
 
 export interface ProjectFile {
@@ -190,8 +271,14 @@ export type AutomationAction =
   | 'git-status'
   | 'git-diff-stat'
   | 'create-agent-plan'
+  | 'create-visual-evolution-task'
   | 'create-workspace-debug-task'
   | 'create-project-health-report'
+  | 'create-daily-brief-task'
+  | 'create-inbox-triage-task'
+  | 'create-weekly-review-task'
+  | 'create-content-pipeline-task'
+  | 'create-connector-setup-task'
 
 export type AutomationRisk = 'safe' | 'approval-required' | 'blocked'
 
@@ -240,7 +327,7 @@ export interface AutomationRun {
   risk: AutomationRisk
 }
 
-// ─── Settings ─────────────────────────────────────────────────────────────────
+// ─── Settings ────────────────────────────────────────────────────────────────
 
 export interface BertOSSettings {
   theme: 'dark' | 'darker' | 'midnight'
@@ -271,3 +358,29 @@ export interface BertOSSettings {
   obsidianProjectNotesFolder?: string
   obsidianSessionsFolder?: string
 }
+
+// Canonical local-first Agent OS runtime types.
+export type {
+  AgentRun,
+  AgentRunLane,
+  AutomationCandidate,
+  GroundingPack,
+  GroundingSource,
+  MarkdownMemoryRecord,
+  MemoryProposal,
+  OutputArtifact,
+  OutputArtifactFile,
+  OutputArtifactSearch,
+  PermissionGate,
+  PluginDefinition,
+  PluginTool,
+  PreviewDescriptor,
+  PublishingPlatformVariant,
+  PublishingQueueItem,
+  PublishingQueueStatus,
+  SkillDefinition,
+  SkillPatchDraft,
+  StudioAsset,
+  WorkflowDefinition,
+  WorkflowRun,
+} from './types-runtime'

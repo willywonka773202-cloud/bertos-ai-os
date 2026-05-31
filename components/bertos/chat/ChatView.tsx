@@ -12,6 +12,11 @@ import { RouterBadge } from './RouterBadge'
 import { readAIStream } from '@/lib/bertos/stream-utils'
 import type { AIModel, RouterDecision } from '@/lib/bertos/types'
 import { HologramPanel, ProviderBadge, RomanDivider, StatusOrb } from '@/components/bertos/hermes'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
+import { isLocalCliProvider } from '@/lib/bertos/provider-status-client'
+import { scopedClientKeysForModel } from '@/lib/bertos/client-provider-keys'
+import { buildBertOSCliChatPrompt, compactAssistantText } from '@/lib/bertos/cli-output'
+import type { LocalDaemonAskResult } from '@/lib/bertos/local-daemon'
 
 const WELCOME_PROMPTS = [
   { icon: <Cpu className="w-4 h-4 text-violet-400" />, label: 'Explain async/await in TypeScript with examples' },
@@ -21,6 +26,8 @@ const WELCOME_PROMPTS = [
   { icon: <Cpu className="w-4 h-4 text-violet-400" />, label: 'Write a compelling product roadmap for an AI startup' },
   { icon: <Globe className="w-4 h-4 text-blue-400" />, label: 'Compare REST vs GraphQL vs tRPC for a Next.js app' },
 ]
+
+const CREATOR_SKILL_COMMAND_RE = /^\/(youtube-researcher|second-brain|diagram|paper-canvas|motion-graphics|gen-media|brand-deal-manager|publishing-queue)\b/i
 
 function SkeletonMessage() {
   return (
@@ -130,8 +137,89 @@ export function ChatView() {
     const startTime = Date.now()
     let resolvedModel = selectedModel as string
 
+    if (CREATOR_SKILL_COMMAND_RE.test(content)) {
+      try {
+        const res = await fetch('/api/bertos/invoke', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: content,
+            project: project?.id ?? project?.name,
+            dryRun: true,
+          }),
+          signal: abortRef.current?.signal,
+        })
+        const data = await res.json()
+        if (!res.ok || !data.ok) throw new Error(data.error ?? `Skill invocation failed with HTTP ${res.status}.`)
+        const outputId = data.output?.outputId ?? data.output?.artifactId ?? 'unknown-output'
+        const gates = Array.isArray(data.permissionGates) ? data.permissionGates : []
+        const warnings = Array.isArray(data.setupWarnings) ? data.setupWarnings : []
+        updateMessage(sessionId, aiMsg.id, {
+          content: [
+            `**Skill run saved:** ${data.skill.name}`,
+            '',
+            `- Run: \`${data.agentRun.agentRunId}\``,
+            `- Output: \`${outputId}\``,
+            `- Status: \`${data.agentRun.status}\``,
+            warnings.length ? `- Setup: ${warnings.join(' ')}` : '- Setup: local-ready or no setup required.',
+            gates.length ? `- Permission gates: ${gates.length} checked. Risky actions were not executed.` : '- Permission gates: none triggered.',
+            '',
+            'Open **Outputs**, **Runs**, or **Memory Review** from the sidebar to inspect the saved records.',
+          ].join('\n'),
+          streaming: false,
+          model: selectedModel,
+          metadata: { latency: Date.now() - startTime, providerSource: 'router', modelOrTool: 'bertos-skill-runtime' },
+        })
+      } catch (err) {
+        updateMessage(sessionId, aiMsg.id, {
+          content: `**Skill invocation error:** ${(err as Error).message}`,
+          streaming: false,
+          model: selectedModel,
+          metadata: { latency: Date.now() - startTime },
+        })
+      } finally {
+        setStreaming(false)
+        setPendingDecision(null)
+      }
+      return
+    }
+
     // Inner helper: stream a single model into the existing aiMsg bubble
     const doStream = async (modelId: string): Promise<RouterDecision | null> => {
+      if (isLocalCliProvider(modelId)) {
+        const transcript = allMessages
+          .map(message => `${message.role.toUpperCase()}: ${message.content}`)
+          .join('\n\n')
+        const cliPrompt = buildBertOSCliChatPrompt(systemPrompt, transcript)
+
+        const res = await fetchLocalDaemonBridge('/api/local-daemon/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            providerId: modelId,
+            prompt: cliPrompt,
+            timeoutMs: 180000,
+          }),
+          signal: abortRef.current?.signal,
+        })
+        const result = await res.json() as LocalDaemonAskResult
+        if (!res.ok || !result.ok) {
+          const detail = [result.stdout?.trim(), result.stderr?.trim(), result.error].filter(Boolean).join('\n\n')
+          throw new Error(detail || `Local CLI bridge returned HTTP ${res.status}.`)
+        }
+        const stdout = compactAssistantText(result.stdout)
+        appendToMessage(sessionId!, aiMsg.id, stdout || 'Local CLI completed without a visible response.')
+        updateMessage(sessionId!, aiMsg.id, {
+          model: modelId as AIModel,
+          metadata: {
+            latency: result.durationMs,
+            providerSource: 'daemon',
+            modelOrTool: result.executable,
+          },
+        })
+        return null
+      }
+
       let res: Response
       try {
         res = await fetch('/api/chat', {
@@ -141,7 +229,7 @@ export function ChatView() {
             messages: allMessages,
             model: modelId,
             systemPrompt,
-            clientKeys: settings.apiKeys,
+            clientKeys: scopedClientKeysForModel(modelId, settings.apiKeys),
             ollamaEndpoint: settings.ollamaEndpoint,
             enableApiProviders: settings.enableApiProviders ?? false,
           }),
@@ -327,9 +415,9 @@ export function ChatView() {
   }, [setStreaming, getActiveSession, updateMessage])
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto relative" ref={scrollRef}>
+      <div className="min-h-0 flex-1 overflow-y-auto relative" ref={scrollRef}>
         <div className="max-w-3xl mx-auto px-4">
           {messages.length === 0 ? (
             <motion.div

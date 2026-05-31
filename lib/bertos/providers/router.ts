@@ -4,7 +4,9 @@ import * as claudeCli from './claude-cli'
 import * as codexCli from './codex-cli'
 import * as geminiCli from './gemini-cli'
 import * as geminiNative from './gemini-native'
+import * as hermesNous from './hermes-nous'
 import * as ollamaPro from './ollama-pro'
+import * as openClawCli from './openclaw-cli'
 import type { ProviderAskOptions, ProviderAskResult, ProviderStatusResult } from './provider-result'
 
 const PROVIDERS = {
@@ -12,13 +14,25 @@ const PROVIDERS = {
   'codex-cli': codexCli,
   'gemini-api-native': geminiNative,
   'gemini-cli': geminiCli,
+  'hermes-nous': hermesNous,
   'ollama-pro': ollamaPro,
+  'openclaw-cli': openClawCli,
 }
 
 type ProviderId = keyof typeof PROVIDERS
 
 function isProviderId(value: string): value is ProviderId {
   return value in PROVIDERS
+}
+
+function providerSource(providerId: string): 'api' | 'daemon' {
+  return providerId === 'ollama-pro' || providerId === 'gemini-api-native' || providerId === 'hermes-nous'
+    ? 'api'
+    : 'daemon'
+}
+
+function providerSourceLabel(providerId: string) {
+  return providerSource(providerId) === 'api' ? 'API' : 'daemon'
 }
 
 export function isProviderInventoryPrompt(prompt: string) {
@@ -54,12 +68,11 @@ function formatProviderReport(statuses: ProviderStatusResult[]) {
     '',
     ...statuses.map(status => {
       const state = status.online ? 'available' : 'unavailable'
-      const source = status.providerId === 'ollama-pro' || status.providerId === 'gemini-api-native' ? 'API' : 'daemon'
       const detail = status.error ? ` - ${status.error}` : ''
-      return `- ${status.providerName}: ${state} via ${source}; tool/model: ${status.modelOrTool}${detail}`
+      return `- ${status.providerName}: ${state} via ${providerSourceLabel(status.providerId)}; tool/model: ${status.modelOrTool}${detail}`
     }),
     '',
-    'I will only route to providers marked available above. I will not claim GPT-4, Claude API, Gemini API, or any other provider unless that provider is actually configured and verified.',
+    'I will only route to providers marked available above. I will not claim GPT-4, Claude API, Gemini API, Hermes, or any other provider unless that provider is actually configured and verified.',
   ]
   return lines.join('\n')
 }
@@ -68,7 +81,7 @@ function providerStatusToAttempt(status: ProviderStatusResult) {
   return {
     providerId: status.providerId,
     available: status.online,
-    source: status.providerId === 'ollama-pro' || status.providerId === 'gemini-api-native' ? 'api' as const : 'daemon' as const,
+    source: providerSource(status.providerId),
     error: status.error,
   }
 }
@@ -102,6 +115,7 @@ export async function askWithProviderRouter(
 
   const byId = new Map(statuses.map(status => [status.providerId, status]))
   const decision = routePrompt(prompt, preferred)
+  const orchestration = decision.orchestration
   const fallbackOrder: ProviderId[] = routerMode === 'patch'
     ? ['codex-cli', 'claude-code', 'ollama-pro', 'gemini-cli']
     : ['gemini-api-native', 'codex-cli', 'claude-code', 'gemini-cli', 'ollama-pro']
@@ -121,7 +135,7 @@ export async function askWithProviderRouter(
     attemptedProviders?.push({
       providerId,
       available: Boolean(status?.online),
-      source: providerId === 'ollama-pro' || providerId === 'gemini-api-native' ? 'api' : 'daemon',
+      source: providerSource(providerId),
       error: status?.error,
     })
 
@@ -130,7 +144,12 @@ export async function askWithProviderRouter(
       continue
     }
 
-    const result = await PROVIDERS[providerId].ask(prompt, options)
+    const laneBudget = orchestration?.lanes.find(lane => lane.provider === providerId)?.budget
+    const maxTokens = Math.min(
+      options.maxTokens ?? laneBudget?.maxOutputTokens ?? orchestration?.tokenPolicy.maxOutputTokens ?? 4096,
+      laneBudget?.maxOutputTokens ?? orchestration?.tokenPolicy.maxOutputTokens ?? 4096,
+    )
+    const result = await PROVIDERS[providerId].ask(prompt, { ...options, maxTokens })
     if (result.ok) {
       return {
         ...result,
@@ -141,6 +160,7 @@ export async function askWithProviderRouter(
         inventoryShortcutUsed: false,
         selectedProvider: providerId,
         attemptedProviders,
+        orchestration,
       }
     }
     errors.push(`${providerId}: ${result.error}`)
@@ -160,6 +180,7 @@ export async function askWithProviderRouter(
     inventoryShortcutUsed: false,
     selectedProvider: String(ordered[0] ?? decision.primary),
     attemptedProviders,
+    orchestration,
     error: `All verified providers failed or were unavailable. ${errors.join(' | ')}`,
   }
 }

@@ -1,15 +1,21 @@
-export type LocalCliProvider = 'claude-code' | 'codex-cli' | 'gemini-cli'
+export type LocalCliProvider =
+  | 'claude-code'
+  | 'codex-cli'
+  | 'gemini-cli'
+  | 'openclaw-cli'
 
 export interface LocalCliToolStatus {
   id: LocalCliProvider
   label: string
-  executable: 'claude' | 'codex' | 'gemini'
+  executable: 'claude' | 'codex' | 'gemini' | 'openclaw'
   installed: boolean
   resolvedPath?: string
   candidates?: string[]
   version?: string
   loginStatus: 'available' | 'missing' | 'error' | 'unknown'
+  lastVerifiedAt?: string
   error?: string
+  troubleshooting?: string
 }
 
 export interface LocalDaemonStatus {
@@ -19,10 +25,25 @@ export interface LocalDaemonStatus {
   port: number
   uptimeMs?: number
   tools: LocalCliToolStatus[]
+  openClawGateway?: OpenClawGatewayStatus
   logsCount?: number
   repo?: LocalRepoStatus
   error?: string
   startCommand: string
+}
+
+export interface OpenClawGatewayStatus {
+  online: boolean
+  host: string
+  port: number
+  url: string
+  chatUrl: string
+  wsUrl: string
+  checkedAt: string
+  frameEmbedding?: 'allowed' | 'blocked' | 'unknown'
+  frameBlockers?: string[]
+  statusCode?: number
+  error?: string
 }
 
 export interface LocalRepoStatus {
@@ -48,7 +69,10 @@ export interface LocalDaemonAskResult {
   error?: string
 }
 
-export const LOCAL_CLI_TOOLS: Record<LocalCliProvider, Omit<LocalCliToolStatus, 'installed' | 'loginStatus'>> = {
+export const LOCAL_CLI_TOOLS: Record<
+  LocalCliProvider,
+  Omit<LocalCliToolStatus, 'installed' | 'loginStatus'>
+> = {
   'claude-code': {
     id: 'claude-code',
     label: 'Claude Code',
@@ -64,6 +88,37 @@ export const LOCAL_CLI_TOOLS: Record<LocalCliProvider, Omit<LocalCliToolStatus, 
     label: 'Gemini CLI',
     executable: 'gemini',
   },
+  'openclaw-cli': {
+    id: 'openclaw-cli',
+    label: 'OpenClaw',
+    executable: 'openclaw',
+  },
+}
+
+/**
+ * Decide whether an installed CLI tool is usable as a provider.
+ *
+ * The daemon only marks a tool `loginStatus: 'available'` AFTER a successful ask, so a
+ * freshly-started daemon reports installed+logged-in CLIs as `'unknown'`. Treat
+ * installed + (available|unknown) as usable so the first prompt/Test can run and confirm
+ * (the daemon then caches the real state). A genuine auth failure is cached as `'error'`,
+ * which correctly flips the provider back to offline with a clear message.
+ */
+export function deriveCliProviderOnline(
+  tool: LocalCliToolStatus | undefined,
+  daemonOnline: boolean,
+): { online: boolean; error?: string } {
+  if (!daemonOnline) {
+    return { online: false, error: 'Local CLI bridge is offline. Start it with npm run bertos:daemon.' }
+  }
+  if (!tool?.installed) {
+    return { online: false, error: tool?.error ?? `${tool?.executable ?? 'CLI'} is not installed.` }
+  }
+  if (tool.loginStatus === 'error' || tool.loginStatus === 'missing') {
+    return { online: false, error: tool.error ?? tool.troubleshooting ?? `${tool.executable} appears to need login. Run its login command, then test again.` }
+  }
+  // 'available' or 'unknown' → usable; the first ask verifies (and self-corrects if not logged in).
+  return { online: true }
 }
 
 export function getLocalDaemonBaseUrl(): string {
@@ -72,31 +127,45 @@ export function getLocalDaemonBaseUrl(): string {
   return `http://${host}:${port}`
 }
 
+function localDaemonAuthHeaders() {
+  const token =
+    process.env.BERTOS_DAEMON_TOKEN || process.env.BERTOS_AGENT_SECRET || ''
+  return token ? { 'x-bertos-agent-secret': token } : undefined
+}
+
 export function isLocalDaemonAvailableFromServer(): boolean {
   return !process.env.VERCEL
 }
 
-export function unavailableLocalDaemonStatus(reason?: string): LocalDaemonStatus {
+export function unavailableLocalDaemonStatus(
+  reason?: string,
+): LocalDaemonStatus {
   const base = new URL(getLocalDaemonBaseUrl())
   return {
     online: false,
     available: false,
     host: base.hostname,
     port: Number(base.port || 8787),
-    tools: Object.values(LOCAL_CLI_TOOLS).map(tool => ({
+    tools: Object.values(LOCAL_CLI_TOOLS).map((tool) => ({
       ...tool,
       installed: false,
       loginStatus: 'unknown',
       error: 'Daemon is offline.',
     })),
-    error: reason ?? 'Local CLI bridge is offline. Start it with npm run bertos:daemon.',
+    error:
+      reason ??
+      'Local CLI bridge is offline. Start it with npm run bertos:daemon.',
     startCommand: 'npm run bertos:daemon',
   }
 }
 
-export async function fetchLocalDaemonStatus(timeoutMs = 15000): Promise<LocalDaemonStatus> {
+export async function fetchLocalDaemonStatus(
+  timeoutMs = 15000,
+): Promise<LocalDaemonStatus> {
   if (!isLocalDaemonAvailableFromServer()) {
-    return unavailableLocalDaemonStatus('Local CLI bridge is unavailable on Vercel. Start the app locally to reach your Windows daemon.')
+    return unavailableLocalDaemonStatus(
+      'Local CLI bridge is unavailable to the Vercel server. Use the browser daemon bridge from this desktop, or configure an HTTPS daemon tunnel for phone access.',
+    )
   }
 
   const controller = new AbortController()
@@ -105,6 +174,7 @@ export async function fetchLocalDaemonStatus(timeoutMs = 15000): Promise<LocalDa
   try {
     const res = await fetch(`${getLocalDaemonBaseUrl()}/status`, {
       method: 'GET',
+      headers: localDaemonAuthHeaders(),
       cache: 'no-store',
       signal: controller.signal,
     })
@@ -112,7 +182,7 @@ export async function fetchLocalDaemonStatus(timeoutMs = 15000): Promise<LocalDa
       return unavailableLocalDaemonStatus(`Daemon returned HTTP ${res.status}.`)
     }
 
-    const data = await res.json() as LocalDaemonStatus
+    const data = (await res.json()) as LocalDaemonStatus
     return {
       ...data,
       online: Boolean(data.online),
@@ -120,7 +190,9 @@ export async function fetchLocalDaemonStatus(timeoutMs = 15000): Promise<LocalDa
       startCommand: data.startCommand || 'npm run bertos:daemon',
     }
   } catch (error) {
-    return unavailableLocalDaemonStatus(error instanceof Error ? error.message : 'Could not reach local daemon.')
+    return unavailableLocalDaemonStatus(
+      error instanceof Error ? error.message : 'Could not reach local daemon.',
+    )
   } finally {
     clearTimeout(timeout)
   }
@@ -132,16 +204,24 @@ export async function askLocalDaemon(
   options: { cwd?: string; timeoutMs?: number; mode?: 'chat' | 'patch' } = {},
 ): Promise<LocalDaemonAskResult> {
   if (!isLocalDaemonAvailableFromServer()) {
-    throw new Error('Local CLI bridge is only available in local development. Falling back to Ollama Pro.')
+    throw new Error(
+      'Local CLI bridge is only available in local development. Falling back to Ollama Pro.',
+    )
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 120000)
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? 120000,
+  )
 
   try {
     const res = await fetch(`${getLocalDaemonBaseUrl()}/ask-cli`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(localDaemonAuthHeaders() ?? {}),
+      },
       body: JSON.stringify({
         providerId,
         prompt,
@@ -151,9 +231,11 @@ export async function askLocalDaemon(
       }),
       signal: controller.signal,
     })
-    const data = await res.json() as LocalDaemonAskResult
+    const data = (await res.json()) as LocalDaemonAskResult
     if (!res.ok || !data.ok) {
-      throw new Error(data.error || `Local CLI bridge returned HTTP ${res.status}.`)
+      throw new Error(
+        data.error || `Local CLI bridge returned HTTP ${res.status}.`,
+      )
     }
     return data
   } finally {
@@ -161,17 +243,20 @@ export async function askLocalDaemon(
   }
 }
 
-export async function fetchLocalRepoStatus(timeoutMs = 10000): Promise<LocalRepoStatus | null> {
+export async function fetchLocalRepoStatus(
+  timeoutMs = 10000,
+): Promise<LocalRepoStatus | null> {
   if (!isLocalDaemonAvailableFromServer()) return null
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch(`${getLocalDaemonBaseUrl()}/repo/status`, {
+      headers: localDaemonAuthHeaders(),
       cache: 'no-store',
       signal: controller.signal,
     })
     if (!res.ok) return null
-    return await res.json() as LocalRepoStatus
+    return (await res.json()) as LocalRepoStatus
   } catch {
     return null
   } finally {
@@ -189,11 +274,20 @@ export async function runLocalDaemonCommand(
   }
   const res = await fetch(`${getLocalDaemonBaseUrl()}/run-cli`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ executable, args, cwd: options.cwd, timeoutMs: options.timeoutMs }),
+    headers: {
+      'Content-Type': 'application/json',
+      ...(localDaemonAuthHeaders() ?? {}),
+    },
+    body: JSON.stringify({
+      executable,
+      args,
+      cwd: options.cwd,
+      timeoutMs: options.timeoutMs,
+    }),
     cache: 'no-store',
   })
   const data = await res.json()
-  if (!res.ok && !data) throw new Error(`Command failed with HTTP ${res.status}.`)
+  if (!res.ok && !data)
+    throw new Error(`Command failed with HTTP ${res.status}.`)
   return data
 }

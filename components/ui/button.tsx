@@ -5,7 +5,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/bertos/cn'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(212,180,131,0.40)] disabled:pointer-events-none disabled:opacity-40 select-none',
+  'olympus-live-control inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(212,180,131,0.40)] disabled:pointer-events-none disabled:opacity-40 select-none',
   {
     variants: {
       variant: {
@@ -44,14 +44,34 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, children, ...props }, ref) => {
     const Comp = asChild ? Slot : 'button'
+
+    if (asChild) {
+      return (
+        <Comp
+          className={cn(buttonVariants({ variant, size, className }))}
+          ref={ref}
+          {...props}
+        >
+          {children}
+        </Comp>
+      )
+    }
+
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
-      />
+      >
+        <span className="olympus-button-gyro" aria-hidden="true">
+          <span className="olympus-button-gyro__ring" />
+          <span className="olympus-button-gyro__cube" />
+          <span className="olympus-button-gyro__wing" />
+        </span>
+        <span className="olympus-button-content">{children}</span>
+      </Comp>
     )
   }
 )

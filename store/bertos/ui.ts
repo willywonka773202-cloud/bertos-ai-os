@@ -7,7 +7,7 @@ interface UIStore {
   rightPanelOpen: boolean
   rightPanelTab: 'logs' | 'memory' | 'tasks' | 'files' | 'terminal'
   sidebarCollapsed: boolean
-  activeView: 'dashboard' | 'chat' | 'prompts' | 'compare' | 'coding' | 'max' | 'workspace' | 'evolution' | 'agents' | 'memory' | 'brief' | 'playbooks' | 'tasks' | 'migrations' | 'github' | 'settings' | 'autopilot'
+  activeView: 'dashboard' | 'cockpit' | 'approvals' | 'providers' | 'chat' | 'hermes' | 'prompts' | 'compare' | 'coding' | 'max' | 'workspace' | 'evolution' | 'agents' | 'skills' | 'plugins' | 'outputs' | 'runs' | 'studio' | 'content-lab' | 'inbox-deals' | 'publishing-queue' | 'memory' | 'memory-review' | 'brief' | 'playbooks' | 'tasks' | 'migrations' | 'github' | 'settings' | 'launch' | 'autopilot'
   selectedModel: AIModel
   settings: BertOSSettings
   pendingWorkspaceTask: string | null
@@ -35,7 +35,7 @@ const DEFAULT_SETTINGS: BertOSSettings = {
   apiKeys: {},
   ollamaCloudModel: 'gpt-oss:120b-cloud',
   ollamaLocalFallback: 'qwen2.5-coder:latest',
-  modelPriority: ['ollama-pro', 'claude-code', 'gemini-cli', 'codex-cli', 'qwen2.5-coder'],
+  modelPriority: ['ollama-pro', 'codex-cli', 'gemini-cli', 'claude-code', 'openclaw-cli', 'qwen2.5-coder'],
   tokenBudget: 100000,
   animationsEnabled: true,
 }

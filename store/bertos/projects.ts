@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 import type { Project, Todo, ProjectFile } from '@/lib/bertos/types'
+import { useProgressionStore } from './progression'
 
 const DEFAULT_PROJECTS: Project[] = [
   {
@@ -61,6 +62,7 @@ export const useProjectStore = create<ProjectStore>()(
           pinned: false,
           context: '',
         }
+        useProgressionStore.getState().recordAction('project-created')
         set(state => ({ projects: [...state.projects, project] }))
         return project
       },

@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
-import { HologramPanel, RomanDivider, RouteHero, StatusOrb } from '@/components/bertos/hermes'
+import { EmptyChamber, HologramPanel, RomanDivider, RouteHero, StatusOrb } from '@/components/bertos/hermes'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
 
 interface RepoStatus {
   root?: string
@@ -45,7 +46,7 @@ export function GitHubView() {
   const refreshRepo = useCallback(async () => {
     setLoadingRepo(true)
     try {
-      const res = await fetch('/api/local-daemon/repo/status', { cache: 'no-store' })
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/repo/status', { cache: 'no-store' })
       const data = await res.json()
       setRepo(data.repo ?? data)
     } catch {
@@ -63,7 +64,7 @@ export function GitHubView() {
     setRunning(command)
     setOutput(null)
     try {
-      const res = await fetch('/api/local-daemon/run', {
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command }),
@@ -94,7 +95,7 @@ export function GitHubView() {
   const safe = daemonOnline && Boolean(repo?.safeRepo)
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="shrink-0 border-b border-cyan-300/10 bg-slate-950/35 px-6 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-800">
@@ -115,7 +116,7 @@ export function GitHubView() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="mx-auto max-w-6xl space-y-5 p-6">
           <RouteHero
             eyebrow="repo command post"
@@ -152,7 +153,7 @@ export function GitHubView() {
                   {repo.blockedReason && <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-red-300">{repo.blockedReason}</div>}
                 </div>
               ) : (
-                <p className="text-sm text-zinc-600">Repo status requires the local daemon.</p>
+                <EmptyChamber icon={<GitBranch className="h-6 w-6" />} title="Repo Archive Sealed" description="Repo status requires the local daemon and a verified BertOS workspace." />
               )}
             </HologramPanel>
 

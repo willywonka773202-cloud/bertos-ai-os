@@ -15,7 +15,8 @@ import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
 import { usePromptStore } from '@/store/bertos/prompts'
 import { toast } from 'sonner'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, EmptyChamber, LoadingRelay, RouteHero } from '@/components/bertos/hermes'
+import { scopedClientKeysForModel } from '@/lib/bertos/client-provider-keys'
 
 type ModelId = 'ollama-pro' | 'claude-code' | 'gemini-cli' | 'gemini-api-native' | 'codex-cli'
 type CouncilMode = 'compare' | 'judge' | 'build'
@@ -210,7 +211,7 @@ export function CompareView() {
         messages: [{ id: '1', role: 'user', content: prompt, timestamp: Date.now() }],
         model,
         systemPrompt,
-        clientKeys: settings.apiKeys,
+        clientKeys: scopedClientKeysForModel(model, settings.apiKeys),
         ollamaEndpoint: settings.ollamaEndpoint,
         enableApiProviders: settings.enableApiProviders,
       }),
@@ -428,7 +429,7 @@ export function CompareView() {
   const canAct = allDone && !isJudging
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-cyan-300/10 bg-slate-950/35 px-5 py-4 space-y-3">
         <div className="max-w-5xl mx-auto space-y-3">
@@ -568,10 +569,16 @@ export function CompareView() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {!hasResponses ? (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-3 py-16">
-            <div className="flex items-center gap-3">
+          <div className="flex h-full min-h-0 flex-col items-center justify-center px-5 py-16">
+            <EmptyChamber
+              icon={<Scale className="h-6 w-6" />}
+              title="Tribunal Awaiting Evidence"
+              description="Select the council models, enter a question, and run the tribunal to compare provider testimony."
+              tone="cyan"
+              action={(
+                <div className="flex items-center gap-3">
               {ALL_MODELS.map(m => (
                 <div
                   key={m}
@@ -585,8 +592,8 @@ export function CompareView() {
                 </div>
               ))}
             </div>
-            <p className="text-zinc-600 text-sm">Select models and enter a question to run the council</p>
-            <p className="text-zinc-700 text-xs">Ctrl+Enter to send</p>
+              )}
+            />
           </div>
         ) : (
           <div className="max-w-5xl mx-auto px-5 py-4 space-y-4">
@@ -601,10 +608,10 @@ export function CompareView() {
               {responses.map(response => {
                 const meta = MODEL_META[response.model]
                 return (
-                  <div
+                  <ChamberCard
                     key={response.model}
-                    className="rounded-xl border overflow-hidden"
-                    style={{ borderColor: `${meta.color}20` }}
+                    tone={response.error ? 'red' : response.done ? 'emerald' : 'cyan'}
+                    className="overflow-hidden p-0"
                   >
                     <div
                       className="flex items-center justify-between px-3 py-2 border-b"
@@ -637,20 +644,17 @@ export function CompareView() {
                       ) : response.content ? (
                         <MarkdownContent content={response.content} />
                       ) : response.streaming ? (
-                        <div className="flex items-center gap-2 text-zinc-600 text-xs">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Connecting…
-                        </div>
+                        <LoadingRelay label={`${meta.label} Oracle Channel Warming`} detail="Awaiting the first streamed token." compact />
                       ) : null}
                     </div>
-                  </div>
+                  </ChamberCard>
                 )
               })}
             </div>
 
             {/* Judge result */}
             {councilMode !== 'compare' && (isJudging || judgeResult) && (
-              <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 overflow-hidden">
+              <ChamberCard tone="violet" className="overflow-hidden p-0">
                 <div className="flex items-center gap-2 border-b border-violet-500/15 px-3 py-2">
                   <Scale className="w-4 h-4 text-violet-400" />
                   <span className="text-xs font-semibold text-violet-300">
@@ -698,7 +702,7 @@ export function CompareView() {
                     )}
                   </div>
                 )}
-              </div>
+              </ChamberCard>
             )}
 
             {/* Action bar */}

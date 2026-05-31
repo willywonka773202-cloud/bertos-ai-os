@@ -3,6 +3,7 @@ import { getOllamaConfig } from '@/lib/bertos/runtime'
 import { fetchLocalDaemonStatus } from '@/lib/bertos/local-daemon'
 import { getComposioStatus } from '@/lib/tools/composio'
 import { getGeminiNativeApiKey } from '@/lib/bertos/providers/gemini-native'
+import { getHermesNousConfig, status as getHermesNousProviderStatus } from '@/lib/bertos/providers/hermes-nous'
 
 export const runtime = 'nodejs'
 
@@ -11,28 +12,36 @@ export async function GET() {
   const localDaemon = await fetchLocalDaemonStatus()
   const composio = await getComposioStatus()
   const geminiNativeConfigured = Boolean(getGeminiNativeApiKey())
-  const hermesUrlConfigured = Boolean(process.env.HERMES_API_URL)
-  const hermesKeyConfigured = Boolean(process.env.HERMES_API_KEY)
-  const hermesPaidEnabled = process.env.ENABLE_HERMES_PAID === 'true'
-  const hermesConfigured = hermesUrlConfigured && hermesKeyConfigured
+  const hermesCfg = getHermesNousConfig()
+  const hermesProviderStatus = await getHermesNousProviderStatus()
+  const hermesConfigured = Boolean(hermesCfg.apiUrl && (hermesCfg.apiKey || hermesCfg.allowMissingKey))
   const fccEnabled = process.env.ENABLE_FCC_PROXY === 'true'
   const devinConfigured = Boolean(process.env.DEVIN_API_KEY)
   const qwenConfigured = Boolean(process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY)
+  const openClawTool = localDaemon.tools.find(tool => tool.id === 'openclaw-cli')
+  const openClawConfigured = Boolean(localDaemon.online && openClawTool?.installed)
+  const openClawRunnable = Boolean(openClawConfigured && openClawTool?.loginStatus === 'available')
   const hermesStatus = {
     id: 'hermes-nous',
     configured: hermesConfigured,
-    proxyReachable: hermesConfigured,
-    paidEnabled: hermesPaidEnabled,
-    availableForRouting: hermesConfigured && hermesPaidEnabled,
-    requiredEnvVars: ['HERMES_API_URL', 'HERMES_API_KEY'],
-    gateEnvVar: 'ENABLE_HERMES_PAID',
-    billing: 'Paid API credits required',
-    statusMessage: 'Proxy reachable, but no free chat models available for this account.',
+    proxyReachable: hermesProviderStatus.online,
+    enabled: hermesCfg.enabled,
+    paidEnabled: hermesCfg.paidEnabled,
+    availableForRouting: hermesProviderStatus.online,
+    requiredEnvVars: ['HERMES_ENABLED', 'HERMES_BASE_URL', 'HERMES_API_KEY'],
+    optionalEnvVars: ['HERMES_MODEL', 'HERMES_TIMEOUT_MS', 'HERMES_STREAMING', 'HERMES_BACKEND_MODE'],
+    gateEnvVar: 'none for free/self-hosted Hermes; ENABLE_HERMES_PAID is optional metadata only',
+    billing: hermesCfg.paidEnabled ? 'Optional paid provider enabled behind Hermes.' : 'Free/local/custom Hermes backend mode.',
+    statusMessage: hermesProviderStatus.online
+      ? 'Hermes API server is reachable through the server-side BertOS proxy.'
+      : hermesProviderStatus.error ?? 'Hermes is not available for routing.',
     defaultProvider: false,
-    autoRoutingDisabledUnless: 'ENABLE_HERMES_PAID=true',
-    error: hermesPaidEnabled && !hermesConfigured
-      ? 'Hermes paid routing is enabled, but HERMES_API_URL or HERMES_API_KEY is missing.'
-      : undefined,
+    autoRoutingDisabledUnless: 'manual selection or explicit Hermes route; no paid key required by BertOS',
+    model: hermesProviderStatus.modelOrTool,
+    mode: hermesCfg.backendMode,
+    endpointConfigured: Boolean(hermesCfg.apiUrl),
+    apiKeyConfigured: hermesCfg.apiKeyConfigured,
+    error: hermesProviderStatus.error,
   }
   const providers = [
     {
@@ -44,8 +53,10 @@ export async function GET() {
     ...localDaemon.tools.map(tool => ({
       id: tool.id,
       name: tool.label,
-      status: localDaemon.online && tool.installed ? 'online' : 'offline',
-      message: tool.version || tool.error || tool.resolvedPath,
+      status: localDaemon.online && tool.installed && tool.loginStatus === 'available' ? 'online' : 'offline',
+      message: tool.loginStatus === 'available'
+        ? tool.version || tool.resolvedPath
+        : tool.error || tool.version || tool.resolvedPath,
     })),
     {
       id: 'gemini-api-native',
@@ -57,11 +68,11 @@ export async function GET() {
     },
     {
       id: 'hermes-nous',
-      name: 'Hermes / Nous Proxy',
-      status: hermesPaidEnabled && hermesConfigured ? 'online' : 'offline',
-      message: hermesPaidEnabled && hermesConfigured
-        ? 'Paid API credits enabled by ENABLE_HERMES_PAID=true'
-        : 'Paid API credits required; auto-routing disabled',
+      name: 'Hermes Agent',
+      status: hermesProviderStatus.online ? 'online' : 'offline',
+      message: hermesProviderStatus.online
+        ? `OpenAI-compatible Hermes API server (${hermesProviderStatus.modelOrTool})`
+        : hermesProviderStatus.error ?? 'Hermes server-side proxy is not connected',
     },
   ]
   const externalAgents = {
@@ -127,15 +138,25 @@ export async function GET() {
       safety: 'Use as copy-prompt or future adapter only.',
     },
     openclaw: {
-      id: 'openclaw',
+      id: 'openclaw-cli',
       name: 'OpenClaw',
-      category: 'planned-local-agent',
-      configured: false,
-      status: 'planned',
-      billing: 'Planned local/open integration',
-      runnableFromBertOS: false,
-      message: 'Planned local agent integration. No installed backend is claimed.',
-      safety: 'No fake autonomous execution.',
+      category: 'local-agent',
+      configured: openClawConfigured,
+      status: openClawRunnable ? 'online' : openClawConfigured ? 'configured' : 'setup-required',
+      billing: 'Local/Ollama-backed integration. No paid API key is required by BertOS.',
+      runnableFromBertOS: openClawRunnable,
+      message: openClawRunnable
+        ? 'OpenClaw is verified through the BertOS desktop daemon.'
+        : openClawConfigured
+          ? openClawTool?.error ?? 'OpenClaw is installed. Send a test prompt after completing onboarding.'
+          : 'Install with Ollama launch or npm, then start the BertOS daemon from the repo.',
+      setup: [
+        'ollama launch openclaw --config',
+        'or npm install -g openclaw@latest && openclaw onboard --install-daemon',
+        'npm run bertos:daemon',
+      ],
+      docsUrl: 'https://docs.ollama.com/integrations/openclaw',
+      safety: 'OpenClaw can operate tools and messaging channels. BertOS routes it only through the local daemon, never exposes secrets, and does not auto-run destructive actions.',
     },
     browserSkills: {
       id: 'browser-skills',
@@ -192,6 +213,7 @@ export async function GET() {
       openai: Boolean(process.env.OPENAI_API_KEY),
       gemini: Boolean(process.env.GEMINI_API_KEY),
       geminiNative: geminiNativeConfigured,
+      hermesNous: hermesProviderStatus.online,
     },
     geminiNative: {
       id: 'gemini-api-native',

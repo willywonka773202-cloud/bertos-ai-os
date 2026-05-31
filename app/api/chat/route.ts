@@ -6,8 +6,10 @@ import { routePrompt } from '@/lib/bertos/router'
 import type { Message } from '@/lib/bertos/types'
 import { resolveOllamaModel, CLI_MODEL_ALIASES, API_MODEL_ALIASES } from '@/lib/bertos/providers'
 import { getOllamaConfig } from '@/lib/bertos/runtime'
-import { askLocalDaemon, type LocalCliProvider } from '@/lib/bertos/local-daemon'
+import { askLocalDaemon, fetchLocalDaemonStatus, type LocalCliProvider } from '@/lib/bertos/local-daemon'
 import { callGeminiNative } from '@/lib/bertos/providers/gemini-native'
+import { callHermesNous, getHermesNousConfig, status as getHermesNousProviderStatus } from '@/lib/bertos/providers/hermes-nous'
+import { buildBertOSCliChatPrompt, compactAssistantText } from '@/lib/bertos/cli-output'
 
 // Node.js runtime required:
 // - reads process.env.VERCEL to detect cloud mode
@@ -19,6 +21,7 @@ const API_MODEL_IDS: Record<string, string> = {
   'openai-api':  'gpt-4o',
   'gemini-api':  'gemini-2.0-flash',
   'gemini-api-native': 'gemini-2.5-flash',
+  'hermes-nous': 'hermes-agent',
 }
 
 interface ClientKeys {
@@ -30,6 +33,63 @@ interface ClientKeys {
 
 function resolveKey(envKey: string | undefined, clientKey: string | undefined): string {
   return envKey?.trim() || clientKey?.trim() || ''
+}
+
+function isConnectivityPrompt(prompt: string): boolean {
+  return /\b(connected|connections?|providers?|models?|tools?|status|online|available|can you access|what can you use)\b/i.test(prompt)
+}
+
+async function buildConnectivityReport() {
+  const ollama = getOllamaConfig()
+  const daemon = await fetchLocalDaemonStatus()
+  const hermesCfg = getHermesNousConfig()
+  const hermes = await getHermesNousProviderStatus()
+  const geminiNativeConfigured = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)
+  const telegramConfigured = Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_ALLOWED_CHAT_ID)
+  const telegramSecretConfigured = Boolean(process.env.TELEGRAM_WEBHOOK_SECRET)
+
+  const localTools = daemon.tools.map(tool => ({
+    label: tool.label,
+    status: daemon.online && tool.installed && tool.loginStatus === 'available' ? 'online' : 'offline',
+    detail: tool.version || tool.error || tool.resolvedPath || 'not detected',
+  }))
+  const onlineCount = [
+    ollama.requiresApiKey ? Boolean(ollama.apiKey) : true,
+    ...localTools.map(tool => tool.status === 'online'),
+    geminiNativeConfigured,
+    hermes.online,
+  ].filter(Boolean).length
+  const providerCount = 1 + localTools.length + 2
+
+  const lines = [
+    '**BertOS live connectivity right now**',
+    '',
+    `**Providers:** ${onlineCount}/${providerCount} online`,
+    `- ${ollama.providerName}: ${ollama.requiresApiKey && !ollama.apiKey ? 'offline' : 'online'} (${ollama.defaultModel})`,
+    ...localTools.map(tool => `- ${tool.label}: ${tool.status} (${tool.detail})`),
+    `- Gemini Native API: ${geminiNativeConfigured ? 'online' : 'offline'} (${geminiNativeConfigured ? 'GEMINI_API_KEY configured' : 'missing GEMINI_API_KEY'})`,
+    `- Hermes Agent: ${hermes.online ? 'online' : 'offline'} (${hermes.error || hermes.modelOrTool})`,
+    '',
+    '**Local control:**',
+    `- BertOS daemon: ${daemon.online ? 'online' : 'offline'}${daemon.repo?.root ? ` at ${daemon.repo.root}` : ''}`,
+    daemon.repo ? `- Repo safety: ${daemon.repo.safeRepo ? 'verified' : 'blocked'}${daemon.repo.branch ? ` on ${daemon.repo.branch}` : ''}` : '- Repo safety: daemon status unavailable',
+    '',
+    '**Telegram:**',
+    `- Config present: ${telegramConfigured ? 'yes' : 'no'}`,
+    `- Webhook secret: ${telegramSecretConfigured ? 'set' : 'missing'}`,
+    '- Communication check: use Settings/Dashboard Telegram panel; if it says Unauthorized, replace TELEGRAM_BOT_TOKEN with the current BotFather token.',
+    '',
+    '**Safety gates:**',
+    '- I can route chat/coding through the online local providers above.',
+    '- I will not silently use paid API providers. Hermes can be free/local when HERMES_ENABLED points to a self-hosted or custom OpenAI-compatible endpoint.',
+    '- I will not write files, apply patches, push git, deploy, or run destructive commands without the BertOS approval flow.',
+  ]
+
+  if (!hermesCfg.paidEnabled) {
+    lines.splice(lines.indexOf('**Safety gates:**'), 0, '- Hermes does not require paid keys in BertOS. Configure HERMES_ENABLED, HERMES_BASE_URL, and HERMES_API_KEY server-side for the free/local path.', '')
+  }
+
+  return lines.join('\n')
 }
 
 export async function POST(req: NextRequest) {
@@ -50,9 +110,11 @@ export async function POST(req: NextRequest) {
   }
 
   const ck = body.clientKeys ?? {}
-  const anthropicKey = resolveKey(process.env.ANTHROPIC_API_KEY, ck.anthropic)
-  const openaiKey    = resolveKey(process.env.OPENAI_API_KEY, ck.openai)
-  const geminiKey    = resolveKey(process.env.GEMINI_API_KEY, ck.google)
+  const serverApiProvidersEnabled = process.env.ENABLE_API_PROVIDERS === 'true'
+  const browserApiProvidersEnabled = body.enableApiProviders === true
+  const anthropicKey = resolveKey(serverApiProvidersEnabled ? process.env.ANTHROPIC_API_KEY : undefined, browserApiProvidersEnabled ? ck.anthropic : undefined)
+  const openaiKey    = resolveKey(serverApiProvidersEnabled ? process.env.OPENAI_API_KEY : undefined, browserApiProvidersEnabled ? ck.openai : undefined)
+  const geminiKey    = resolveKey(serverApiProvidersEnabled ? process.env.GEMINI_API_KEY : undefined, browserApiProvidersEnabled ? ck.google : undefined)
 
   const messages: Message[] = body.messages ?? [{
     id: '1',
@@ -94,11 +156,29 @@ export async function POST(req: NextRequest) {
       try {
         send({ routerDecision })
         let effectiveModelAlias = modelAlias
+        const latestPrompt = conversationMessages[conversationMessages.length - 1]?.content ?? ''
+
+        if (isConnectivityPrompt(latestPrompt)) {
+          const report = await buildConnectivityReport()
+          send({
+            provider: {
+              providerId: 'bertos-status',
+              model: 'live-connectivity-report',
+              latencyMs: 0,
+            },
+          })
+          send({ text: report })
+          done()
+          return
+        }
 
         // ── CLI subscription providers ──────────────────────────────────
         if (CLI_MODEL_ALIASES.has(effectiveModelAlias)) {
           try {
-            const prompt = conversationMessages[conversationMessages.length - 1]?.content ?? ''
+            const prompt = buildBertOSCliChatPrompt(
+              systemPrompt,
+              conversationMessages.map(message => `${message.role.toUpperCase()}: ${message.content}`).join('\n\n'),
+            )
             const result = await askLocalDaemon(effectiveModelAlias as LocalCliProvider, prompt, {
               timeoutMs: 180000,
             })
@@ -109,10 +189,7 @@ export async function POST(req: NextRequest) {
                 durationMs: result.durationMs,
               },
             })
-            if (result.stderr.trim()) {
-              send({ text: `\n\n[${result.executable} stderr]\n${result.stderr.trim()}\n\n` })
-            }
-            send({ text: result.stdout || 'Local CLI completed without stdout.' })
+            send({ text: compactAssistantText(result.stdout) || 'Local CLI completed without a visible response.' })
             done()
             return
           } catch (error) {
@@ -129,22 +206,24 @@ export async function POST(req: NextRequest) {
 
         // ── Optional API providers (disabled by default) ────────────────
         if (API_MODEL_ALIASES.has(effectiveModelAlias)) {
-          const enableApi = body.enableApiProviders ?? (process.env.ENABLE_API_PROVIDERS === 'true')
-          if (!enableApi && effectiveModelAlias === 'gemini-api-native') {
+          const hermesFreeRouteAllowed = effectiveModelAlias === 'hermes-nous' && getHermesNousConfig().enabled
+          const apiAllowedForThisRequest = browserApiProvidersEnabled || serverApiProvidersEnabled || hermesFreeRouteAllowed
+
+          if (!serverApiProvidersEnabled && effectiveModelAlias === 'gemini-api-native') {
             send({
               apiFallback: {
                 requestedProvider: 'gemini-api-native',
                 fallbackProvider: 'ollama-pro',
-                reason: 'Gemini Native API is disabled until API providers are enabled.',
+                reason: 'Gemini Native API uses server-held credentials and is disabled until ENABLE_API_PROVIDERS=true is set server-side.',
               },
             })
             effectiveModelAlias = 'ollama-pro'
           }
 
-          if (!enableApi && effectiveModelAlias !== 'ollama-pro') {
+          if (!apiAllowedForThisRequest && effectiveModelAlias !== 'ollama-pro') {
             throw new Error(
               `API providers are disabled by default. ` +
-              `Enable them in Settings → Providers → Enable API Providers. ` +
+              `Enable them in Settings with a browser-scoped key, or set ENABLE_API_PROVIDERS=true server-side. ` +
               `Note: ${effectiveModelAlias} creates a separate metered API bill.`
             )
           }
@@ -214,6 +293,25 @@ export async function POST(req: NextRequest) {
               temperature: 0.4,
             })
             if (!result.ok) throw new Error(result.error || 'Gemini Native API request failed.')
+            send({
+              provider: {
+                providerId: result.provider,
+                model: result.model,
+                latencyMs: result.latencyMs,
+              },
+            })
+            send({ text: result.text ?? '' })
+          } else if (effectiveModelAlias === 'hermes-nous') {
+            const result = await callHermesNous({
+              model: API_MODEL_IDS['hermes-nous'],
+              messages: conversationMessages.map(m => ({
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+              })),
+              systemInstruction: systemPrompt,
+              temperature: 0.4,
+            })
+            if (!result.ok) throw new Error(result.error || 'Hermes request failed.')
             send({
               provider: {
                 providerId: result.provider,

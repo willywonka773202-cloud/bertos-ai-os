@@ -3,8 +3,10 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bot, Brain, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, Code2, Command,
+  Inbox,
   Compass, Cpu, FlaskConical, Github, GitCompare, Hash, KanbanSquare, LayoutDashboard,
-  Library, MessageSquare, Moon, Plus, Settings, Trash2, Zap,
+  Library, MessageSquare, Moon, PackageSearch, Plug, Plus, Send, Settings, ShieldCheck, Sparkles, Trash2, WandSparkles, Zap, Activity, Images,
+  Rocket, Terminal,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { getModelLabel } from '@/lib/bertos/router'
@@ -12,27 +14,66 @@ import { useUIStore } from '@/store/bertos/ui'
 import { useChatStore } from '@/store/bertos/chat'
 import { useProjectStore } from '@/store/bertos/projects'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { StatusOrb } from '@/components/bertos/hermes'
-import { useRouter } from 'next/navigation'
+import { OperatorSigil, StatusOrb, XPMeter } from '@/components/bertos/hermes'
+import { getRankProgress, useProgressionStore } from '@/store/bertos/progression'
+import { usePathname, useRouter } from 'next/navigation'
+import { getPrimaryAgentEngines, type AgentEngineId } from '@/lib/bertos/agent-engines'
 
 const NAV_ITEMS = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Mission', href: '/dashboard' },
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Olympus', href: '/dashboard' },
+  { id: 'cockpit', icon: Terminal, label: 'Cockpit', href: '/cockpit' },
+  { id: 'providers', icon: Plug, label: 'Providers', href: '/providers' },
   { id: 'chat', icon: MessageSquare, label: 'Oracle', href: '/chat' },
+  { id: 'hermes', icon: Sparkles, label: 'Hermes', href: '/hermes' },
   { id: 'prompts', icon: Library, label: 'Prompts', href: '/prompts' },
   { id: 'compare', icon: GitCompare, label: 'Tribunal', href: '/compare' },
   { id: 'coding', icon: Zap, label: 'Forge', href: '/coding' },
   { id: 'max', icon: Moon, label: 'Max Mode', href: '/max' },
-  { id: 'workspace', icon: Code2, label: 'Deck', href: '/workspace' },
+  { id: 'workspace', icon: Code2, label: 'Archive', href: '/workspace' },
   { id: 'evolution', icon: FlaskConical, label: 'Armory', href: '/evolution' },
-  { id: 'agents', icon: Bot, label: 'Legion', href: '/agents' },
+  { id: 'agents', icon: Bot, label: 'Pantheon', href: '/agents' },
+  { id: 'skills', icon: WandSparkles, label: 'Skills', href: '/skills' },
+  { id: 'plugins', icon: Plug, label: 'Plugins', href: '/plugins' },
+  { id: 'outputs', icon: PackageSearch, label: 'Outputs', href: '/outputs' },
+  { id: 'runs', icon: Activity, label: 'Runs', href: '/runs' },
+  { id: 'studio', icon: Images, label: 'Studio', href: '/studio' },
+  { id: 'content-lab', icon: ClipboardList, label: 'Content Lab', href: '/content-lab' },
+  { id: 'inbox-deals', icon: Inbox, label: 'Inbox / Deals', href: '/inbox-deals' },
+  { id: 'publishing-queue', icon: Send, label: 'Publish', href: '/publishing-queue' },
   { id: 'memory', icon: Brain, label: 'Memory', href: '/memory' },
+  { id: 'memory-review', icon: ShieldCheck, label: 'Memory Review', href: '/memory-review' },
+  { id: 'approvals', icon: ShieldCheck, label: 'Gates', href: '/approvals' },
   { id: 'brief', icon: CalendarDays, label: 'Brief', href: '/brief' },
   { id: 'playbooks', icon: ClipboardList, label: 'Doctrine', href: '/playbooks' },
   { id: 'tasks', icon: KanbanSquare, label: 'Tasks', href: '/tasks' },
   { id: 'migrations', icon: Compass, label: 'Migrations', href: '/migrations' },
   { id: 'github', icon: Github, label: 'Repo', href: '/github' },
   { id: 'autopilot', icon: Cpu, label: 'Autopilot', href: '/autopilot' },
+  { id: 'launch', icon: Rocket, label: 'Launch', href: '/launch' },
 ] as const
+
+const ENGINE_ICONS: Record<AgentEngineId, typeof Sparkles> = {
+  bertos: Sparkles,
+  codex: Zap,
+  claude: Cpu,
+  gemini: Compass,
+  'gemini-native': Compass,
+  ollama: Bot,
+  hermes: Sparkles,
+  openclaw: Bot,
+  qwen: Bot,
+  openai: Zap,
+}
+
+const ENGINE_LOGOS: Partial<Record<AgentEngineId, string>> = {
+  codex: '/brand-icons/codex.svg',
+  claude: '/brand-icons/claude.svg',
+  gemini: '/brand-icons/gemini.svg',
+  ollama: '/brand-icons/ollama.svg',
+  hermes: '/brand-icons/hermes.svg',
+}
+
+const ENGINE_NAV_ITEMS = getPrimaryAgentEngines()
 
 interface SidebarProps {
   isMobile?: boolean
@@ -43,9 +84,12 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
   const { sidebarCollapsed, setSidebarCollapsed, activeView, setActiveView, setCommandPaletteOpen } = useUIStore()
   const { sessions, activeSessionId, setActiveSession, getOrCreateSession, deleteSession } = useChatStore()
   const { projects, activeProjectId, setActiveProject } = useProjectStore()
+  const { operatorName, xp, relayStreak } = useProgressionStore()
   const router = useRouter()
+  const pathname = usePathname()
   const [hoveredSession, setHoveredSession] = useState<string | null>(null)
   const collapsed = isMobile ? false : sidebarCollapsed
+  const rank = getRankProgress(xp)
 
   const navigate = (id: typeof NAV_ITEMS[number]['id'], href: string) => {
     setActiveView(id)
@@ -70,6 +114,60 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
     const hours = Math.floor(minutes / 60)
     return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`
   }
+  const renderEngineNav = (
+    <div className="space-y-0.5">
+      {!collapsed && (
+        <div className="flex items-center gap-2 px-2 pb-1.5 pt-1">
+          <span className="block h-px flex-1 bg-cyan-300/14" />
+          <p className="text-[9px] font-semibold uppercase tracking-[0.32em] text-cyan-100/55">Engines</p>
+          <span className="block h-px flex-1 bg-cyan-300/14" />
+        </div>
+      )}
+      {ENGINE_NAV_ITEMS.map(engine => {
+        const EngineIcon = ENGINE_ICONS[engine.id]
+        const isActive = pathname === engine.route || pathname.startsWith(`${engine.route}/`)
+        return (
+          <button
+            key={engine.id}
+            title={engine.label}
+            onClick={() => {
+              setActiveView('agents')
+              router.push(engine.route)
+              onMobileClose?.()
+            }}
+            className={cn(
+              'flex w-full items-center gap-2.5 rounded-lg border px-2 py-1.5 text-sm transition',
+              !isActive && 'hover:bg-white/5',
+              collapsed && 'justify-center',
+            )}
+            style={{
+              borderColor: isActive ? engine.theme.border : 'rgba(255,255,255,0.06)',
+              background: isActive ? engine.theme.surface2 : 'transparent',
+              color: isActive ? engine.theme.text : engine.theme.muted,
+              boxShadow: isActive ? `0 0 18px ${engine.theme.shadow}` : undefined,
+            }}
+          >
+            <span
+              className="grid h-5 w-5 shrink-0 place-items-center rounded-md border text-[9px] font-black"
+              style={{
+                borderColor: engine.theme.border,
+                background: `linear-gradient(135deg, ${engine.theme.accent}22, ${engine.theme.accent2}14)`,
+                color: engine.theme.accent,
+              }}
+            >
+              {ENGINE_LOGOS[engine.id] ? (
+                <img src={ENGINE_LOGOS[engine.id]} alt="" className="h-[18px] w-[18px] rounded-[4px]" />
+              ) : (
+                <EngineIcon className="h-3 w-3" />
+              )}
+            </span>
+            {!collapsed && <span className="text-xs font-medium">{engine.shortLabel}</span>}
+            {engine.paidGated && !collapsed && <span className="ml-auto rounded border px-1 py-0.5 text-[8px] uppercase" style={{ borderColor: engine.theme.border, color: engine.theme.accent }}>paid</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   const inner = (
     <>
@@ -84,15 +182,38 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
           <AnimatePresence>
             {!collapsed && (
               <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} className="min-w-0">
-                <p className="text-sm font-bold leading-none tracking-tight text-hermes-gradient">BertOS</p>
-                <p className="mt-1 text-[10px] uppercase tracking-[0.22em] text-[rgba(212,180,131,0.55)]">Imperium</p>
+                <p className="font-imperial text-imperial-gold text-base font-semibold leading-none tracking-[0.14em]">BERTOS</p>
+                <p className="font-imperial mt-1 text-[8px] uppercase tracking-[0.3em] text-[rgba(212,180,131,0.6)]">AI Operating System</p>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="shrink-0 border-b border-[rgba(212,180,131,0.10)] px-2 py-3">
+        {collapsed ? (
+          <div className="flex justify-center">
+            <OperatorSigil name={operatorName} rank={rank.current.title} size="sm" />
+          </div>
+        ) : (
+          <div className="rounded-xl border border-[rgba(212,180,131,0.16)] bg-[rgba(10,8,5,0.52)] p-3">
+            <div className="mb-3 flex items-center gap-3">
+              <OperatorSigil name={operatorName} rank={rank.current.title} size="sm" />
+              <div className="min-w-0">
+                <div className="truncate text-xs font-semibold text-[#F0E8D0]">{operatorName}</div>
+                <div className="text-[10px] uppercase tracking-[0.20em] text-[#D4B483]">{rank.current.title}</div>
+              </div>
+              <div className="ml-auto text-right text-[10px] text-[#6A5A3A]">
+                <div>{xp} XP</div>
+                <div>{relayStreak}d relay</div>
+              </div>
+            </div>
+            <XPMeter xp={xp} rank={rank.current.title} nextRank={rank.next.title} progress={rank.progress} compact />
+          </div>
+        )}
+      </div>
+
+      <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-3 px-2 py-3">
           <button
             title="Command Palette"
@@ -112,6 +233,8 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
             {!collapsed && <span>New oracle thread</span>}
           </button>
 
+          {renderEngineNav}
+
           <div className="space-y-0.5">
             {!collapsed && (
               <div className="flex items-center gap-2 px-2 pb-1.5">
@@ -121,7 +244,7 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
               </div>
             )}
             {NAV_ITEMS.map(item => {
-              const isActive = activeView === item.id
+              const isActive = activeView === item.id || pathname === item.href || pathname.startsWith(`${item.href}/`) || (item.id === 'coding' && pathname === '/builder')
               return (
                 <button
                   key={item.id}
@@ -199,12 +322,11 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
         <button
           title="Settings"
           onClick={() => { setActiveView('settings'); router.push('/settings'); onMobileClose?.() }}
-          className={cn('flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-xs transition', activeView === 'settings' ? 'bg-cyan-300/10 text-cyan-100' : 'text-zinc-500 hover:bg-white/5 hover:text-cyan-100', collapsed && 'justify-center')}
+          className={cn('flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-xs transition', activeView === 'settings' || pathname === '/settings' || pathname.startsWith('/settings/') ? 'bg-cyan-300/10 text-cyan-100' : 'text-zinc-500 hover:bg-white/5 hover:text-cyan-100', collapsed && 'justify-center')}
         >
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && <span>Settings</span>}
         </button>
-
         {!isMobile && (
           <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)} className={cn('flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-[10px] text-zinc-700 transition hover:bg-white/5 hover:text-zinc-500', collapsed ? 'justify-center' : 'justify-between')}>
             {!collapsed && <span>Collapse</span>}
@@ -216,16 +338,18 @@ export function Sidebar({ isMobile = false, onMobileClose }: SidebarProps) {
   )
 
   if (isMobile) {
-    return <div className="relative flex h-full w-full flex-col overflow-hidden border-r border-cyan-300/10 bg-slate-950/96">{inner}</div>
+    return <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-[rgba(246,196,83,0.16)] bg-[#05030A]/96">{inner}</div>
   }
 
   return (
     <motion.aside
       animate={{ width: sidebarCollapsed ? 58 : 248 }}
       transition={{ duration: 0.2, ease: 'easeInOut' }}
-      className="relative z-20 flex h-full shrink-0 flex-col overflow-hidden border-r border-cyan-300/10 bg-slate-950/78 backdrop-blur-xl"
+      className="relative z-20 flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-[rgba(246,196,83,0.16)] bg-[#05030A]/68 shadow-[18px_0_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl"
     >
       <div className="hermes-grid-fine pointer-events-none absolute inset-0 opacity-30" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-[rgba(246,196,83,0.50)] to-transparent" />
+      <div className="pointer-events-none absolute -left-20 top-20 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(103,232,249,0.14),transparent_65%)]" />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">{inner}</div>
     </motion.aside>
   )

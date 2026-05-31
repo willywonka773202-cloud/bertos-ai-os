@@ -35,7 +35,13 @@ const SAFE_ACTIONS = new Set<AutomationAction>([
 
 const APPROVAL_ONLY_ACTIONS = new Set<AutomationAction>([
   'create-agent-plan',
+  'create-visual-evolution-task',
   'create-workspace-debug-task',
+  'create-daily-brief-task',
+  'create-inbox-triage-task',
+  'create-weekly-review-task',
+  'create-content-pipeline-task',
+  'create-connector-setup-task',
 ])
 
 const DAEMON_DEPENDENT_ACTIONS = new Set<AutomationAction>([

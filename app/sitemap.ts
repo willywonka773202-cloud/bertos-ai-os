@@ -7,9 +7,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     '',
     '/chat',
+    '/hermes',
     '/workspace',
     '/evolution',
     '/agents',
+    '/skills',
+    '/plugins',
+    '/outputs',
+    '/runs',
+    '/studio',
+    '/publishing-queue',
+    '/memory-review',
+    '/launch',
     '/settings',
   ].map((path) => ({
     url: `${siteUrl}${path}`,

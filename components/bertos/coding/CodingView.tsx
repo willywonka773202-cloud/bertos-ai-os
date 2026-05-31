@@ -32,6 +32,7 @@ import type { MissionProvider } from '@/lib/bertos/missions'
 import { useDaemonHealth } from '@/hooks/useDaemonHealth'
 import { DaemonHealthBanner } from '@/components/bertos/shell/DaemonHealthBanner'
 import { SelfCodingSafetyContract } from '@/components/bertos/shared/SelfCodingSafetyContract'
+import { fetchLocalDaemonBridge } from '@/lib/bertos/browser-daemon'
 import {
   AGENT_ROSTER,
   TASK_TYPE_OPTIONS,
@@ -42,7 +43,8 @@ import {
   type CommandCenterTaskType,
 } from '@/lib/bertos/command-center'
 import { AGENT_TEAMS, buildAgentTeamPrompt, getAgentTeam, type AgentTeamId } from '@/lib/bertos/agent-teams'
-import { RouteHero } from '@/components/bertos/hermes'
+import { ChamberCard, RouteHero } from '@/components/bertos/hermes'
+import { useProgressionStore } from '@/store/bertos/progression'
 
 interface RepoStatus {
   online?: boolean
@@ -236,7 +238,7 @@ function buildCopyPrompt(mission: CodingMission, target: CopyPromptTarget, teamP
         : target === 'gemini'
           ? '- Focus on planning, context gaps, file discovery, and risk analysis.'
         : target === 'hermes'
-          ? '- Only use this if paid Hermes/Nous credits were explicitly approved. Do not assume free models are available.'
+          ? '- Use Hermes only through BertOS server-side routes. Ollama/local and custom free endpoints are supported; require approval for any risky tool or paid backend.'
           : target === 'fcc'
             ? '- Treat this as experimental. Official Claude Code remains the trusted provider.'
             : target === 'devin'
@@ -285,6 +287,7 @@ export function CodingView() {
   const [directCheckResults, setDirectCheckResults] = useState<Record<string, { ok: boolean; output: string; exitCode: number; durationMs: number }> | null>(null)
   const [runningDirectChecks, setRunningDirectChecks] = useState(false)
   const { health: daemonHealth, loading: daemonLoading, refresh: refreshDaemonHealth } = useDaemonHealth(30000)
+  const recordAction = useProgressionStore(s => s.recordAction)
 
   const template = useMemo(
     () => CODING_MISSION_TEMPLATES.find(item => item.id === templateId),
@@ -315,7 +318,7 @@ export function CodingView() {
 
   const refreshRepoStatus = async () => {
     try {
-      const res = await fetch('/api/local-daemon/repo/status', { cache: 'no-store' })
+      const res = await fetchLocalDaemonBridge('/api/local-daemon/repo/status', { cache: 'no-store' })
       const data = await res.json() as RepoStatus
       setRepoStatus(data)
     } catch (error) {
@@ -505,7 +508,7 @@ export function CodingView() {
               operation: file.operation === 'create' ? 'create' : 'write',
               content: file.after ?? '',
             }
-        const res = await fetch('/api/local-daemon/file', {
+        const res = await fetchLocalDaemonBridge('/api/local-daemon/file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
@@ -535,7 +538,7 @@ export function CodingView() {
         const config = VALIDATION_COMMANDS.get(command)
         if (!config) continue
         appendLog(`Running ${command}`)
-        const res = await fetch('/api/local-daemon/run', {
+        const res = await fetchLocalDaemonBridge('/api/local-daemon/run', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(config),
@@ -563,6 +566,7 @@ export function CodingView() {
       const data = await res.json() as { ok: boolean; results: typeof directCheckResults; summary: string }
       setDirectCheckResults(data.results)
       appendLog(data.summary ?? (data.ok ? 'Checks passed.' : 'Some checks failed.'))
+      if (data.ok) recordAction('validation-passed')
       // Refresh direct repo status after checks
       fetch('/api/bertos/repo/status', { cache: 'no-store' })
         .then(r => r.json()).then((d: DirectRepoStatus) => setDirectRepo(d)).catch(() => null)
@@ -600,8 +604,8 @@ export function CodingView() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <aside className="hidden w-72 shrink-0 border-r border-zinc-800/50 bg-zinc-950/70 md:block">
+    <div className="flex h-full min-h-0 overflow-hidden">
+      <aside className="hidden min-h-0 w-72 shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950/70 md:flex">
         <div className="border-b border-zinc-800/50 p-4">
           <div className="flex items-center gap-2">
             <Code2 className="h-4 w-4 text-violet-400" />
@@ -609,7 +613,7 @@ export function CodingView() {
           </div>
           <p className="mt-1 text-xs text-zinc-600">Mission compiler for large build prompts.</p>
         </div>
-        <ScrollArea className="h-[calc(100%-73px)]">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-4 p-3">
             <section className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -665,9 +669,9 @@ export function CodingView() {
               </div>
               <div className="space-y-1">
                 {history.length === 0 && (
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 text-[11px] text-zinc-600">
-                    Compiled missions will appear here.
-                  </div>
+                  <ChamberCard tone="zinc" className="p-0">
+                    <div className="text-[11px] text-zinc-600">Compiled missions will appear here after the first scoped dispatch.</div>
+                  </ChamberCard>
                 )}
                 {history.map(item => (
                   <button
@@ -694,8 +698,8 @@ export function CodingView() {
         </ScrollArea>
       </aside>
 
-      <main className="grid min-w-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="flex min-w-0 flex-col border-r border-zinc-800/50">
+      <main className="grid min-h-0 min-w-0 flex-1 grid-cols-1 overflow-hidden xl:grid-cols-[minmax(0,1fr)_420px]">
+        <section className="flex min-h-0 min-w-0 flex-col border-r border-zinc-800/50">
           <div className="border-b border-zinc-800/50 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -740,7 +744,7 @@ export function CodingView() {
             </div>
           </div>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-4 p-4">
               <RouteHero
                 eyebrow="engineering forge"
@@ -850,7 +854,7 @@ export function CodingView() {
                   </div>
                   <p className="text-xs leading-relaxed text-zinc-500">
                     Choose Recommended for BertOS routing, or force a provider when preparing a patch request.
-                    External agent target is currently {selectedAgent.name}; Hermes / Nous remains paid-gated.
+                    External agent target is currently {selectedAgent.name}; Hermes routes through the server-side connector when configured.
                   </p>
                 </div>
                 <select
@@ -953,6 +957,33 @@ export function CodingView() {
                       {mission.warnings.map(warning => <div key={warning}>• {warning}</div>)}
                     </div>
                   )}
+                  <div className="mt-3 rounded-lg border border-sky-500/20 bg-sky-500/5 p-3">
+                    <div className="mb-2 text-[10px] uppercase tracking-widest text-sky-300/80">Agent OS patterns applied</div>
+                    <div className="space-y-1 text-xs text-zinc-400">
+                      {mission.agentOSPatternSummary.map(pattern => <div key={pattern}>• {pattern}</div>)}
+                    </div>
+                  </div>
+                  {mission.orchestrationPlan && (
+                    <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-[10px] uppercase tracking-widest text-emerald-300/80">Orchestration plan</div>
+                        <div className="font-mono text-[10px] text-zinc-500">
+                          ~{mission.orchestrationPlan.estimatedPromptTokens.toLocaleString()} tokens · {mission.orchestrationPlan.tokenPolicy.contextStrategy}
+                        </div>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        {mission.orchestrationPlan.lanes.slice(0, 4).map(lane => (
+                          <div key={lane.id} className="rounded-md border border-zinc-800 bg-black/20 p-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-xs font-medium text-zinc-300">{lane.label}</span>
+                              <Badge variant={lane.risk === 'safe' ? 'success' : 'warning'} className="text-[9px]">{lane.provider}</Badge>
+                            </div>
+                            <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-zinc-500">{lane.purpose}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="mt-3 grid gap-3 lg:grid-cols-2">
                     <div>
                       <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-600">Likely files</div>
@@ -1031,7 +1062,7 @@ export function CodingView() {
         </section>
 
         <aside className="min-h-0 overflow-hidden bg-zinc-950/60">
-          <ScrollArea className="h-full">
+          <ScrollArea className="h-full min-h-0">
             <div className="space-y-4 p-4">
               <section className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">

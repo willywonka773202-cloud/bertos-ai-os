@@ -24,10 +24,13 @@ const MODEL_HINTS: Record<string, { icon: React.ReactNode; color: string; label:
   'claude-code':    { icon: <Cpu      className="w-3.5 h-3.5" />, color: '#8B5CF6', label: 'Claude Code'     },
   'gemini-cli':     { icon: <Globe    className="w-3.5 h-3.5" />, color: '#3B82F6', label: 'Gemini CLI'      },
   'codex-cli':      { icon: <Zap      className="w-3.5 h-3.5" />, color: '#10B981', label: 'Codex CLI'       },
+  'openclaw-cli':   { icon: <Bot      className="w-3.5 h-3.5" />, color: '#EF4444', label: 'OpenClaw'       },
   // Optional API providers
   'claude-api':     { icon: <Cpu      className="w-3.5 h-3.5" />, color: '#8B5CF6', label: 'Anthropic API'   },
   'openai-api':     { icon: <Zap      className="w-3.5 h-3.5" />, color: '#10B981', label: 'OpenAI API'      },
   'gemini-api':     { icon: <Globe    className="w-3.5 h-3.5" />, color: '#3B82F6', label: 'Gemini API'      },
+  'gemini-api-native': { icon: <Globe className="w-3.5 h-3.5" />, color: '#3B82F6', label: 'Gemini Native'   },
+  'hermes-nous':    { icon: <Bot      className="w-3.5 h-3.5" />, color: '#F6C453', label: 'Hermes Remote'   },
   // Local Ollama models
   'qwen2.5-coder':  { icon: <Bot      className="w-3.5 h-3.5" />, color: '#F97316', label: 'Qwen 2.5 Coder'  },
   llama3:           { icon: <Bot      className="w-3.5 h-3.5" />, color: '#F97316', label: 'Llama 3'          },
@@ -38,6 +41,14 @@ const MODEL_HINTS: Record<string, { icon: React.ReactNode; color: string; label:
 }
 
 const SLASH_COMMANDS = [
+  { cmd: '/youtube-researcher', desc: 'Ground scripts and hooks in YouTube sources' },
+  { cmd: '/second-brain', desc: 'Turn saved notes into source-linked ideas' },
+  { cmd: '/diagram', desc: 'Create a visual-first diagram spec' },
+  { cmd: '/paper-canvas', desc: 'Create an AI canvas or design board' },
+  { cmd: '/motion-graphics', desc: 'Plan motion scenes and video overlays' },
+  { cmd: '/gen-media', desc: 'Create Studio prompt cards or media assets' },
+  { cmd: '/brand-deal-manager', desc: 'Triage deal-flow with approval gates' },
+  { cmd: '/publishing-queue', desc: 'Draft local publishing queue items' },
   { cmd: '/compare', desc: 'Compare across all models' },
   { cmd: '/ask-all', desc: 'Ask all AI systems simultaneously' },
   { cmd: '/code', desc: 'Route to coding model' },
@@ -118,16 +129,16 @@ export function InputBar({ onSubmit, onStop, isStreaming, disabled }: InputBarPr
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8 }}
-            className="absolute bottom-full left-4 right-4 mb-2 rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl overflow-hidden"
+            className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl border border-[rgba(212,180,131,0.20)] bg-[#0A0806]/95 shadow-2xl backdrop-blur-xl"
           >
             {filteredCommands.map(cmd => (
               <button
                 key={cmd.cmd}
                 onClick={() => { setValue(cmd.cmd + ' '); setShowSlash(false); textareaRef.current?.focus() }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors text-left"
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[rgba(212,180,131,0.07)] transition-colors text-left"
               >
-                <span className="text-xs font-mono text-violet-400 font-semibold">{cmd.cmd}</span>
-                <span className="text-xs text-zinc-500">{cmd.desc}</span>
+                <span className="text-xs font-mono text-[#D4B483] font-semibold">{cmd.cmd}</span>
+                <span className="text-xs text-[#7A6A50]">{cmd.desc}</span>
               </button>
             ))}
           </motion.div>
@@ -144,7 +155,7 @@ export function InputBar({ onSubmit, onStop, isStreaming, disabled }: InputBarPr
             className="flex gap-2 flex-wrap mb-2"
           >
             {attachments.map((file, i) => (
-              <div key={i} className="flex items-center gap-1.5 rounded-lg bg-zinc-900 border border-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400">
+              <div key={i} className="flex items-center gap-1.5 rounded-lg border border-[rgba(212,180,131,0.16)] bg-[rgba(10,8,5,0.72)] px-2.5 py-1.5 text-xs text-[#8A7A5A]">
                 {file.type.startsWith('image/') ? (
                   <Image className="w-3.5 h-3.5 text-blue-400" />
                 ) : (
@@ -162,14 +173,14 @@ export function InputBar({ onSubmit, onStop, isStreaming, disabled }: InputBarPr
 
       {/* Main input container */}
       <div className={cn(
-        'relative flex items-end gap-2 rounded-2xl border bg-zinc-900/80 backdrop-blur-sm transition-all duration-200',
-        'border-zinc-800 focus-within:border-zinc-700 focus-within:shadow-[0_0_0_1px_rgba(139,92,246,0.2)]'
+        'relative flex items-end gap-2 rounded-2xl border bg-[rgba(10,8,5,0.78)] backdrop-blur-xl transition-all duration-200',
+        'border-[rgba(212,180,131,0.18)] focus-within:border-[rgba(212,180,131,0.42)] focus-within:shadow-[0_0_0_1px_rgba(212,180,131,0.14),0_0_34px_rgba(122,188,214,0.08)]'
       )}>
         {/* File attach */}
         <input ref={fileInputRef} type="file" multiple accept="image/*,.pdf,.txt,.md,.ts,.tsx,.js,.jsx,.py" className="hidden" onChange={handleFile} />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex-shrink-0 ml-3 mb-3 p-1.5 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-white/5 transition-all"
+          className="flex-shrink-0 ml-3 mb-3 p-1.5 rounded-lg text-[#5A4A2A] hover:text-[#D4B483] hover:bg-[rgba(212,180,131,0.06)] transition-all"
         >
           <Paperclip className="w-4 h-4" />
         </button>
@@ -183,7 +194,7 @@ export function InputBar({ onSubmit, onStop, isStreaming, disabled }: InputBarPr
           placeholder={`Message ${model.label}... (/ for commands, Shift+Enter for newline)`}
           disabled={disabled}
           rows={1}
-          className="flex-1 resize-none bg-transparent py-3 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none min-h-[44px] max-h-[200px] overflow-y-auto scrollbar-hide"
+          className="flex-1 resize-none bg-transparent py-3 text-sm text-[#F0E8D0] placeholder:text-[#5A4A2A] outline-none min-h-[44px] max-h-[200px] overflow-y-auto scrollbar-hide"
         />
 
         {/* Model indicator */}
@@ -215,8 +226,8 @@ export function InputBar({ onSubmit, onStop, isStreaming, disabled }: InputBarPr
               className={cn(
                 'w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-150',
                 value.trim()
-                  ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]'
-                  : 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                  ? 'border border-[rgba(212,180,131,0.38)] bg-[rgba(212,180,131,0.18)] text-[#F0E8D0] shadow-[0_0_18px_rgba(212,180,131,0.22)] hover:bg-[rgba(212,180,131,0.24)]'
+                  : 'bg-[rgba(60,48,32,0.40)] text-[#5A4A2A] cursor-not-allowed'
               )}
             >
               <Send className="w-3.5 h-3.5" />
@@ -225,8 +236,8 @@ export function InputBar({ onSubmit, onStop, isStreaming, disabled }: InputBarPr
         </div>
       </div>
 
-      <p className="text-center text-[10px] text-zinc-700 mt-2">
-        BertOS can make mistakes. Verify important information.
+      <p className="text-center text-[10px] text-[#5A4A2A] mt-2">
+        Hermes can misroute signals. Verify important information.
       </p>
     </div>
   )

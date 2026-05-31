@@ -9,20 +9,19 @@ import type {
   AutomationAction,
   AutomationRisk,
 } from '@/lib/bertos/types'
+import { STARTER_AUTOMATION_RULE_TEMPLATES } from '@/lib/bertos/automation/starters'
 
 // ─── Default rules ─────────────────────────────────────────────────────────
 
-const DEFAULT_RULES: AutomationRule[] = [
+const DEFAULT_RULE_TEMPLATES: Array<Omit<AutomationRule, 'createdAt' | 'updatedAt'>> = [
   {
     id: 'rule-provider-health',
     name: 'Provider Health Check',
-    description: 'Ping all configured providers and surface any that are offline.',
+    description: 'Ping all configured providers when Autopilot starts and surface any that are offline.',
     enabled: true,
-    trigger: 'manual',
+    trigger: 'app-start',
     actions: ['check-provider-health'],
     risk: 'safe',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   },
   {
     id: 'rule-project-build',
@@ -32,8 +31,6 @@ const DEFAULT_RULES: AutomationRule[] = [
     trigger: 'manual',
     actions: ['run-typecheck', 'run-build'],
     risk: 'safe',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   },
   {
     id: 'rule-git-status',
@@ -43,8 +40,26 @@ const DEFAULT_RULES: AutomationRule[] = [
     trigger: 'manual',
     actions: ['git-status', 'git-diff-stat'],
     risk: 'safe',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'rule-repo-watch',
+    name: 'Repo Change Watch',
+    description: 'Every 30 minutes, capture git status and diff stats through the daemon. It does not modify files.',
+    enabled: true,
+    trigger: 'interval',
+    actions: ['git-status', 'git-diff-stat'],
+    risk: 'safe',
+    schedule: { intervalMinutes: 30 },
+  },
+  {
+    id: 'rule-visual-evolution-loop',
+    name: 'Visual Evolution Loop',
+    description: 'Every 20 minutes, queue an approval-gated 3D/UI build mission for BertOS. It creates a scoped task and never applies code silently.',
+    enabled: true,
+    trigger: 'interval',
+    actions: ['create-visual-evolution-task'],
+    risk: 'approval-required',
+    schedule: { intervalMinutes: 20 },
   },
   {
     id: 'rule-daily-review',
@@ -55,8 +70,6 @@ const DEFAULT_RULES: AutomationRule[] = [
     actions: ['check-provider-health', 'git-status', 'create-project-health-report'],
     risk: 'safe',
     schedule: { timeOfDay: '09:00' },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   },
   {
     id: 'rule-build-failure-debug',
@@ -66,10 +79,18 @@ const DEFAULT_RULES: AutomationRule[] = [
     trigger: 'build-failed',
     actions: ['run-typecheck', 'create-agent-plan'],
     risk: 'approval-required',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
   },
+  ...STARTER_AUTOMATION_RULE_TEMPLATES,
 ]
+
+function buildDefaultRules(): AutomationRule[] {
+  const now = new Date().toISOString()
+  return DEFAULT_RULE_TEMPLATES.map(rule => ({
+    ...rule,
+    createdAt: now,
+    updatedAt: now,
+  }))
+}
 
 // ─── Store interface ────────────────────────────────────────────────────────
 
@@ -84,6 +105,7 @@ interface AutomationStore {
   updateRule: (id: string, updates: Partial<AutomationRule>) => void
   deleteRule: (id: string) => void
   toggleRule: (id: string) => void
+  ensureDefaultRules: () => void
 
   // Run management
   enqueueRun: (opts: {
@@ -123,7 +145,7 @@ interface AutomationStore {
 export const useAutomationStore = create<AutomationStore>()(
   persist(
     (set, get): AutomationStore => ({
-      rules: DEFAULT_RULES,
+      rules: buildDefaultRules(),
       runs: [],
       autopilotEnabled: false,
 
@@ -155,6 +177,13 @@ export const useAutomationStore = create<AutomationStore>()(
             r.id === id ? { ...r, enabled: !r.enabled, updatedAt: new Date().toISOString() } : r
           ),
         })),
+
+      ensureDefaultRules: () =>
+        set(state => {
+          const existingIds = new Set(state.rules.map(rule => rule.id))
+          const missing = buildDefaultRules().filter(rule => !existingIds.has(rule.id))
+          return missing.length ? { rules: [...state.rules, ...missing] } : {}
+        }),
 
       enqueueRun: ({ ruleId, title, trigger, actions, risk }) => {
         const runActions: AutomationRunAction[] = actions.map(a => ({

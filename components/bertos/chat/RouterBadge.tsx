@@ -99,6 +99,30 @@ export function RouterBadge({ decision }: RouterBadgeProps) {
                   <p className="text-zinc-300 font-medium capitalize">{decision.strategy}</p>
                 </div>
               </div>
+              {decision.orchestration && (
+                <div className="rounded-lg border border-zinc-800/70 bg-black/25 p-2 text-[11px]">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="font-medium text-zinc-300">Agent lanes</span>
+                    <span className="text-zinc-600">{decision.orchestration.maxParallelLanes} parallel max</span>
+                  </div>
+                  <div className="space-y-1">
+                    {decision.orchestration.lanes.slice(0, 4).map(lane => (
+                      <div key={lane.id} className="flex items-center justify-between gap-2">
+                        <span className="truncate text-zinc-500">{lane.label}</span>
+                        <span className={cn(
+                          'shrink-0 rounded px-1.5 py-0.5 text-[10px]',
+                          lane.risk === 'safe' ? 'bg-emerald-500/10 text-emerald-300' : 'bg-amber-500/10 text-amber-300',
+                        )}>
+                          {lane.provider}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 border-t border-zinc-800/60 pt-2 text-zinc-600">
+                    Tokens: ~{decision.orchestration.estimatedPromptTokens.toLocaleString()} · {decision.orchestration.tokenPolicy.contextStrategy}
+                  </div>
+                </div>
+              )}
               <p className="text-[11px] text-zinc-500 leading-relaxed border-t border-zinc-800/50 pt-2">
                 {decision.reasoning}
               </p>
