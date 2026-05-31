@@ -10,6 +10,7 @@ import { listPatchProposals } from './patches'
 import { buildWorkflowContent, type CodingWorkflowId } from './workflows'
 import { recordCodingRun } from './agent-runs'
 import { proposeCodingMemory } from './memory-bridge'
+import { buildMarkdownMemoryPack } from '../memory/registry'
 import {
   askMultipleProviders, selectProviderForMode, synthesizeProviderResponses,
   type ProviderRoutingMode, type ProviderRunLane,
@@ -168,7 +169,7 @@ export async function getAssistantProviderStatuses(): Promise<AssistantProviderS
   }
 }
 
-export async function buildGroundingContext(project: CodingProject): Promise<{ text: string; groundedIn: string[] }> {
+export async function buildGroundingContext(project: CodingProject, recallQuery?: string): Promise<{ text: string; groundedIn: string[] }> {
   const groundedIn: string[] = ['project metadata']
   const lines: string[] = [
     `Project: ${project.name} (${project.slug})`,
@@ -221,6 +222,24 @@ export async function buildGroundingContext(project: CodingProject): Promise<{ t
   if (openPatches.length) {
     groundedIn.push('patches')
     lines.push(`Pending patches: ${openPatches.map(p => `${p.title} (${p.status})`).join('; ')}`)
+  }
+
+  // ── Shared memory recall ──────────────────────────────────────────────────
+  // Pull the most relevant approved memories from the BertOS memory vault so every
+  // agent turn builds on prior knowledge instead of starting cold. This is the
+  // cross-agent "memory cloud": anything an agent learns and the user approves
+  // becomes recallable context for the next agent on a related task. Best-effort —
+  // recall never blocks an answer.
+  if (recallQuery && recallQuery.trim()) {
+    try {
+      const pack = await buildMarkdownMemoryPack({ query: recallQuery, project: project.slug, maxTokens: 1200 })
+      if (pack.text.trim() && pack.selectedItems.length) {
+        groundedIn.push('shared memory')
+        lines.push('', `## Recalled memory (${pack.selectedItems.length} relevant${pack.omittedCount ? `, ${pack.omittedCount} more omitted` : ''})`, pack.text.trim())
+      }
+    } catch {
+      // memory recall is best-effort; never let it break grounding
+    }
   }
 
   return { text: lines.filter(Boolean).join('\n'), groundedIn }
@@ -290,7 +309,7 @@ export async function runAssistant(input: RunAssistantInput): Promise<AssistantR
     }
   }
 
-  const { text: grounding, groundedIn } = await buildGroundingContext(project)
+  const { text: grounding, groundedIn } = await buildGroundingContext(project, message)
 
   let reply = ''
   let llmUsed = false
@@ -443,7 +462,7 @@ export async function runProviderCompare(input: { message: string; projectId?: s
   const onlineIds = providers.filter(p => p.online).map(p => p.providerId)
   const targets = (input.providerIds?.length ? input.providerIds : onlineIds).filter(id => onlineIds.includes(id))
 
-  const grounding = project ? (await buildGroundingContext(project)).text : 'No active project — answer generally.'
+  const grounding = project ? (await buildGroundingContext(project, message)).text : 'No active project — answer generally.'
   const prompt = buildPrompt('general', message, grounding)
 
   if (targets.length === 0) {
