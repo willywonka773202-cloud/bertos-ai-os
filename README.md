@@ -1,3 +1,13 @@
+# BertOS — historical prototype
+
+This repository preserves an earlier AI-workspace implementation. The current BERT AI work is a separate private local project. The legacy deployment and these instructions may differ from that current work.
+
+[Personal portfolio](https://will-lambert-portfolio.vercel.app) · [Project updates](https://will-lambert-portfolio.vercel.app/updates.html)
+
+---
+
+## Existing technical documentation
+
 # BertOS AI OS
 
 BertOS is a standalone AI command center for Ollama Pro, local CLI agents, project work, and future Hermes/Composio tool integrations.
