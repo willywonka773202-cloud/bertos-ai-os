@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bot, Plus, Play, Pause, CheckCircle2, XCircle,
   Clock, Activity, ChevronDown, ChevronUp, Cpu, Globe, Zap, Sparkles,
-  Trash2
+  Trash2, ExternalLink, AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/bertos/cn'
 import { useAgentStore } from '@/store/bertos/agents'
+import { EXTERNAL_AGENTS } from '@/lib/bertos/external-agents'
 import type { AgentTask, AIModel } from '@/lib/bertos/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -181,6 +182,80 @@ function TaskCard({ task }: { task: AgentTask }) {
   )
 }
 
+function DevinAgentCard() {
+  const devin = EXTERNAL_AGENTS.devin
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-3"
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center border border-indigo-500/30 bg-indigo-500/15">
+          <Sparkles className="w-4 h-4 text-indigo-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <h3 className="text-sm font-semibold text-zinc-200">{devin.name}</h3>
+            <Badge variant="devin" className="text-[9px] h-4 px-1.5">External Agent</Badge>
+            <Badge variant="warning" className="text-[9px] h-4 px-1.5">{devin.status === 'not-connected' ? 'Not Connected' : devin.status}</Badge>
+          </div>
+          <p className="text-xs text-zinc-500">{devin.type} — {devin.billing}</p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => setExpanded(!expanded)}>
+          {expanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </Button>
+      </div>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden space-y-3"
+          >
+            <p className="text-[11px] text-zinc-500">{devin.description}</p>
+
+            <div>
+              <p className="text-[10px] text-zinc-600 font-medium mb-1">Best use cases:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {devin.bestUse.map(use => (
+                  <span key={use} className="text-[10px] px-2 py-0.5 rounded-full border border-zinc-800 bg-zinc-900 text-zinc-400">
+                    {use}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              {devin.warnings.map(warning => (
+                <div key={warning} className="flex items-start gap-1.5 text-[10px] text-amber-400/80">
+                  <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                  <span>{warning}</span>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href={devin.docsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+              Devin documentation
+            </a>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
 export function AgentsView() {
   const { tasks, createTask } = useAgentStore()
   const [showTemplates, setShowTemplates] = useState(false)
@@ -308,6 +383,17 @@ export function AgentsView() {
       {/* Tasks list */}
       <ScrollArea className="flex-1">
         <div className="max-w-3xl mx-auto px-6 py-4 space-y-3">
+          {/* External Agents */}
+          <div className="space-y-2">
+            <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider">External Agents</p>
+            <DevinAgentCard />
+          </div>
+
+          {/* Task divider */}
+          <div className="border-t border-zinc-800/50 pt-3">
+            <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-wider mb-3">Tasks</p>
+          </div>
+
           {tasks.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Bot className="w-12 h-12 text-zinc-800 mb-4" />

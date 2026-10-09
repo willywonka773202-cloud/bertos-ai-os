@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getOllamaConfig } from '@/lib/bertos/runtime'
 import { fetchLocalDaemonStatus } from '@/lib/bertos/local-daemon'
 import { getComposioStatus } from '@/lib/tools/composio'
+import { getDevinStatus } from '@/lib/bertos/external-agents'
 
 export const runtime = 'nodejs'
 
@@ -30,6 +31,15 @@ export async function GET() {
       gemini: Boolean(process.env.GEMINI_API_KEY),
     },
     composio,
+    externalAgents: {
+      devin: {
+        id: 'devin',
+        name: 'Devin',
+        status: getDevinStatus(),
+        type: 'cloud-agent',
+        description: 'Cloud AI software engineer — generates PRs from scoped task prompts',
+      },
+    },
   }, {
     headers: { 'Cache-Control': 'no-store' },
   })
